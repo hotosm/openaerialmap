@@ -22,9 +22,22 @@ In reverse chronological order, with most recent events first.
 >         <div class="timeline-dot"></div>
 >     </div>
 >     <div class="timeline-entry">
+>         <div class="timeline-date">2023</div>
+>         <h3>Global Mosaic</h3>
+>         🗺️ Global mosaic layer is launched for OAM, developed
+>         by Kontur.
+>         <div class="timeline-dot"></div>
+>     </div>
+>     <div class="timeline-entry">
+>         <div class="timeline-date">2022</div>
+>         <h3>HOT x Kontur Collab</h3>
+>         🤝 HOT & Kontur collaborate to improve OAM.
+>         <div class="timeline-dot"></div>
+>     </div>
+>     <div class="timeline-entry">
 >         <div class="timeline-date">2015-11</div>
 >         <h3>First Version</h3>
->         🏁 First version of OAM released.
+>         🏁 First version of OAM released by HOT.
 >         <div class="timeline-dot"></div>
 >     </div>
 >     <div class="timeline-entry">
