@@ -11,7 +11,8 @@ In reverse chronological order, with most recent events first.
 >         <div class="timeline-date">2025-05</div>
 >         <h3>STAC based OpenAerialMap</h3>
 >         🚀 Complete overhaul of the OAM backend, in partnership with
->          DevelopmentSeed.
+>          DevelopmentSeed. OAM can now be globally federated /
+>          decentralised (providing data sovereignty for communities).
 >         <div class="timeline-dot"></div>
 >     </div>
 >     <div class="timeline-entry">
@@ -45,6 +46,7 @@ In reverse chronological order, with most recent events first.
 >         <h3>Pacific Drone Imagery Dashboard</h3>
 >         🏝️ PacDID was developed alongside communities to make drone imagery
 >         accessible via OAM.
+>         Details [here](https://www.hotosm.org/updates/2016-08-15_improving_resilience_with_aerial_imagery)
 >         <div class="timeline-dot"></div>
 >     </div>
 >     <div class="timeline-entry">
