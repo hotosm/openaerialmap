@@ -31,7 +31,20 @@ In reverse chronological order, with most recent events first.
 >     <div class="timeline-entry">
 >         <div class="timeline-date">2022</div>
 >         <h3>HOT x Kontur Collab</h3>
->         🤝 HOT & Kontur collaborate to improve OAM.
+>         🤝 HOT & Kontur collaborate to improve OAM (v2).
+>         <div class="timeline-dot"></div>
+>     </div>
+>     <div class="timeline-entry">
+>         <div class="timeline-date">2018</div>
+>         <h3>Uploader Improvements</h3>
+>         🚀 Big usability improvements to uploader and tiler for OAM.
+>         <div class="timeline-dot"></div>
+>     </div>
+>     <div class="timeline-entry">
+>         <div class="timeline-date">2017</div>
+>         <h3>Pacific Drone Imagery Dashboard</h3>
+>         🏝️ PacDID was developed alongside communities to make drone imagery
+>         accessible via OAM.
 >         <div class="timeline-dot"></div>
 >     </div>
 >     <div class="timeline-entry">
@@ -45,6 +58,12 @@ In reverse chronological order, with most recent events first.
 >         <h3>Initial Research & Concept</h3>
 >         🔬 OpenAerialMap & Open Imagery Network concept started.
 >         [More info here](https://www.elrha.org/news-blogs/openaerialmap-final-blog)
+>         <div class="timeline-dot"></div>
+>     </div>
+>     <div class="timeline-entry">
+>         <div class="timeline-date">2010</div>
+>         <h3>Imagery Used In Haiti</h3>
+>         ❤️ Imagery from OAM was used to assist the response in the Haiti earthquake.
 >         <div class="timeline-dot"></div>
 >     </div>
 >     <div class="timeline-entry">
