@@ -40,8 +40,28 @@ A revamp of OpenAerialMap, originally developed back in the 2010's.
   - [STAC API][4] deployment of eoAPI.
   - [STAC Extension][3] for OAM metadata requirements, data ingestion.
 - New Frontend: Hosted in this repo.
-- Old Frontend: <https://github.com/hotosm/oam-browser> (currently used as frontend)
+- Old Frontend: <https://github.com/hotosm/oam-browser> (currently used as
+  frontend + uploader)
 - Old API: <https://github.com/hotosm/oam-api> (currently used for login / upload)
+
+### Frontend Parts
+
+The frontend prototype was developed as part of the revamp deliverables.
+
+The idea has since morphed into [stac-map](https://github.com/developmentseed/stac-map).
+We should probably migrate to that and consolidate efforts within the community.
+
+Main parts:
+
+- Main OpenAerialMap landing page, with links to different parts and docs / info.
+- Documentation site with tutorials etc.
+- The uploader site. This should be HOT themed, with shared auth and consistent
+  look / style.
+- `stac-browser` for a catalog search from the backend STAC.
+- `stac-map` to display the global coverage pmtiles layer (giving indication of
+  where imagery is currently present), plus map-based search of the STAC once
+  the user zooms into their area of interest (+ filtering based on various
+  criteria).
 
 ## Contributing 👍🎉
 
