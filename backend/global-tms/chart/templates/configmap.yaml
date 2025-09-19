@@ -92,6 +92,30 @@ data:
             return 302 https://api.imagery.hotosm.org/raster/collections/openaerialmap/tiles/WebMercatorQuad/$zoom_level/$x/$y.png?assets=visual;
         }
 
+        # Friendly root page with info
+        location = / {
+            default_type text/html;
+            return 200 '
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                  <meta charset="UTF-8">
+                  <title>Tile Server</title>
+                  <style>
+                    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+                    h1 { color: #444; }
+                    code { background: #eee; padding: 0.2rem 0.4rem; border-radius: 4px; }
+                  </style>
+                </head>
+                <body>
+                  <h1>Tile Server</h1>
+                  <p>This server provides map tiles.</p>
+                  <p>Request tiles using the format: <code>/z/x/y.png</code></p>
+                  <p>Example: <a href="/0/0/0.png">/0/0/0.png</a></p>
+                </body>
+                </html>';
+        }
+
         location /health {
             access_log off;
             return 200 "healthy\n";

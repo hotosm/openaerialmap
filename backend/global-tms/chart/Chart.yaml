@@ -5,7 +5,7 @@ type: application
 icon: https://raw.githubusercontent.com/hotosm/openaerialmap/refs/heads/main/docs/images/favicon.svg
 
 # Chart version
-version: 0.1.0
+version: 0.1.1
 
 # App version
-appVersion: "0.1.0"
+appVersion: "0.1.1"
