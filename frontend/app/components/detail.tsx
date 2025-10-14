@@ -282,6 +282,12 @@ export default function Detail({
                     </a>
                   </td>
                 </tr>
+                <tr>
+                  <td style={{ padding: '8px 0', color: '#6c757d' }}>ID</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right' }}>
+                    {itemData.id}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
