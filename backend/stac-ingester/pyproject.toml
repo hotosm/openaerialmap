@@ -9,4 +9,4 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-stactools-hotosm = { git = "https://github.com/hotosm/stactools-hotosm", rev = "v0.2.0" }
+stactools-hotosm = { git = "https://github.com/hotosm/stactools-hotosm", rev = "v0.2.1" }

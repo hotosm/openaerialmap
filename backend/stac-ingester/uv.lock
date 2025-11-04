@@ -145,7 +145,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "stactools-hotosm", extras = ["ingest"], git = "https://github.com/hotosm/stactools-hotosm?rev=v0.2.0" }]
+requires-dist = [{ name = "stactools-hotosm", extras = ["ingest"], git = "https://github.com/hotosm/stactools-hotosm?rev=v0.2.1" }]
 
 [[package]]
 name = "hydraters"
@@ -661,8 +661,8 @@ wheels = [
 
 [[package]]
 name = "stactools-hotosm"
-version = "0.2.0"
-source = { git = "https://github.com/hotosm/stactools-hotosm?rev=v0.2.0#64a3a40fc9e693a0b079e315342b8400097bdaf4" }
+version = "0.2.1"
+source = { git = "https://github.com/hotosm/stactools-hotosm?rev=v0.2.1#61eaeefe07666ba2c499ddf5de0f8b2e77547000" }
 dependencies = [
     { name = "pystac", extra = ["validation"] },
     { name = "requests" },
