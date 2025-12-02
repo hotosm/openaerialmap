@@ -37,6 +37,8 @@ export class HankoAuth extends LitElement {
   @property({ type: Boolean, attribute: 'show-profile' }) showProfile = false;
   @property({ type: String, attribute: 'redirect-after-login' }) redirectAfterLogin = '';
   @property({ type: Boolean, attribute: 'auto-connect' }) autoConnect = false;
+  @property({ type: Boolean, attribute: 'verify-session' }) verifySession = false;
+  @property({ type: String, attribute: 'redirect-after-logout' }) redirectAfterLogout = '';
 
   // Internal state
   @state() private user: UserState | null = null;
@@ -527,6 +529,13 @@ export class HankoAuth extends LitElement {
 
         if (validateResponse.ok) {
           const sessionData = await validateResponse.json();
+
+          // Check if session is actually valid (endpoint returns 200 with is_valid:false when no session)
+          if (sessionData.is_valid === false) {
+            this.log('ℹ️ Session validation returned is_valid:false - no valid session');
+            return;
+          }
+
           this.log('✅ Valid Hanko session found via cookie');
           this.log('📋 Session data:', sessionData);
 
@@ -576,6 +585,19 @@ export class HankoAuth extends LitElement {
           }
 
           if (this.user) {
+            // If verify-session is enabled and we have a redirect URL,
+            // redirect to the callback so the app can verify the user mapping
+            // Use sessionStorage to avoid redirect loops
+            const verifyKey = `hanko-verified-${window.location.hostname}`;
+            const alreadyVerified = sessionStorage.getItem(verifyKey);
+
+            if (this.verifySession && this.redirectAfterLogin && !alreadyVerified) {
+              this.log('🔄 verify-session enabled, redirecting to callback for app verification...');
+              sessionStorage.setItem(verifyKey, 'true');
+              window.location.href = this.redirectAfterLogin;
+              return;
+            }
+
             this.dispatchEvent(new CustomEvent('hanko-login', {
               detail: { user: this.user },
               bubbles: true,
@@ -913,6 +935,11 @@ export class HankoAuth extends LitElement {
 
     this.log('🍪 Cookies cleared');
 
+    // Clear session verification flag so next login triggers verification
+    const verifyKey = `hanko-verified-${window.location.hostname}`;
+    sessionStorage.removeItem(verifyKey);
+    this.log('🔄 Session verification flag cleared');
+
     this.user = null;
     this.osmConnected = false;
     this.osmData = null;
@@ -923,8 +950,13 @@ export class HankoAuth extends LitElement {
     }));
 
     this.log('✅ Logout complete - component will re-render with updated state');
-    // Don't reload - let Lit's reactivity handle the re-render
-    // This allows the browser to process Set-Cookie headers from the disconnect response
+
+    // Redirect after logout if configured
+    if (this.redirectAfterLogout) {
+      this.log('🔄 Redirecting after logout to:', this.redirectAfterLogout);
+      window.location.href = this.redirectAfterLogout;
+    }
+    // Otherwise let Lit's reactivity handle the re-render
   }
 
   private async handleSessionExpired() {
@@ -971,14 +1003,25 @@ export class HankoAuth extends LitElement {
 
     console.log('🍪 Cookies cleared after session expiration');
 
+    // Clear session verification flag so next login triggers verification
+    const verifyKey = `hanko-verified-${window.location.hostname}`;
+    sessionStorage.removeItem(verifyKey);
+    console.log('🔄 Session verification flag cleared');
+
     // Dispatch logout event
     this.dispatchEvent(new CustomEvent('logout', {
       bubbles: true,
       composed: true
     }));
 
-    // Component will re-render and show login button
-    console.log('✅ Session cleanup complete - component will show login');
+    console.log('✅ Session cleanup complete');
+
+    // Redirect after session expired if configured
+    if (this.redirectAfterLogout) {
+      console.log('🔄 Redirecting after session expired to:', this.redirectAfterLogout);
+      window.location.href = this.redirectAfterLogout;
+    }
+    // Otherwise component will re-render and show login button
   }
 
   private handleUserLoggedOut() {

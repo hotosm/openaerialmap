@@ -356,6 +356,7 @@ export default function Sidebar({
 
   const hankoUrl = import.meta.env.VITE_HANKO_URL || 'https://login.hotosm.test';
   const loginServiceUrl = import.meta.env.VITE_LOGIN_URL || 'https://login.hotosm.test';
+  const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
 
   return (
     <div
@@ -388,9 +389,9 @@ export default function Sidebar({
         </h2>
         <hotosm-auth
           hanko-url={hankoUrl}
-          auth-service-url={loginServiceUrl}
-          show-profile={false}
-          redirect-url="https://openaerialmap.hotosm.test"
+          base-path={loginServiceUrl}
+          redirect-after-login={frontendUrl}
+          redirect-after-logout="/"
         />
       </div>
 
