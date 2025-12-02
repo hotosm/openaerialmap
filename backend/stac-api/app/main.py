@@ -155,6 +155,30 @@ if "collection_search" in enabled_extensions:
 async def lifespan(app: FastAPI):
     """FastAPI Lifespan."""
     await connect_to_db(app)
+
+    # Initialize Hanko auth if enabled
+    if settings.auth_provider == "hanko":
+        try:
+            from hotosm_auth import AuthConfig
+            from hotosm_auth.integrations.fastapi import init_auth
+
+            auth_config = AuthConfig(
+                HANKO_API_URL=settings.hanko_api_url,
+                JWT_ISSUER=settings.jwt_issuer,
+                COOKIE_SECRET=settings.cookie_secret,
+                COOKIE_DOMAIN=settings.cookie_domain,
+                COOKIE_SECURE=settings.cookie_secure,
+                COOKIE_SAMESITE=settings.cookie_samesite,
+                OSM_CLIENT_ID=settings.osm_client_id,
+                OSM_CLIENT_SECRET=settings.osm_client_secret,
+            )
+            init_auth(auth_config)
+            print("✅ Hanko auth initialized")
+        except ImportError:
+            print("⚠️ hotosm_auth not available - auth disabled")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize auth: {e}")
+
     yield
     await close_db_connection(app)
 
@@ -189,6 +213,9 @@ api = StacApi(
     ],
 )
 app = api.app
+
+# Note: OSM OAuth routes are centralized in Login service at https://login.hotosm.test/api/auth/osm
+# Frontend will call Login service directly for OSM operations
 
 
 def run():

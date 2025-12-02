@@ -13,6 +13,7 @@ import '@awesome.me/webawesome/dist/components/input/input.js';
 
 import { useEffect, useState } from 'react';
 import { useStac } from '../context/StacContext';
+import { useAuth } from '../context/AuthContext';
 import { StacFeatureCollection } from '../types/stac';
 
 function CollectionDropdown() {
@@ -353,6 +354,9 @@ export default function Sidebar({
     setSelectedItem
   } = useStac();
 
+  const hankoUrl = import.meta.env.VITE_HANKO_URL || 'https://login.hotosm.test';
+  const loginServiceUrl = import.meta.env.VITE_LOGIN_URL || 'https://login.hotosm.test';
+
   return (
     <div
       style={{
@@ -365,15 +369,30 @@ export default function Sidebar({
         borderRight: '1px solid #e2e8f0'
       }}
     >
-      <h2
+      <div
         style={{
-          fontSize: '1.25rem',
-          fontWeight: 'bold',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '1rem'
         }}
       >
-        OpenAerialMap STAC Catalog
-      </h2>
+        <h2
+          style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            margin: 0
+          }}
+        >
+          OpenAerialMap
+        </h2>
+        <hotosm-auth
+          hanko-url={hankoUrl}
+          auth-service-url={loginServiceUrl}
+          show-profile={false}
+          redirect-url="https://openaerialmap.hotosm.test"
+        />
+      </div>
 
       {isStacCollectionLoading && <wa-spinner />}
 

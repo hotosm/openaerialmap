@@ -6,4 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "stac-fastapi-pgstac[server]~=5.0.2",
+    "hotosm-auth",
 ]
+
+[tool.uv.sources]
+hotosm-auth = { path = "auth-libs/dist/hotosm_auth-0.1.0-py3-none-any.whl" }

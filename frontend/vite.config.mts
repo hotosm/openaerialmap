@@ -9,7 +9,11 @@ export default defineConfig({
   base: '/',
   envDir: '../',
   server: {
-    port: 9000
+    port: 9000,
+    allowedHosts: [
+      'openaerialmap.hotosm.test',
+      '.hotosm.test'
+    ]
   },
   plugins: [react(), vitePortScanner()],
   resolve: {

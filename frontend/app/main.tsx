@@ -14,6 +14,16 @@ import { createRoot } from 'react-dom/client';
 import MapComponent from './components/map';
 import Sidebar from './components/sidebar';
 import { StacProvider } from './context/StacContext';
+import { AuthProvider } from './context/AuthContext';
+
+// Import Web Awesome components needed by hanko-auth web component
+import '@awesome.me/webawesome/dist/components/dropdown/dropdown.js';
+import '@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js';
+import '@awesome.me/webawesome/dist/components/button/button.js';
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+
+// Import auth-libs web component
+import '../auth-libs/web-component/dist/hanko-auth.esm.js';
 
 // If using a router add the public url to the base path.
 // const publicUrl = process.env.BASE_URL || '';
@@ -26,7 +36,9 @@ const queryClient = new QueryClient();
 function Root() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

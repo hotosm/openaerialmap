@@ -14,6 +14,7 @@ declare module 'react' {
       'wa-dialog': any;
       'wa-copy-button': any;
       'wa-icon': any;
+      'hotosm-auth': any;
     }
   }
 }
