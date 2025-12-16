@@ -26,7 +26,7 @@
   "author": "HOTOSM",
   "license": "AGPL-3.0",
   "dependencies": {
-    "@awesome.me/webawesome": "3.0.0-beta.6",
+    "@awesome.me/webawesome": "3.0.0-beta.1",
     "@teamhanko/hanko-elements": "^1.0.0",
     "lit": "^3.3.1"
   },
