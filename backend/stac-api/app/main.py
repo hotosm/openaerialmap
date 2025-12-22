@@ -162,16 +162,7 @@ async def lifespan(app: FastAPI):
             from hotosm_auth import AuthConfig
             from hotosm_auth.integrations.fastapi import init_auth
 
-            auth_config = AuthConfig(
-                HANKO_API_URL=settings.hanko_api_url,
-                JWT_ISSUER=settings.jwt_issuer,
-                COOKIE_SECRET=settings.cookie_secret,
-                COOKIE_DOMAIN=settings.cookie_domain,
-                COOKIE_SECURE=settings.cookie_secure,
-                COOKIE_SAMESITE=settings.cookie_samesite,
-                OSM_CLIENT_ID=settings.osm_client_id,
-                OSM_CLIENT_SECRET=settings.osm_client_secret,
-            )
+            auth_config = AuthConfig.from_env()
             init_auth(auth_config)
             print("✅ Hanko auth initialized")
         except ImportError:
