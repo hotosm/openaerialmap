@@ -345,10 +345,24 @@ export class HankoAuth extends LitElement {
     super.connectedCallback();
     this._debugMode = this._checkDebugMode();
     this.log("🔌 hanko-auth connectedCallback called");
-    this.log("  hankoUrl:", this.hankoUrl);
 
     // Register this instance
     sharedAuth.instances.add(this);
+
+    // Listen for page visibility changes to re-check session
+    // This handles the case where user logs in on /login and comes back
+    document.addEventListener("visibilitychange", this._handleVisibilityChange);
+    window.addEventListener("focus", this._handleWindowFocus);
+
+    // Listen for login events from other components (e.g., login page)
+    document.addEventListener("hanko-login", this._handleExternalLogin);
+  }
+
+  // Use firstUpdated instead of connectedCallback to ensure React props are set
+  firstUpdated() {
+    this.log("🔌 hanko-auth firstUpdated called");
+    this.log("  hankoUrl:", this.hankoUrl);
+    this.log("  basePath:", this.basePath);
 
     // If already initialized by another instance, sync state and skip init
     if (sharedAuth.initialized) {
@@ -362,14 +376,6 @@ export class HankoAuth extends LitElement {
       sharedAuth.primary = this;
       this.init();
     }
-
-    // Listen for page visibility changes to re-check session
-    // This handles the case where user logs in on /login and comes back
-    document.addEventListener("visibilitychange", this._handleVisibilityChange);
-    window.addEventListener("focus", this._handleWindowFocus);
-
-    // Listen for login events from other components (e.g., login page)
-    document.addEventListener("hanko-login", this._handleExternalLogin);
   }
 
   disconnectedCallback() {
