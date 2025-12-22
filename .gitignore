@@ -69,6 +69,7 @@ temp
 tmp
 .tmp
 dist
+!frontend/auth-libs/**/dist/
 parcel-bundle-reports
 **/.claude/settings.local.json
 .env
