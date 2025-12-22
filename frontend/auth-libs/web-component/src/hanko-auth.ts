@@ -482,10 +482,10 @@ export class HankoAuth extends LitElement {
   }
 
   private getBasePath(): string {
-    // If base-path attribute is explicitly set (even if empty string), use it
-    if (this.hasAttribute("base-path")) {
-      this.log("🔍 getBasePath() using attribute:", this.basePath);
-      return this.basePath || "";
+    // Use basePath property directly (works with both attribute and React props)
+    if (this.basePath) {
+      this.log("🔍 getBasePath() using basePath:", this.basePath);
+      return this.basePath;
     }
 
     // For single-page apps (like Portal), default to empty base path
