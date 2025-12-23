@@ -1,1 +1,3 @@
-*
+# Keep wheel files
+!*.whl
+!*.tar.gz
