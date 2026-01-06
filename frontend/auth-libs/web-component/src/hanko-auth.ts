@@ -995,17 +995,11 @@ export class HankoAuth extends LitElement {
         })
       );
 
-      if (this.redirectAfterLogin && this.showProfile) {
+      if (this.redirectAfterLogin) {
         console.log("✅ Redirecting to:", this.redirectAfterLogin);
         window.location.href = this.redirectAfterLogin;
       } else {
-        console.log(
-          "❌ No redirect (redirectAfterLogin:",
-          this.redirectAfterLogin,
-          "showProfile:",
-          this.showProfile,
-          ")"
-        );
+        console.log("❌ No redirect (redirectAfterLogin not set)");
       }
     } else {
       console.log("⏸️ Waiting for OSM connection before redirect");

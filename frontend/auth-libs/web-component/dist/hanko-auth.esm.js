@@ -4377,13 +4377,7 @@ let je = class extends Ut {
         bubbles: !0,
         composed: !0
       })
-    ), this.redirectAfterLogin && this.showProfile ? (console.log("✅ Redirecting to:", this.redirectAfterLogin), window.location.href = this.redirectAfterLogin) : console.log(
-      "❌ No redirect (redirectAfterLogin:",
-      this.redirectAfterLogin,
-      "showProfile:",
-      this.showProfile,
-      ")"
-    )) : console.log("⏸️ Waiting for OSM connection before redirect");
+    ), this.redirectAfterLogin ? (console.log("✅ Redirecting to:", this.redirectAfterLogin), window.location.href = this.redirectAfterLogin) : console.log("❌ No redirect (redirectAfterLogin not set)")) : console.log("⏸️ Waiting for OSM connection before redirect");
   }
   async handleOSMConnect() {
     const n = this.osmScopes.split(" ").join("+"), e = this.getBasePath(), t = this.authPath, i = `${`${e}${t}/login`}?scopes=${n}`;
