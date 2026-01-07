@@ -10,4 +10,4 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-hotosm-auth = { path = "auth-libs/dist/hotosm_auth-0.1.5-py3-none-any.whl" }
+hotosm-auth = { path = "auth-libs/dist/hotosm_auth-0.1.8-py3-none-any.whl" }

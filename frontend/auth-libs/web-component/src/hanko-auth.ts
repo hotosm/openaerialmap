@@ -55,6 +55,8 @@ export class HankoAuth extends LitElement {
     false;
   @property({ type: String, attribute: "redirect-after-logout" })
   redirectAfterLogout = "";
+  @property({ type: String, attribute: "display-name" })
+  displayNameAttr = "";
 
   // Internal state
   @state() private user: UserState | null = null;
@@ -63,6 +65,7 @@ export class HankoAuth extends LitElement {
   @state() private osmLoading = false;
   @state() private loading = true;
   @state() private error: string | null = null;
+  @state() private profileDisplayName: string = "";
 
   // Private fields
   private _trailingSlashCache: Record<string, boolean> = {};
@@ -599,6 +602,7 @@ export class HankoAuth extends LitElement {
 
       await this.checkSession();
       await this.checkOSMConnection();
+      await this.fetchProfileDisplayName();
       this.loading = false;
 
       // Mark as initialized and broadcast to other instances
@@ -736,6 +740,8 @@ export class HankoAuth extends LitElement {
 
             // Also check if we need to auto-connect to OSM
             await this.checkOSMConnection();
+            // Fetch profile display name
+            await this.fetchProfileDisplayName();
             if (this.osmRequired && this.autoConnect && !this.osmConnected) {
               console.log(
                 "🔄 Auto-connecting to OSM (from existing session)..."
@@ -876,6 +882,30 @@ export class HankoAuth extends LitElement {
     }
   }
 
+  // Fetch profile display name from login backend
+  private async fetchProfileDisplayName() {
+    try {
+      const profileUrl = `${this.hankoUrl}/api/profile/me`;
+      this.log("👤 Fetching profile from:", profileUrl);
+
+      const response = await fetch(profileUrl, {
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const profile = await response.json();
+        this.log("👤 Profile data:", profile);
+
+        if (profile.first_name || profile.last_name) {
+          this.profileDisplayName = `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
+          this.log("👤 Display name set to:", this.profileDisplayName);
+        }
+      }
+    } catch (error) {
+      this.log("⚠️ Could not fetch profile:", error);
+    }
+  }
+
   private setupEventListeners() {
     // Use updateComplete to ensure DOM is ready
     this.updateComplete.then(() => {
@@ -913,14 +943,25 @@ export class HankoAuth extends LitElement {
     }
 
     // Try to get user info from /me endpoint first (preferred)
+    // If that fails (e.g., NetworkError on first cross-origin request with mkcert),
+    // fall back to the Hanko SDK method
+    let userInfoRetrieved = false;
+
     try {
+      // Use AbortController with 5 second timeout to fail fast on connection issues
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const meResponse = await fetch(`${this.hankoUrl}/me`, {
         method: "GET",
         credentials: "include", // Include httpOnly cookies
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (meResponse.ok) {
         const userData = await meResponse.json();
@@ -932,22 +973,60 @@ export class HankoAuth extends LitElement {
           username: userData.username || null,
           emailVerified: false,
         };
+        userInfoRetrieved = true;
       } else {
-        this.log("⚠️ /me endpoint failed, trying SDK fallback");
-        // Fallback to SDK method
-        const user = await this._hanko.user.getCurrent();
+        this.log("⚠️ /me endpoint returned non-OK status, will try SDK fallback");
+      }
+    } catch (error) {
+      // NetworkError or timeout on cross-origin fetch is common with mkcert certs
+      this.log("⚠️ /me endpoint fetch failed (timeout or cross-origin TLS issue):", error);
+    }
+
+    // Fallback to SDK method if /me didn't work
+    if (!userInfoRetrieved) {
+      try {
+        this.log("🔄 Trying SDK fallback for user info...");
+        // Add timeout to SDK call in case it hangs
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("SDK timeout")), 5000)
+        );
+        const user = await Promise.race([
+          this._hanko.user.getCurrent(),
+          timeoutPromise,
+        ]) as any;
         this.user = {
           id: user.id,
           email: user.email,
           username: user.username,
           emailVerified: user.email_verified || false,
         };
+        userInfoRetrieved = true;
+        this.log("✅ User info retrieved via SDK fallback");
+      } catch (sdkError) {
+        this.log("⚠️ SDK fallback failed, trying JWT claims:", sdkError);
+        // Last resort: extract user info from JWT claims in the event
+        try {
+          const claims = event.detail?.claims;
+          if (claims?.sub) {
+            this.user = {
+              id: claims.sub,
+              email: claims.email || null,
+              username: null,
+              emailVerified: claims.email_verified || false,
+            };
+            userInfoRetrieved = true;
+            this.log("✅ User info extracted from JWT claims");
+          } else {
+            console.error("No user claims available in event");
+            this.user = null;
+            return;
+          }
+        } catch (claimsError) {
+          console.error("Failed to extract user info from claims:", claimsError);
+          this.user = null;
+          return;
+        }
       }
-    } catch (error) {
-      console.error("Failed to fetch user info:", error);
-      // If both fail, we can't get user data
-      this.user = null;
-      return;
     }
 
     this.log("✅ User state updated:", this.user);
@@ -967,6 +1046,8 @@ export class HankoAuth extends LitElement {
 
     // Check OSM connection before deciding redirect
     await this.checkOSMConnection();
+    // Fetch profile display name
+    await this.fetchProfileDisplayName();
 
     // Auto-connect to OSM if required and auto-connect is enabled
     if (this.osmRequired && this.autoConnect && !this.osmConnected) {
@@ -1229,7 +1310,9 @@ export class HankoAuth extends LitElement {
     this.log("🎯 Dropdown item selected:", selectedValue);
 
     if (selectedValue === "profile") {
-      window.location.href = "/profile";
+      // Profile page lives on the login site
+      const baseUrl = this.hankoUrl;
+      window.location.href = `${baseUrl}/app/profile`;
     } else if (selectedValue === "connect-osm") {
       // Smart return_to: if already on a login page, redirect to home instead
       const currentPath = window.location.pathname;
@@ -1284,7 +1367,7 @@ export class HankoAuth extends LitElement {
       // User is logged in
       const needsOSM =
         this.osmRequired && !this.osmConnected && !this.osmLoading;
-      const displayName = this.user.username || this.user.email || this.user.id;
+      const displayName = this.displayNameAttr || this.profileDisplayName || this.user.username || this.user.email || this.user.id;
       const initial = displayName ? displayName[0].toUpperCase() : "U";
 
       if (this.showProfile) {
@@ -1296,7 +1379,7 @@ export class HankoAuth extends LitElement {
                 <div class="profile-avatar">${initial}</div>
                 <div class="profile-info">
                   <div class="profile-name">
-                    ${this.user.username || this.user.email || "User"}
+                    ${displayName}
                   </div>
                   <div class="profile-email">
                     ${this.user.email || this.user.id}
@@ -1400,7 +1483,7 @@ export class HankoAuth extends LitElement {
                 : ""}
             </wa-button>
             <div class="profile-info">
-              <div class="profile-name">${this.user.username || "User"}</div>
+              <div class="profile-name">${displayName}</div>
               <div class="profile-email">
                 ${this.user.email || this.user.id}
               </div>
