@@ -331,8 +331,8 @@ wheels = [
 
 [[package]]
 name = "hotosm-auth"
-version = "0.1.5"
-source = { path = "auth-libs/dist/hotosm_auth-0.1.5-py3-none-any.whl" }
+version = "0.1.8"
+source = { git = "https://github.com/LawalCoop/hot-auth-libs.git?subdirectory=python&rev=v0.1.8#166a7a49bf9520961c2bb83d8f90b04e37bfaa3b" }
 dependencies = [
     { name = "cryptography" },
     { name = "httpx" },
@@ -340,27 +340,6 @@ dependencies = [
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-dateutil" },
 ]
-wheels = [
-    { filename = "hotosm_auth-0.1.5-py3-none-any.whl", hash = "sha256:f3b9172efc0890388819b4782550d75cbf1e11aa33d1f4aaccb197b3d61015b5" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "cryptography", specifier = ">=41.0.0" },
-    { name = "django", marker = "extra == 'django'", specifier = ">=4.2.0" },
-    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.104.0" },
-    { name = "httpx", specifier = ">=0.25.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.5.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
-    { name = "python-dateutil", specifier = ">=2.8.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-]
-provides-extras = ["dev", "django", "fastapi"]
 
 [[package]]
 name = "hotosm-stac-api"
@@ -373,7 +352,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "hotosm-auth", path = "auth-libs/dist/hotosm_auth-0.1.5-py3-none-any.whl" },
+    { name = "hotosm-auth", git = "https://github.com/LawalCoop/hot-auth-libs.git?subdirectory=python&rev=v0.1.8" },
     { name = "stac-fastapi-pgstac", extras = ["server"], specifier = "~=5.0.2" },
 ]
 
