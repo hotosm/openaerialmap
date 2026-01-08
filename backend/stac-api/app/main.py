@@ -160,7 +160,7 @@ async def lifespan(app: FastAPI):
     if settings.auth_provider == "hanko":
         try:
             from hotosm_auth import AuthConfig
-            from hotosm_auth.integrations.fastapi import init_auth
+            from hotosm_auth_fastapi import init_auth
 
             auth_config = AuthConfig.from_env()
             init_auth(auth_config)

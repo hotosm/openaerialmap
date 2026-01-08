@@ -1,6 +1,6 @@
 {
   "name": "@hotosm/hanko-auth",
-  "version": "0.1.11",
+  "version": "0.2.0",
   "description": "Web component for HOTOSM SSO authentication with Hanko and OSM integration",
   "main": "dist/hanko-auth.js",
   "module": "dist/hanko-auth.esm.js",

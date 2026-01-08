@@ -77,8 +77,8 @@ export class HankoAuth extends LitElement {
   @state() private hasAppMapping = false; // True if user has mapping in the app
 
   // Private fields
+  private _trailingSlashCache: Record<string, boolean> = {};
   private _debugMode = false;
-  private _sessionJWT: string | null = null;
   private _lastSessionId: string | null = null;
   private _hanko: any = null;
   private _isPrimary = false; // Is this the primary instance?
@@ -744,32 +744,6 @@ export class HankoAuth extends LitElement {
     }
   }
 
-  private async syncJWTToCookie() {
-    try {
-      const jwt = this._sessionJWT;
-
-      if (jwt) {
-        const hostname = window.location.hostname;
-        const isLocalhost =
-          hostname === "localhost" || hostname === "127.0.0.1";
-        const domainPart = isLocalhost
-          ? `; domain=${hostname}`
-          : `; domain=.hotosm.org`;
-
-        document.cookie = `hanko=${jwt}; path=/${domainPart}; max-age=86400; SameSite=Lax; Secure`;
-        this.log(
-          `🔐 JWT synced to cookie for SSO${
-            isLocalhost ? ` (domain=${hostname})` : " (domain=.hotosm.org)"
-          }`
-        );
-      } else {
-        this.log("⚠️ No JWT found in session event");
-      }
-    } catch (error) {
-      this.logError("Failed to sync JWT to cookie:", error);
-    }
-  }
-
   private async checkOSMConnection() {
     if (this.osmConnected) {
       this.log("⏭️ Already connected to OSM, skipping check");
@@ -977,8 +951,6 @@ export class HankoAuth extends LitElement {
 
   private async handleHankoSuccess(event: any) {
     this.log("Hanko auth success:", event.detail);
-
-    this._sessionJWT = event.detail?.jwt || null;
 
     if (!this._hanko) {
       this.logError("Hanko instance not initialized");
