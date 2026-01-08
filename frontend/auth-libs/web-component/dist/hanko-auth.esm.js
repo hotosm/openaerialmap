@@ -3,7 +3,7 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const sn = globalThis, Qn = sn.ShadowRoot && (sn.ShadyCSS === void 0 || sn.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Yn = Symbol(), wo = /* @__PURE__ */ new WeakMap();
+const sn = globalThis, Gn = sn.ShadowRoot && (sn.ShadyCSS === void 0 || sn.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Yn = Symbol(), wo = /* @__PURE__ */ new WeakMap();
 let oi = class {
   constructor(e, t, o) {
     if (this._$cssResult$ = !0, o !== Yn) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -12,7 +12,7 @@ let oi = class {
   get styleSheet() {
     let e = this.o;
     const t = this.t;
-    if (Qn && e === void 0) {
+    if (Gn && e === void 0) {
       const o = t !== void 0 && t.length === 1;
       o && (e = wo.get(t)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), o && wo.set(t, e));
     }
@@ -30,12 +30,12 @@ const Ri = (n) => new oi(typeof n == "string" ? n : n + "", void 0, Yn), Wi = (n
   })(i) + n[s + 1], n[0]);
   return new oi(t, n, Yn);
 }, qi = (n, e) => {
-  if (Qn) n.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
+  if (Gn) n.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
   else for (const t of e) {
     const o = document.createElement("style"), i = sn.litNonce;
     i !== void 0 && o.setAttribute("nonce", i), o.textContent = t.cssText, n.appendChild(o);
   }
-}, xo = Qn ? (n) => n : (n) => n instanceof CSSStyleSheet ? ((e) => {
+}, xo = Gn ? (n) => n : (n) => n instanceof CSSStyleSheet ? ((e) => {
   let t = "";
   for (const o of e.cssRules) t += o.cssText;
   return Ri(t);
@@ -284,7 +284,7 @@ pt.elementStyles = [], pt.shadowRootOptions = { mode: "open" }, pt[Tt("elementPr
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Nt = globalThis, gn = Nt.trustedTypes, Ao = gn ? gn.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, ii = "$lit$", st = `lit$${Math.random().toFixed(9).slice(2)}$`, si = "?" + st, Gi = `<${si}>`, ut = document, Mt = () => ut.createComment(""), Ht = (n) => n === null || typeof n != "object" && typeof n != "function", eo = Array.isArray, Qi = (n) => eo(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", $n = `[ 	
+const Nt = globalThis, gn = Nt.trustedTypes, Ao = gn ? gn.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, ii = "$lit$", st = `lit$${Math.random().toFixed(9).slice(2)}$`, si = "?" + st, Qi = `<${si}>`, ut = document, Mt = () => ut.createComment(""), Ht = (n) => n === null || typeof n != "object" && typeof n != "function", eo = Array.isArray, Gi = (n) => eo(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", $n = `[ 	
 \f\r]`, yt = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Oo = /-->/g, Po = />/g, lt = RegExp(`>|${$n}(?:([^\\s"'>=/]+)(${$n}*=${$n}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g"), Eo = /'/g, Io = /"/g, ri = /^(?:script|style|textarea|title)$/i, Yi = (n) => (e, ...t) => ({ _$litType$: n, strings: e, values: t }), He = Yi(1), vt = Symbol.for("lit-noChange"), Te = Symbol.for("lit-nothing"), jo = /* @__PURE__ */ new WeakMap(), ct = ut.createTreeWalker(ut, 129);
 function ai(n, e) {
@@ -299,7 +299,7 @@ const Xi = (n, e) => {
     let l, u, h = -1, v = 0;
     for (; v < c.length && (a.lastIndex = v, u = a.exec(c), u !== null); ) v = a.lastIndex, a === yt ? u[1] === "!--" ? a = Oo : u[1] !== void 0 ? a = Po : u[2] !== void 0 ? (ri.test(u[2]) && (i = RegExp("</" + u[2], "g")), a = lt) : u[3] !== void 0 && (a = lt) : a === lt ? u[0] === ">" ? (a = i ?? yt, h = -1) : u[1] === void 0 ? h = -2 : (h = a.lastIndex - u[2].length, l = u[1], a = u[3] === void 0 ? lt : u[3] === '"' ? Io : Eo) : a === Io || a === Eo ? a = lt : a === Oo || a === Po ? a = yt : (a = lt, i = void 0);
     const f = a === lt && n[d + 1].startsWith("/>") ? " " : "";
-    s += a === yt ? c + Gi : h >= 0 ? (o.push(l), c.slice(0, h) + ii + c.slice(h) + st + f) : c + st + (h === -2 ? d : f);
+    s += a === yt ? c + Qi : h >= 0 ? (o.push(l), c.slice(0, h) + ii + c.slice(h) + st + f) : c + st + (h === -2 ? d : f);
   }
   return [ai(n, s + (n[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), o];
 };
@@ -394,7 +394,7 @@ let es = class {
     return this._$AB;
   }
   _$AI(e, t = this) {
-    e = gt(this, e, t), Ht(e) ? e === Te || e == null || e === "" ? (this._$AH !== Te && this._$AR(), this._$AH = Te) : e !== this._$AH && e !== vt && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : Qi(e) ? this.k(e) : this._(e);
+    e = gt(this, e, t), Ht(e) ? e === Te || e == null || e === "" ? (this._$AH !== Te && this._$AR(), this._$AH = Te) : e !== this._$AH && e !== vt && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : Gi(e) ? this.k(e) : this._(e);
   }
   O(e) {
     return this._$AA.parentNode.insertBefore(e, this._$AB);
@@ -645,25 +645,25 @@ var cs = { 7: function(n, e, t) {
     o.TranslateContext = f, o.TranslateProvider = function(S) {
       var O = function(N, U) {
         N = Object.assign({}, v, N), h = U || h;
-        var ie = d(s.useState(N.lang), 2), ge = ie[0], se = ie[1], be = d(s.useState(h), 2), M = be[0], q = be[1], me = d(s.useState(!1), 2), De = me[0], Pe = me[1], Le = function(re) {
+        var ie = d(s.useState(N.lang), 2), _e = ie[0], se = ie[1], be = d(s.useState(h), 2), M = be[0], q = be[1], ve = d(s.useState(!1), 2), De = ve[0], Pe = ve[1], Le = function(re) {
           if (!M.hasOwnProperty(re)) {
             Pe(!1);
             var ae = c(N.root, re);
-            fetch(ae).then(function(ue) {
-              return ue.json();
-            }).then(function(ue) {
-              h[re] = ue, q(a({}, h)), Pe(!0);
-            }).catch(function(ue) {
-              console.log("Aww, snap.", ue), q(a({}, h)), Pe(!0);
+            fetch(ae).then(function(he) {
+              return he.json();
+            }).then(function(he) {
+              h[re] = he, q(a({}, h)), Pe(!0);
+            }).catch(function(he) {
+              console.log("Aww, snap.", he), q(a({}, h)), Pe(!0);
             });
           }
         };
         return s.useEffect(function() {
-          Le(N.fallbackLang), Le(ge);
-        }, [ge]), { lang: ge, setLang: se, t: function(re, ae) {
-          if (!M.hasOwnProperty(ge)) return re;
-          var ue = u(M, ge, re);
-          return ue === re && ge !== N.fallbackLang && (ue = u(M, N.fallbackLang, re)), l(ue, ae);
+          Le(N.fallbackLang), Le(_e);
+        }, [_e]), { lang: _e, setLang: se, t: function(re, ae) {
+          if (!M.hasOwnProperty(_e)) return re;
+          var he = u(M, _e, re);
+          return he === re && _e !== N.fallbackLang && (he = u(M, N.fallbackLang, re)), l(he, ae);
         }, isReady: De };
       }({ root: S.root || "assets", lang: S.lang || "en", fallbackLang: S.fallbackLang || "en" }, S.translations), C = O.t, x = O.setLang, P = O.lang, $ = O.isReady;
       return i.h(f.Provider, { value: { t: C, setLang: x, lang: P, isReady: $ } }, S.children);
@@ -775,7 +775,7 @@ var cs = { 7: function(n, e, t) {
     return e[1];
   };
 }, 616: (n, e, t) => {
-  t.r(e), t.d(e, { Component: () => U, Fragment: () => N, cloneElement: () => qe, createContext: () => ze, createElement: () => x, createRef: () => $, h: () => x, hydrate: () => We, isValidElement: () => a, options: () => i, render: () => he, toChildArray: () => me });
+  t.r(e), t.d(e, { Component: () => U, Fragment: () => N, cloneElement: () => qe, createContext: () => ze, createElement: () => x, createRef: () => $, h: () => x, hydrate: () => We, isValidElement: () => a, options: () => i, render: () => pe, toChildArray: () => ve });
   var o, i, s, a, d, c, l, u, h, v = {}, f = [], S = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
   function O(m, g) {
     for (var b in g) m[b] = g[b];
@@ -809,14 +809,14 @@ var cs = { 7: function(n, e, t) {
     for (var b; g < m.__k.length; g++) if ((b = m.__k[g]) != null && b.__e != null) return b.__e;
     return typeof m.type == "function" ? ie(m) : null;
   }
-  function ge(m) {
+  function _e(m) {
     var g, b;
     if ((m = m.__) != null && m.__c != null) {
       for (m.__e = m.__c.base = null, g = 0; g < m.__k.length; g++) if ((b = m.__k[g]) != null && b.__e != null) {
         m.__e = m.__c.base = b.__e;
         break;
       }
-      return ge(m);
+      return _e(m);
     }
   }
   function se(m) {
@@ -824,21 +824,21 @@ var cs = { 7: function(n, e, t) {
   }
   function be() {
     var m, g, b, j, T, I, W, X;
-    for (d.sort(u); m = d.shift(); ) m.__d && (g = d.length, j = void 0, T = void 0, W = (I = (b = m).__v).__e, (X = b.__P) && (j = [], (T = O({}, I)).__v = I.__v + 1, Ee(X, I, T, b.__n, X.ownerSVGElement !== void 0, I.__h != null ? [W] : null, j, W ?? ie(I), I.__h), k(j, I), I.__e != W && ge(I)), d.length > g && d.sort(u));
+    for (d.sort(u); m = d.shift(); ) m.__d && (g = d.length, j = void 0, T = void 0, W = (I = (b = m).__v).__e, (X = b.__P) && (j = [], (T = O({}, I)).__v = I.__v + 1, Ee(X, I, T, b.__n, X.ownerSVGElement !== void 0, I.__h != null ? [W] : null, j, W ?? ie(I), I.__h), k(j, I), I.__e != W && _e(I)), d.length > g && d.sort(u));
     be.__r = 0;
   }
-  function M(m, g, b, j, T, I, W, X, Q, ve) {
-    var w, _e, J, H, E, ke, B, F = j && j.__k || f, Me = F.length;
+  function M(m, g, b, j, T, I, W, X, G, ge) {
+    var w, ye, J, H, E, ke, B, F = j && j.__k || f, Me = F.length;
     for (b.__k = [], w = 0; w < g.length; w++) if ((H = b.__k[w] = (H = g[w]) == null || typeof H == "boolean" || typeof H == "function" ? null : typeof H == "string" || typeof H == "number" || typeof H == "bigint" ? P(null, H, null, null, H) : Array.isArray(H) ? P(N, { children: H }, null, null, null) : H.__b > 0 ? P(H.type, H.props, H.key, H.ref ? H.ref : null, H.__v) : H) != null) {
       if (H.__ = b, H.__b = b.__b + 1, (J = F[w]) === null || J && H.key == J.key && H.type === J.type) F[w] = void 0;
-      else for (_e = 0; _e < Me; _e++) {
-        if ((J = F[_e]) && H.key == J.key && H.type === J.type) {
-          F[_e] = void 0;
+      else for (ye = 0; ye < Me; ye++) {
+        if ((J = F[ye]) && H.key == J.key && H.type === J.type) {
+          F[ye] = void 0;
           break;
         }
         J = null;
       }
-      Ee(m, H, J = J || v, T, I, W, X, Q, ve), E = H.__e, (_e = H.ref) && J.ref != _e && (B || (B = []), J.ref && B.push(J.ref, null, H), B.push(_e, H.__c || E, H)), E != null ? (ke == null && (ke = E), typeof H.type == "function" && H.__k === J.__k ? H.__d = Q = q(H, Q, m) : Q = De(m, H, J, F, E, Q), typeof b.type == "function" && (b.__d = Q)) : Q && J.__e == Q && Q.parentNode != m && (Q = ie(J));
+      Ee(m, H, J = J || v, T, I, W, X, G, ge), E = H.__e, (ye = H.ref) && J.ref != ye && (B || (B = []), J.ref && B.push(J.ref, null, H), B.push(ye, H.__c || E, H)), E != null ? (ke == null && (ke = E), typeof H.type == "function" && H.__k === J.__k ? H.__d = G = q(H, G, m) : G = De(m, H, J, F, E, G), typeof b.type == "function" && (b.__d = G)) : G && J.__e == G && G.parentNode != m && (G = ie(J));
     }
     for (b.__e = ke, w = Me; w--; ) F[w] != null && (typeof b.type == "function" && F[w].__e != null && F[w].__e == b.__d && (b.__d = Pe(j).nextSibling), L(F[w], F[w]));
     if (B) for (w = 0; w < B.length; w++) y(B[w], B[++w], B[++w]);
@@ -847,17 +847,17 @@ var cs = { 7: function(n, e, t) {
     for (var j, T = m.__k, I = 0; T && I < T.length; I++) (j = T[I]) && (j.__ = m, g = typeof j.type == "function" ? q(j, g, b) : De(b, j, j, T, j.__e, g));
     return g;
   }
-  function me(m, g) {
+  function ve(m, g) {
     return g = g || [], m == null || typeof m == "boolean" || (Array.isArray(m) ? m.some(function(b) {
-      me(b, g);
+      ve(b, g);
     }) : g.push(m)), g;
   }
   function De(m, g, b, j, T, I) {
-    var W, X, Q;
+    var W, X, G;
     if (g.__d !== void 0) W = g.__d, g.__d = void 0;
     else if (b == null || T != I || T.parentNode == null) e: if (I == null || I.parentNode !== m) m.appendChild(T), W = null;
     else {
-      for (X = I, Q = 0; (X = X.nextSibling) && Q < j.length; Q += 1) if (X == T) break e;
+      for (X = I, G = 0; (X = X.nextSibling) && G < j.length; G += 1) if (X == T) break e;
       m.insertBefore(T, I), W = I;
     }
     return W !== void 0 ? W : T.nextSibling;
@@ -880,7 +880,7 @@ var cs = { 7: function(n, e, t) {
       if (typeof j == "string" && (m.style.cssText = j = ""), j) for (g in j) b && g in b || Le(m.style, g, "");
       if (b) for (g in b) j && b[g] === j[g] || Le(m.style, g, b[g]);
     }
-    else if (g[0] === "o" && g[1] === "n") I = g !== (g = g.replace(/Capture$/, "")), g = g.toLowerCase() in m ? g.toLowerCase().slice(2) : g.slice(2), m.l || (m.l = {}), m.l[g + I] = b, b ? j || m.addEventListener(g, I ? ue : ae, I) : m.removeEventListener(g, I ? ue : ae, I);
+    else if (g[0] === "o" && g[1] === "n") I = g !== (g = g.replace(/Capture$/, "")), g = g.toLowerCase() in m ? g.toLowerCase().slice(2) : g.slice(2), m.l || (m.l = {}), m.l[g + I] = b, b ? j || m.addEventListener(g, I ? he : ae, I) : m.removeEventListener(g, I ? he : ae, I);
     else if (g !== "dangerouslySetInnerHTML") {
       if (T) g = g.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
       else if (g !== "width" && g !== "height" && g !== "href" && g !== "list" && g !== "form" && g !== "tabIndex" && g !== "download" && g in m) try {
@@ -894,20 +894,20 @@ var cs = { 7: function(n, e, t) {
   function ae(m) {
     return this.l[m.type + !1](i.event ? i.event(m) : m);
   }
-  function ue(m) {
+  function he(m) {
     return this.l[m.type + !0](i.event ? i.event(m) : m);
   }
-  function Ee(m, g, b, j, T, I, W, X, Q) {
-    var ve, w, _e, J, H, E, ke, B, F, Me, ot, pe, Kt, it, R, V = g.type;
+  function Ee(m, g, b, j, T, I, W, X, G) {
+    var ge, w, ye, J, H, E, ke, B, F, Me, ot, fe, Kt, it, R, V = g.type;
     if (g.constructor !== void 0) return null;
-    b.__h != null && (Q = b.__h, X = g.__e = b.__e, g.__h = null, I = [X]), (ve = i.__b) && ve(g);
+    b.__h != null && (G = b.__h, X = g.__e = b.__e, g.__h = null, I = [X]), (ge = i.__b) && ge(g);
     try {
       e: if (typeof V == "function") {
-        if (B = g.props, F = (ve = V.contextType) && j[ve.__c], Me = ve ? F ? F.props.value : ve.__ : j, b.__c ? ke = (w = g.__c = b.__c).__ = w.__E : ("prototype" in V && V.prototype.render ? g.__c = w = new V(B, Me) : (g.__c = w = new U(B, Me), w.constructor = V, w.render = K), F && F.sub(w), w.props = B, w.state || (w.state = {}), w.context = Me, w.__n = j, _e = w.__d = !0, w.__h = [], w._sb = []), w.__s == null && (w.__s = w.state), V.getDerivedStateFromProps != null && (w.__s == w.state && (w.__s = O({}, w.__s)), O(w.__s, V.getDerivedStateFromProps(B, w.__s))), J = w.props, H = w.state, w.__v = g, _e) V.getDerivedStateFromProps == null && w.componentWillMount != null && w.componentWillMount(), w.componentDidMount != null && w.__h.push(w.componentDidMount);
+        if (B = g.props, F = (ge = V.contextType) && j[ge.__c], Me = ge ? F ? F.props.value : ge.__ : j, b.__c ? ke = (w = g.__c = b.__c).__ = w.__E : ("prototype" in V && V.prototype.render ? g.__c = w = new V(B, Me) : (g.__c = w = new U(B, Me), w.constructor = V, w.render = K), F && F.sub(w), w.props = B, w.state || (w.state = {}), w.context = Me, w.__n = j, ye = w.__d = !0, w.__h = [], w._sb = []), w.__s == null && (w.__s = w.state), V.getDerivedStateFromProps != null && (w.__s == w.state && (w.__s = O({}, w.__s)), O(w.__s, V.getDerivedStateFromProps(B, w.__s))), J = w.props, H = w.state, w.__v = g, ye) V.getDerivedStateFromProps == null && w.componentWillMount != null && w.componentWillMount(), w.componentDidMount != null && w.__h.push(w.componentDidMount);
         else {
           if (V.getDerivedStateFromProps == null && B !== J && w.componentWillReceiveProps != null && w.componentWillReceiveProps(B, Me), !w.__e && w.shouldComponentUpdate != null && w.shouldComponentUpdate(B, w.__s, Me) === !1 || g.__v === b.__v) {
-            for (g.__v !== b.__v && (w.props = B, w.state = w.__s, w.__d = !1), w.__e = !1, g.__e = b.__e, g.__k = b.__k, g.__k.forEach(function(Ge) {
-              Ge && (Ge.__ = g);
+            for (g.__v !== b.__v && (w.props = B, w.state = w.__s, w.__d = !1), w.__e = !1, g.__e = b.__e, g.__k = b.__k, g.__k.forEach(function(Qe) {
+              Qe && (Qe.__ = g);
             }), ot = 0; ot < w._sb.length; ot++) w.__h.push(w._sb[ot]);
             w._sb = [], w.__h.length && W.push(w);
             break e;
@@ -916,17 +916,17 @@ var cs = { 7: function(n, e, t) {
             w.componentDidUpdate(J, H, E);
           });
         }
-        if (w.context = Me, w.props = B, w.__P = m, pe = i.__r, Kt = 0, "prototype" in V && V.prototype.render) {
-          for (w.state = w.__s, w.__d = !1, pe && pe(g), ve = w.render(w.props, w.state, w.context), it = 0; it < w._sb.length; it++) w.__h.push(w._sb[it]);
+        if (w.context = Me, w.props = B, w.__P = m, fe = i.__r, Kt = 0, "prototype" in V && V.prototype.render) {
+          for (w.state = w.__s, w.__d = !1, fe && fe(g), ge = w.render(w.props, w.state, w.context), it = 0; it < w._sb.length; it++) w.__h.push(w._sb[it]);
           w._sb = [];
         } else do
-          w.__d = !1, pe && pe(g), ve = w.render(w.props, w.state, w.context), w.state = w.__s;
+          w.__d = !1, fe && fe(g), ge = w.render(w.props, w.state, w.context), w.state = w.__s;
         while (w.__d && ++Kt < 25);
-        w.state = w.__s, w.getChildContext != null && (j = O(O({}, j), w.getChildContext())), _e || w.getSnapshotBeforeUpdate == null || (E = w.getSnapshotBeforeUpdate(J, H)), R = ve != null && ve.type === N && ve.key == null ? ve.props.children : ve, M(m, Array.isArray(R) ? R : [R], g, b, j, T, I, W, X, Q), w.base = g.__e, g.__h = null, w.__h.length && W.push(w), ke && (w.__E = w.__ = null), w.__e = !1;
-      } else I == null && g.__v === b.__v ? (g.__k = b.__k, g.__e = b.__e) : g.__e = p(b.__e, g, b, j, T, I, W, Q);
-      (ve = i.diffed) && ve(g);
-    } catch (Ge) {
-      g.__v = null, (Q || I != null) && (g.__e = X, g.__h = !!Q, I[I.indexOf(X)] = null), i.__e(Ge, g, b);
+        w.state = w.__s, w.getChildContext != null && (j = O(O({}, j), w.getChildContext())), ye || w.getSnapshotBeforeUpdate == null || (E = w.getSnapshotBeforeUpdate(J, H)), R = ge != null && ge.type === N && ge.key == null ? ge.props.children : ge, M(m, Array.isArray(R) ? R : [R], g, b, j, T, I, W, X, G), w.base = g.__e, g.__h = null, w.__h.length && W.push(w), ke && (w.__E = w.__ = null), w.__e = !1;
+      } else I == null && g.__v === b.__v ? (g.__k = b.__k, g.__e = b.__e) : g.__e = p(b.__e, g, b, j, T, I, W, G);
+      (ge = i.diffed) && ge(g);
+    } catch (Qe) {
+      g.__v = null, (G || I != null) && (g.__e = X, g.__h = !!G, I[I.indexOf(X)] = null), i.__e(Qe, g, b);
     }
   }
   function k(m, g) {
@@ -941,10 +941,10 @@ var cs = { 7: function(n, e, t) {
     });
   }
   function p(m, g, b, j, T, I, W, X) {
-    var Q, ve, w, _e = b.props, J = g.props, H = g.type, E = 0;
+    var G, ge, w, ye = b.props, J = g.props, H = g.type, E = 0;
     if (H === "svg" && (T = !0), I != null) {
-      for (; E < I.length; E++) if ((Q = I[E]) && "setAttribute" in Q == !!H && (H ? Q.localName === H : Q.nodeType === 3)) {
-        m = Q, I[E] = null;
+      for (; E < I.length; E++) if ((G = I[E]) && "setAttribute" in G == !!H && (H ? G.localName === H : G.nodeType === 3)) {
+        m = G, I[E] = null;
         break;
       }
     }
@@ -952,19 +952,19 @@ var cs = { 7: function(n, e, t) {
       if (H === null) return document.createTextNode(J);
       m = T ? document.createElementNS("http://www.w3.org/2000/svg", H) : document.createElement(H, J.is && J), I = null, X = !1;
     }
-    if (H === null) _e === J || X && m.data === J || (m.data = J);
+    if (H === null) ye === J || X && m.data === J || (m.data = J);
     else {
-      if (I = I && o.call(m.childNodes), ve = (_e = b.props || v).dangerouslySetInnerHTML, w = J.dangerouslySetInnerHTML, !X) {
-        if (I != null) for (_e = {}, E = 0; E < m.attributes.length; E++) _e[m.attributes[E].name] = m.attributes[E].value;
-        (w || ve) && (w && (ve && w.__html == ve.__html || w.__html === m.innerHTML) || (m.innerHTML = w && w.__html || ""));
+      if (I = I && o.call(m.childNodes), ge = (ye = b.props || v).dangerouslySetInnerHTML, w = J.dangerouslySetInnerHTML, !X) {
+        if (I != null) for (ye = {}, E = 0; E < m.attributes.length; E++) ye[m.attributes[E].name] = m.attributes[E].value;
+        (w || ge) && (w && (ge && w.__html == ge.__html || w.__html === m.innerHTML) || (m.innerHTML = w && w.__html || ""));
       }
       if (function(ke, B, F, Me, ot) {
-        var pe;
-        for (pe in F) pe === "children" || pe === "key" || pe in B || re(ke, pe, null, F[pe], Me);
-        for (pe in B) ot && typeof B[pe] != "function" || pe === "children" || pe === "key" || pe === "value" || pe === "checked" || F[pe] === B[pe] || re(ke, pe, B[pe], F[pe], Me);
-      }(m, J, _e, T, X), w) g.__k = [];
+        var fe;
+        for (fe in F) fe === "children" || fe === "key" || fe in B || re(ke, fe, null, F[fe], Me);
+        for (fe in B) ot && typeof B[fe] != "function" || fe === "children" || fe === "key" || fe === "value" || fe === "checked" || F[fe] === B[fe] || re(ke, fe, B[fe], F[fe], Me);
+      }(m, J, ye, T, X), w) g.__k = [];
       else if (E = g.props.children, M(m, Array.isArray(E) ? E : [E], g, b, j, T && H !== "foreignObject", I, W, I ? I[0] : b.__k && ie(b, 0), X), I != null) for (E = I.length; E--; ) I[E] != null && C(I[E]);
-      X || ("value" in J && (E = J.value) !== void 0 && (E !== m.value || H === "progress" && !E || H === "option" && E !== _e.value) && re(m, "value", E, _e.value, !1), "checked" in J && (E = J.checked) !== void 0 && E !== m.checked && re(m, "checked", E, _e.checked, !1));
+      X || ("value" in J && (E = J.value) !== void 0 && (E !== m.value || H === "progress" && !E || H === "option" && E !== ye.value) && re(m, "value", E, ye.value, !1), "checked" in J && (E = J.checked) !== void 0 && E !== m.checked && re(m, "checked", E, ye.checked, !1));
     }
     return m;
   }
@@ -991,12 +991,12 @@ var cs = { 7: function(n, e, t) {
   function K(m, g, b) {
     return this.constructor(m, b);
   }
-  function he(m, g, b) {
+  function pe(m, g, b) {
     var j, T, I;
     i.__ && i.__(m, g), T = (j = typeof b == "function") ? null : b && b.__k || g.__k, I = [], Ee(g, m = (!j && b || g).__k = x(N, null, [m]), T || v, v, g.ownerSVGElement !== void 0, !j && b ? [b] : T ? null : g.firstChild ? o.call(g.childNodes) : null, I, !j && b ? b : T ? T.__e : g.firstChild, j), k(I, m);
   }
   function We(m, g) {
-    he(m, g, We);
+    pe(m, g, We);
   }
   function qe(m, g, b) {
     var j, T, I, W = O({}, m.props);
@@ -1042,7 +1042,7 @@ var cs = { 7: function(n, e, t) {
     return m.__v.__b - g.__v.__b;
   }, be.__r = 0, h = 0;
 }, 78: (n, e, t) => {
-  t.r(e), t.d(e, { useCallback: () => se, useContext: () => be, useDebugValue: () => M, useEffect: () => $, useErrorBoundary: () => q, useId: () => me, useImperativeHandle: () => ie, useLayoutEffect: () => N, useMemo: () => ge, useReducer: () => P, useRef: () => U, useState: () => x });
+  t.r(e), t.d(e, { useCallback: () => se, useContext: () => be, useDebugValue: () => M, useEffect: () => $, useErrorBoundary: () => q, useId: () => ve, useImperativeHandle: () => ie, useLayoutEffect: () => N, useMemo: () => _e, useReducer: () => P, useRef: () => U, useState: () => x });
   var o, i, s, a, d = t(616), c = 0, l = [], u = [], h = d.options.__b, v = d.options.__r, f = d.options.diffed, S = d.options.__c, O = d.options.unmount;
   function C(k, p) {
     d.options.__h && d.options.__h(i, k, c || p), c = 0;
@@ -1065,21 +1065,21 @@ var cs = { 7: function(n, e, t) {
         });
         if (g.every(function(j) {
           return !j.__N;
-        })) return !he || he.call(this, qe, ze, m);
+        })) return !pe || pe.call(this, qe, ze, m);
         var b = !1;
         return g.forEach(function(j) {
           if (j.__N) {
             var T = j.__[0];
             j.__ = j.__N, j.__N = void 0, T !== j.__[0] && (b = !0);
           }
-        }), !(!b && L.__c.props === qe) && (!he || he.call(this, qe, ze, m));
+        }), !(!b && L.__c.props === qe) && (!pe || pe.call(this, qe, ze, m));
       };
       i.u = !0;
-      var he = i.shouldComponentUpdate, We = i.componentWillUpdate;
+      var pe = i.shouldComponentUpdate, We = i.componentWillUpdate;
       i.componentWillUpdate = function(qe, ze, m) {
         if (this.__e) {
-          var g = he;
-          he = void 0, K(qe, ze, m), he = g;
+          var g = pe;
+          pe = void 0, K(qe, ze, m), pe = g;
         }
         We && We.call(this, qe, ze, m);
       }, i.shouldComponentUpdate = K;
@@ -1088,14 +1088,14 @@ var cs = { 7: function(n, e, t) {
   }
   function $(k, p) {
     var y = C(o++, 3);
-    !d.options.__s && ue(y.__H, p) && (y.__ = k, y.i = p, i.__H.__h.push(y));
+    !d.options.__s && he(y.__H, p) && (y.__ = k, y.i = p, i.__H.__h.push(y));
   }
   function N(k, p) {
     var y = C(o++, 4);
-    !d.options.__s && ue(y.__H, p) && (y.__ = k, y.i = p, i.__h.push(y));
+    !d.options.__s && he(y.__H, p) && (y.__ = k, y.i = p, i.__h.push(y));
   }
   function U(k) {
-    return c = 5, ge(function() {
+    return c = 5, _e(function() {
       return { current: k };
     }, []);
   }
@@ -1108,12 +1108,12 @@ var cs = { 7: function(n, e, t) {
       }) : void 0;
     }, y == null ? y : y.concat(k));
   }
-  function ge(k, p) {
+  function _e(k, p) {
     var y = C(o++, 7);
-    return ue(y.__H, p) ? (y.__V = k(), y.i = p, y.__h = k, y.__V) : y.__;
+    return he(y.__H, p) ? (y.__V = k(), y.i = p, y.__h = k, y.__V) : y.__;
   }
   function se(k, p) {
-    return c = 8, ge(function() {
+    return c = 8, _e(function() {
       return k;
     }, p);
   }
@@ -1132,7 +1132,7 @@ var cs = { 7: function(n, e, t) {
       y[1](void 0);
     }];
   }
-  function me() {
+  function ve() {
     var k = C(o++, 11);
     if (!k.__) {
       for (var p = i.__v; p !== null && !p.__m && p.__ !== null; ) p = p.__;
@@ -1200,7 +1200,7 @@ var cs = { 7: function(n, e, t) {
     var p = i;
     k.__c = k.__(), i = p;
   }
-  function ue(k, p) {
+  function he(k, p) {
     return !k || k.length !== p.length || p.some(function(y, L) {
       return y !== k[L];
     });
@@ -1582,16 +1582,16 @@ function _t(n, e, t) {
 function Zn(n, e) {
   return { required: !0, schema: n, derive: e };
 }
-function fe(n) {
+function me(n) {
   return { required: !0, schema: n };
 }
 function we(n) {
   return { required: !1, schema: n };
 }
-var _i = { type: fe(le), id: fe(Be), transports: we(le) }, yi = { appid: we(le), appidExclude: we(le), credProps: we(le) }, bi = { appid: we(le), appidExclude: we(le), credProps: we(le) }, Os = { publicKey: fe({ rp: fe(le), user: fe({ id: fe(Be), name: fe(le), displayName: fe(le) }), challenge: fe(Be), pubKeyCredParams: fe(le), timeout: we(le), excludeCredentials: we([_i]), authenticatorSelection: we(le), attestation: we(le), extensions: we(yi) }), signal: we(le) }, Ps = { type: fe(le), id: fe(le), rawId: fe(Be), authenticatorAttachment: we(le), response: fe({ clientDataJSON: fe(Be), attestationObject: fe(Be), transports: Zn(le, (n) => {
+var _i = { type: me(le), id: me(Be), transports: we(le) }, yi = { appid: we(le), appidExclude: we(le), credProps: we(le) }, bi = { appid: we(le), appidExclude: we(le), credProps: we(le) }, Os = { publicKey: me({ rp: me(le), user: me({ id: me(Be), name: me(le), displayName: me(le) }), challenge: me(Be), pubKeyCredParams: me(le), timeout: we(le), excludeCredentials: we([_i]), authenticatorSelection: we(le), attestation: we(le), extensions: we(yi) }), signal: we(le) }, Ps = { type: me(le), id: me(le), rawId: me(Be), authenticatorAttachment: we(le), response: me({ clientDataJSON: me(Be), attestationObject: me(Be), transports: Zn(le, (n) => {
   var e;
   return ((e = n.getTransports) == null ? void 0 : e.call(n)) || [];
-}) }), clientExtensionResults: Zn(bi, (n) => n.getClientExtensionResults()) }, Es = { mediation: we(le), publicKey: fe({ challenge: fe(Be), timeout: we(le), rpId: we(le), allowCredentials: we([_i]), userVerification: we(le), extensions: we(yi) }), signal: we(le) }, Is = { type: fe(le), id: fe(le), rawId: fe(Be), authenticatorAttachment: we(le), response: fe({ clientDataJSON: fe(Be), authenticatorData: fe(Be), signature: fe(Be), userHandle: fe(Be) }), clientExtensionResults: Zn(bi, (n) => n.getClientExtensionResults()) };
+}) }), clientExtensionResults: Zn(bi, (n) => n.getClientExtensionResults()) }, Es = { mediation: we(le), publicKey: me({ challenge: me(Be), timeout: we(le), rpId: we(le), allowCredentials: we([_i]), userVerification: we(le), extensions: we(yi) }), signal: we(le) }, Is = { type: me(le), id: me(le), rawId: me(Be), authenticatorAttachment: we(le), response: me({ clientDataJSON: me(Be), authenticatorData: me(Be), signature: me(Be), userHandle: me(Be) }), clientExtensionResults: Zn(bi, (n) => n.getClientExtensionResults()) };
 async function Fo(n) {
   const e = await navigator.credentials.create(function(t) {
     return _t(vi, Os, t);
@@ -2383,18 +2383,18 @@ class mt {
     return !(!window.PublicKeyCredential || !window.PublicKeyCredential.isConditionalMediationAvailable) && window.PublicKeyCredential.isConditionalMediationAvailable();
   }
 }
-var Vs = Y(292), Xe = Y.n(Vs), Zs = Y(360), et = Y.n(Zs), Js = Y(884), tt = Y.n(Js), Gs = Y(88), nt = Y.n(Gs), rn = Y(914), kt = {};
+var Vs = Y(292), Xe = Y.n(Vs), Zs = Y(360), et = Y.n(Zs), Js = Y(884), tt = Y.n(Js), Qs = Y(88), nt = Y.n(Qs), rn = Y(914), kt = {};
 kt.setAttributes = tt(), kt.insert = (n) => {
   window._hankoStyle = n;
 }, kt.domAPI = et(), kt.insertStyleElement = nt(), Xe()(rn.A, kt);
-const Rt = rn.A && rn.A.locals ? rn.A.locals : void 0, Qs = function(n) {
+const Rt = rn.A && rn.A.locals ? rn.A.locals : void 0, Gs = function(n) {
   function e(t) {
     var o = hi({}, t);
     return delete o.ref, n(o, t.ref || null);
   }
   return e.$$typeof = vs, e.render = e, e.prototype.isReactComponent = e.__f = !0, e.displayName = "ForwardRef(" + (n.displayName || n.name) + ")", e;
 }((n, e) => {
-  const { lang: t, hanko: o, setHanko: i } = (0, _.useContext)(de), { setLang: s } = (0, _.useContext)(Z.TranslateContext);
+  const { lang: t, hanko: o, setHanko: i } = (0, _.useContext)(ue), { setLang: s } = (0, _.useContext)(Z.TranslateContext);
   return (0, _.useEffect)(() => {
     s(t.replace(/[-]/, "")), i((a) => (a.setLang(t), a));
   }, [o, t, i, s]), r("section", Object.assign({ part: "container", className: Rt.container, ref: e }, { children: n.children }));
@@ -2404,9 +2404,9 @@ wt.setAttributes = tt(), wt.insert = (n) => {
   window._hankoStyle = n;
 }, wt.domAPI = et(), wt.insertStyleElement = nt(), Xe()(an.A, wt);
 const D = an.A && an.A.locals ? an.A.locals : void 0;
-var Ys = Y(633), G = Y.n(Ys);
-const Xs = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-apple", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "20.5 16 15 19", className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M28.2226562,20.3846154 C29.0546875,20.3846154 30.0976562,19.8048315 30.71875,19.0317864 C31.28125,18.3312142 31.6914062,17.352829 31.6914062,16.3744437 C31.6914062,16.2415766 31.6796875,16.1087095 31.65625,16 C30.7304687,16.0362365 29.6171875,16.640178 28.9492187,17.4494596 C28.421875,18.06548 27.9414062,19.0317864 27.9414062,20.0222505 C27.9414062,20.1671964 27.9648438,20.3121424 27.9765625,20.3604577 C28.0351562,20.3725366 28.1289062,20.3846154 28.2226562,20.3846154 Z M25.2929688,35 C26.4296875,35 26.9335938,34.214876 28.3515625,34.214876 C29.7929688,34.214876 30.109375,34.9758423 31.375,34.9758423 C32.6171875,34.9758423 33.4492188,33.792117 34.234375,32.6325493 C35.1132812,31.3038779 35.4765625,29.9993643 35.5,29.9389701 C35.4179688,29.9148125 33.0390625,28.9122695 33.0390625,26.0979021 C33.0390625,23.6579784 34.9140625,22.5588048 35.0195312,22.474253 C33.7773438,20.6382708 31.890625,20.5899555 31.375,20.5899555 C29.9804688,20.5899555 28.84375,21.4596313 28.1289062,21.4596313 C27.3554688,21.4596313 26.3359375,20.6382708 25.1289062,20.6382708 C22.8320312,20.6382708 20.5,22.5950413 20.5,26.2911634 C20.5,28.5861411 21.3671875,31.013986 22.4335938,32.5842339 C23.3476562,33.9129053 24.1445312,35 25.2929688,35 Z" }) })), er = ({ secondary: n, size: e, fadeOut: t, disabled: o }) => r("svg", Object.assign({ id: "icon-checkmark", xmlns: "http://www.w3.org/2000/svg", viewBox: "4 4 40 40", width: e, height: e, className: G()(D.checkmark, n && D.secondary, t && D.fadeOut, o && D.disabled) }, { children: r("path", { d: "M21.05 33.1 35.2 18.95l-2.3-2.25-11.85 11.85-6-6-2.25 2.25ZM24 44q-4.1 0-7.75-1.575-3.65-1.575-6.375-4.3-2.725-2.725-4.3-6.375Q4 28.1 4 24q0-4.15 1.575-7.8 1.575-3.65 4.3-6.35 2.725-2.7 6.375-4.275Q19.9 4 24 4q4.15 0 7.8 1.575 3.65 1.575 6.35 4.275 2.7 2.7 4.275 6.35Q44 19.85 44 24q0 4.1-1.575 7.75-1.575 3.65-4.275 6.375t-6.35 4.3Q28.15 44 24 44Zm0-3q7.1 0 12.05-4.975Q41 31.05 41 24q0-7.1-4.95-12.05Q31.1 7 24 7q-7.05 0-12.025 4.95Q7 16.9 7 24q0 7.05 4.975 12.025Q16.95 41 24 41Zm0-17Z" }) })), tr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: n, height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z" }) })), nr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-custom-provider", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: [r("path", { d: "M0 0h24v24H0z", fill: "none" }), r("path", { d: "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" })] })), or = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-discord", fill: "#fff", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "0 0 127.14 96.36", className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" }) })), ir = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-exclamation", xmlns: "http://www.w3.org/2000/svg", viewBox: "5 2 13 20", width: n, height: n, className: G()(D.exclamationMark, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" }) })), sr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ width: n, height: n, viewBox: "0 0 666.66668 666.66717", xmlns: "http://www.w3.org/2000/svg" }, { children: [r("defs", Object.assign({ id: "defs13" }, { children: r("clipPath", Object.assign({ clipPathUnits: "userSpaceOnUse", id: "clipPath25" }, { children: r("path", { d: "M 0,700 H 700 V 0 H 0 Z", id: "path23" }) })) })), r("g", Object.assign({ id: "g17", transform: "matrix(1.3333333,0,0,-1.3333333,-133.33333,799.99999)" }, { children: r("g", Object.assign({ id: "g19" }, { children: r("g", Object.assign({ id: "g21", clipPath: "url(#clipPath25)" }, { children: [r("g", Object.assign({ id: "g27", transform: "translate(600,350)" }, { children: r("path", { className: G()(D.facebookIcon, t ? D.disabledOutline : D.outline), d: "m 0,0 c 0,138.071 -111.929,250 -250,250 -138.071,0 -250,-111.929 -250,-250 0,-117.245 80.715,-215.622 189.606,-242.638 v 166.242 h -51.552 V 0 h 51.552 v 32.919 c 0,85.092 38.508,124.532 122.048,124.532 15.838,0 43.167,-3.105 54.347,-6.211 V 81.986 c -5.901,0.621 -16.149,0.932 -28.882,0.932 -40.993,0 -56.832,-15.528 -56.832,-55.9 V 0 h 81.659 l -14.028,-76.396 h -67.631 V -248.169 C -95.927,-233.218 0,-127.818 0,0", id: "path29" }) })), r("g", Object.assign({ id: "g31", transform: "translate(447.9175,273.6036)" }, { children: r("path", { className: G()(D.facebookIcon, t ? D.disabledLetter : D.letter), d: "M 0,0 14.029,76.396 H -67.63 v 27.019 c 0,40.372 15.838,55.899 56.831,55.899 12.733,0 22.981,-0.31 28.882,-0.931 v 69.253 c -11.18,3.106 -38.509,6.212 -54.347,6.212 -83.539,0 -122.048,-39.441 -122.048,-124.533 V 76.396 h -51.552 V 0 h 51.552 v -166.242 c 19.343,-4.798 39.568,-7.362 60.394,-7.362 10.254,0 20.358,0.632 30.288,1.831 L -67.63,0 Z", id: "path33" }) }))] })) })) }))] })), rr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-github", xmlns: "http://www.w3.org/2000/svg", fill: "#fff", viewBox: "0 0 97.63 96", width: n, height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: [r("path", { d: "M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z" }), " "] })), ar = ({ size: n, disabled: e }) => r("svg", Object.assign({ id: "icon-google", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: D.googleIcon }, { children: [r("path", { className: G()(D.googleIcon, e ? D.disabled : D.blue), d: "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" }), r("path", { className: G()(D.googleIcon, e ? D.disabled : D.green), d: "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" }), r("path", { className: G()(D.googleIcon, e ? D.disabled : D.yellow), d: "M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" }), r("path", { className: G()(D.googleIcon, e ? D.disabled : D.red), d: "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" }), r("path", { d: "M1 1h22v22H1z", fill: "none" })] })), lr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-linkedin", fill: "#fff", xmlns: "http://www.w3.org/2000/svg", width: n, viewBox: "0 0 24 24", height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z" }) })), cr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-mail", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "0 -960 960 960", className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm320-280L160-640v400h640v-400L480-440Zm0-80 320-200H160l320 200ZM160-640v-80 480-400Z" }) })), dr = ({ size: n, disabled: e }) => r("svg", Object.assign({ id: "icon-microsoft", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: D.microsoftIcon }, { children: [r("rect", { className: G()(D.microsoftIcon, e ? D.disabled : D.blue), x: "1", y: "1", width: "9", height: "9" }), r("rect", { className: G()(D.microsoftIcon, e ? D.disabled : D.green), x: "1", y: "11", width: "9", height: "9" }), r("rect", { className: G()(D.microsoftIcon, e ? D.disabled : D.yellow), x: "11", y: "1", width: "9", height: "9" }), r("rect", { className: G()(D.microsoftIcon, e ? D.disabled : D.red), x: "11", y: "11", width: "9", height: "9" })] })), ur = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-passkey", xmlns: "http://www.w3.org/2000/svg", viewBox: "3 1.5 19.5 19", width: n, height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("g", Object.assign({ id: "icon-passkey-all" }, { children: [r("circle", { id: "icon-passkey-head", cx: "10.5", cy: "6", r: "4.5" }), r("path", { id: "icon-passkey-key", d: "M22.5,10.5a3.5,3.5,0,1,0-5,3.15V19L19,20.5,21.5,18,20,16.5,21.5,15l-1.24-1.24A3.5,3.5,0,0,0,22.5,10.5Zm-3.5,0a1,1,0,1,1,1-1A1,1,0,0,1,19,10.5Z" }), r("path", { id: "icon-passkey-body", d: "M14.44,12.52A6,6,0,0,0,12,12H9a6,6,0,0,0-6,6v2H16V14.49A5.16,5.16,0,0,1,14.44,12.52Z" })] })) })), hr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-password", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "0 -960 960 960", className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M80-200v-80h800v80H80Zm46-242-52-30 34-60H40v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Zm320 0-52-30 34-60h-68v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Zm320 0-52-30 34-60h-68v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Z" }) })), pr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: n, height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M80-680v-200h200v80H160v120H80Zm0 600v-200h80v120h120v80H80Zm600 0v-80h120v-120h80v200H680Zm120-600v-120H680v-80h200v200h-80ZM700-260h60v60h-60v-60Zm0-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm120-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm240-320v240H520v-240h240ZM440-440v240H200v-240h240Zm0-320v240H200v-240h240Zm-60 500v-120H260v120h120Zm0-320v-120H260v120h120Zm320 0v-120H580v120h120Z" }) })), fr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: n, height: n, className: G()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M280-240q-100 0-170-70T40-480q0-100 70-170t170-70q66 0 121 33t87 87h432v240h-80v120H600v-120H488q-32 54-87 87t-121 33Zm0-80q66 0 106-40.5t48-79.5h246v120h80v-120h80v-80H434q-8-39-48-79.5T280-640q-66 0-113 47t-47 113q0 66 47 113t113 47Zm0-80q33 0 56.5-23.5T360-480q0-33-23.5-56.5T280-560q-33 0-56.5 23.5T200-480q0 33 23.5 56.5T280-400Zm0-80Z" }) })), mr = ({ size: n, disabled: e }) => r("svg", Object.assign({ id: "icon-spinner", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: G()(D.loadingSpinner, e && D.disabled) }, { children: [r("path", { d: "M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z", opacity: ".25" }), r("path", { d: "M10.72,19.9a8,8,0,0,1-6.5-9.79A7.77,7.77,0,0,1,10.4,4.16a8,8,0,0,1,9.49,6.52A1.54,1.54,0,0,0,21.38,12h.13a1.37,1.37,0,0,0,1.38-1.54,11,11,0,1,0-12.7,12.39A1.54,1.54,0,0,0,12,21.34h0A1.47,1.47,0,0,0,10.72,19.9Z" })] })), Wt = ({ name: n, secondary: e, size: t = 18, fadeOut: o, disabled: i }) => r(Vn[n], { size: t, secondary: e, fadeOut: o, disabled: i }), go = ({ children: n, isLoading: e, isSuccess: t, fadeOut: o, secondary: i, hasIcon: s, maxWidth: a }) => r(A.Fragment, { children: r("div", e ? Object.assign({ className: G()(D.loadingSpinnerWrapper, D.centerContent, a && D.maxWidth) }, { children: r(Wt, { name: "spinner", secondary: i }) }) : t ? Object.assign({ className: G()(D.loadingSpinnerWrapper, D.centerContent, a && D.maxWidth) }, { children: r(Wt, { name: "checkmark", secondary: i, fadeOut: o }) }) : Object.assign({ className: s ? D.loadingSpinnerWrapperIcon : D.loadingSpinnerWrapper }, { children: n })) }), vr = () => {
-  const { setLoadingAction: n } = (0, _.useContext)(de);
+var Ys = Y(633), Q = Y.n(Ys);
+const Xs = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-apple", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "20.5 16 15 19", className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M28.2226562,20.3846154 C29.0546875,20.3846154 30.0976562,19.8048315 30.71875,19.0317864 C31.28125,18.3312142 31.6914062,17.352829 31.6914062,16.3744437 C31.6914062,16.2415766 31.6796875,16.1087095 31.65625,16 C30.7304687,16.0362365 29.6171875,16.640178 28.9492187,17.4494596 C28.421875,18.06548 27.9414062,19.0317864 27.9414062,20.0222505 C27.9414062,20.1671964 27.9648438,20.3121424 27.9765625,20.3604577 C28.0351562,20.3725366 28.1289062,20.3846154 28.2226562,20.3846154 Z M25.2929688,35 C26.4296875,35 26.9335938,34.214876 28.3515625,34.214876 C29.7929688,34.214876 30.109375,34.9758423 31.375,34.9758423 C32.6171875,34.9758423 33.4492188,33.792117 34.234375,32.6325493 C35.1132812,31.3038779 35.4765625,29.9993643 35.5,29.9389701 C35.4179688,29.9148125 33.0390625,28.9122695 33.0390625,26.0979021 C33.0390625,23.6579784 34.9140625,22.5588048 35.0195312,22.474253 C33.7773438,20.6382708 31.890625,20.5899555 31.375,20.5899555 C29.9804688,20.5899555 28.84375,21.4596313 28.1289062,21.4596313 C27.3554688,21.4596313 26.3359375,20.6382708 25.1289062,20.6382708 C22.8320312,20.6382708 20.5,22.5950413 20.5,26.2911634 C20.5,28.5861411 21.3671875,31.013986 22.4335938,32.5842339 C23.3476562,33.9129053 24.1445312,35 25.2929688,35 Z" }) })), er = ({ secondary: n, size: e, fadeOut: t, disabled: o }) => r("svg", Object.assign({ id: "icon-checkmark", xmlns: "http://www.w3.org/2000/svg", viewBox: "4 4 40 40", width: e, height: e, className: Q()(D.checkmark, n && D.secondary, t && D.fadeOut, o && D.disabled) }, { children: r("path", { d: "M21.05 33.1 35.2 18.95l-2.3-2.25-11.85 11.85-6-6-2.25 2.25ZM24 44q-4.1 0-7.75-1.575-3.65-1.575-6.375-4.3-2.725-2.725-4.3-6.375Q4 28.1 4 24q0-4.15 1.575-7.8 1.575-3.65 4.3-6.35 2.725-2.7 6.375-4.275Q19.9 4 24 4q4.15 0 7.8 1.575 3.65 1.575 6.35 4.275 2.7 2.7 4.275 6.35Q44 19.85 44 24q0 4.1-1.575 7.75-1.575 3.65-4.275 6.375t-6.35 4.3Q28.15 44 24 44Zm0-3q7.1 0 12.05-4.975Q41 31.05 41 24q0-7.1-4.95-12.05Q31.1 7 24 7q-7.05 0-12.025 4.95Q7 16.9 7 24q0 7.05 4.975 12.025Q16.95 41 24 41Zm0-17Z" }) })), tr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: n, height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z" }) })), nr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-custom-provider", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: [r("path", { d: "M0 0h24v24H0z", fill: "none" }), r("path", { d: "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" })] })), or = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-discord", fill: "#fff", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "0 0 127.14 96.36", className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" }) })), ir = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-exclamation", xmlns: "http://www.w3.org/2000/svg", viewBox: "5 2 13 20", width: n, height: n, className: Q()(D.exclamationMark, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" }) })), sr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ width: n, height: n, viewBox: "0 0 666.66668 666.66717", xmlns: "http://www.w3.org/2000/svg" }, { children: [r("defs", Object.assign({ id: "defs13" }, { children: r("clipPath", Object.assign({ clipPathUnits: "userSpaceOnUse", id: "clipPath25" }, { children: r("path", { d: "M 0,700 H 700 V 0 H 0 Z", id: "path23" }) })) })), r("g", Object.assign({ id: "g17", transform: "matrix(1.3333333,0,0,-1.3333333,-133.33333,799.99999)" }, { children: r("g", Object.assign({ id: "g19" }, { children: r("g", Object.assign({ id: "g21", clipPath: "url(#clipPath25)" }, { children: [r("g", Object.assign({ id: "g27", transform: "translate(600,350)" }, { children: r("path", { className: Q()(D.facebookIcon, t ? D.disabledOutline : D.outline), d: "m 0,0 c 0,138.071 -111.929,250 -250,250 -138.071,0 -250,-111.929 -250,-250 0,-117.245 80.715,-215.622 189.606,-242.638 v 166.242 h -51.552 V 0 h 51.552 v 32.919 c 0,85.092 38.508,124.532 122.048,124.532 15.838,0 43.167,-3.105 54.347,-6.211 V 81.986 c -5.901,0.621 -16.149,0.932 -28.882,0.932 -40.993,0 -56.832,-15.528 -56.832,-55.9 V 0 h 81.659 l -14.028,-76.396 h -67.631 V -248.169 C -95.927,-233.218 0,-127.818 0,0", id: "path29" }) })), r("g", Object.assign({ id: "g31", transform: "translate(447.9175,273.6036)" }, { children: r("path", { className: Q()(D.facebookIcon, t ? D.disabledLetter : D.letter), d: "M 0,0 14.029,76.396 H -67.63 v 27.019 c 0,40.372 15.838,55.899 56.831,55.899 12.733,0 22.981,-0.31 28.882,-0.931 v 69.253 c -11.18,3.106 -38.509,6.212 -54.347,6.212 -83.539,0 -122.048,-39.441 -122.048,-124.533 V 76.396 h -51.552 V 0 h 51.552 v -166.242 c 19.343,-4.798 39.568,-7.362 60.394,-7.362 10.254,0 20.358,0.632 30.288,1.831 L -67.63,0 Z", id: "path33" }) }))] })) })) }))] })), rr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-github", xmlns: "http://www.w3.org/2000/svg", fill: "#fff", viewBox: "0 0 97.63 96", width: n, height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: [r("path", { d: "M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z" }), " "] })), ar = ({ size: n, disabled: e }) => r("svg", Object.assign({ id: "icon-google", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: D.googleIcon }, { children: [r("path", { className: Q()(D.googleIcon, e ? D.disabled : D.blue), d: "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" }), r("path", { className: Q()(D.googleIcon, e ? D.disabled : D.green), d: "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" }), r("path", { className: Q()(D.googleIcon, e ? D.disabled : D.yellow), d: "M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" }), r("path", { className: Q()(D.googleIcon, e ? D.disabled : D.red), d: "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" }), r("path", { d: "M1 1h22v22H1z", fill: "none" })] })), lr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-linkedin", fill: "#fff", xmlns: "http://www.w3.org/2000/svg", width: n, viewBox: "0 0 24 24", height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z" }) })), cr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-mail", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "0 -960 960 960", className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm320-280L160-640v400h640v-400L480-440Zm0-80 320-200H160l320 200ZM160-640v-80 480-400Z" }) })), dr = ({ size: n, disabled: e }) => r("svg", Object.assign({ id: "icon-microsoft", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: D.microsoftIcon }, { children: [r("rect", { className: Q()(D.microsoftIcon, e ? D.disabled : D.blue), x: "1", y: "1", width: "9", height: "9" }), r("rect", { className: Q()(D.microsoftIcon, e ? D.disabled : D.green), x: "1", y: "11", width: "9", height: "9" }), r("rect", { className: Q()(D.microsoftIcon, e ? D.disabled : D.yellow), x: "11", y: "1", width: "9", height: "9" }), r("rect", { className: Q()(D.microsoftIcon, e ? D.disabled : D.red), x: "11", y: "11", width: "9", height: "9" })] })), ur = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-passkey", xmlns: "http://www.w3.org/2000/svg", viewBox: "3 1.5 19.5 19", width: n, height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("g", Object.assign({ id: "icon-passkey-all" }, { children: [r("circle", { id: "icon-passkey-head", cx: "10.5", cy: "6", r: "4.5" }), r("path", { id: "icon-passkey-key", d: "M22.5,10.5a3.5,3.5,0,1,0-5,3.15V19L19,20.5,21.5,18,20,16.5,21.5,15l-1.24-1.24A3.5,3.5,0,0,0,22.5,10.5Zm-3.5,0a1,1,0,1,1,1-1A1,1,0,0,1,19,10.5Z" }), r("path", { id: "icon-passkey-body", d: "M14.44,12.52A6,6,0,0,0,12,12H9a6,6,0,0,0-6,6v2H16V14.49A5.16,5.16,0,0,1,14.44,12.52Z" })] })) })), hr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ id: "icon-password", xmlns: "http://www.w3.org/2000/svg", width: n, height: n, viewBox: "0 -960 960 960", className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M80-200v-80h800v80H80Zm46-242-52-30 34-60H40v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Zm320 0-52-30 34-60h-68v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Zm320 0-52-30 34-60h-68v-60h68l-34-58 52-30 34 58 34-58 52 30-34 58h68v60h-68l34 60-52 30-34-60-34 60Z" }) })), pr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: n, height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M80-680v-200h200v80H160v120H80Zm0 600v-200h80v120h120v80H80Zm600 0v-80h120v-120h80v200H680Zm120-600v-120H680v-80h200v200h-80ZM700-260h60v60h-60v-60Zm0-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm120-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm240-320v240H520v-240h240ZM440-440v240H200v-240h240Zm0-320v240H200v-240h240Zm-60 500v-120H260v120h120Zm0-320v-120H260v120h120Zm320 0v-120H580v120h120Z" }) })), fr = ({ size: n, secondary: e, disabled: t }) => r("svg", Object.assign({ xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: n, height: n, className: Q()(D.icon, e && D.secondary, t && D.disabled) }, { children: r("path", { d: "M280-240q-100 0-170-70T40-480q0-100 70-170t170-70q66 0 121 33t87 87h432v240h-80v120H600v-120H488q-32 54-87 87t-121 33Zm0-80q66 0 106-40.5t48-79.5h246v120h80v-120h80v-80H434q-8-39-48-79.5T280-640q-66 0-113 47t-47 113q0 66 47 113t113 47Zm0-80q33 0 56.5-23.5T360-480q0-33-23.5-56.5T280-560q-33 0-56.5 23.5T200-480q0 33 23.5 56.5T280-400Zm0-80Z" }) })), mr = ({ size: n, disabled: e }) => r("svg", Object.assign({ id: "icon-spinner", xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: n, height: n, className: Q()(D.loadingSpinner, e && D.disabled) }, { children: [r("path", { d: "M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z", opacity: ".25" }), r("path", { d: "M10.72,19.9a8,8,0,0,1-6.5-9.79A7.77,7.77,0,0,1,10.4,4.16a8,8,0,0,1,9.49,6.52A1.54,1.54,0,0,0,21.38,12h.13a1.37,1.37,0,0,0,1.38-1.54,11,11,0,1,0-12.7,12.39A1.54,1.54,0,0,0,12,21.34h0A1.47,1.47,0,0,0,10.72,19.9Z" })] })), Wt = ({ name: n, secondary: e, size: t = 18, fadeOut: o, disabled: i }) => r(Vn[n], { size: t, secondary: e, fadeOut: o, disabled: i }), go = ({ children: n, isLoading: e, isSuccess: t, fadeOut: o, secondary: i, hasIcon: s, maxWidth: a }) => r(A.Fragment, { children: r("div", e ? Object.assign({ className: Q()(D.loadingSpinnerWrapper, D.centerContent, a && D.maxWidth) }, { children: r(Wt, { name: "spinner", secondary: i }) }) : t ? Object.assign({ className: Q()(D.loadingSpinnerWrapper, D.centerContent, a && D.maxWidth) }, { children: r(Wt, { name: "checkmark", secondary: i, fadeOut: o }) }) : Object.assign({ className: s ? D.loadingSpinnerWrapperIcon : D.loadingSpinnerWrapper }, { children: n })) }), vr = () => {
+  const { setLoadingAction: n } = (0, _.useContext)(ue);
   return (0, _.useEffect)(() => {
     n(null);
   }, []), r(go, { isLoading: !0 });
@@ -2422,7 +2422,7 @@ xt.setAttributes = tt(), xt.insert = (n) => {
 }, xt.domAPI = et(), xt.insertStyleElement = nt(), Xe()(ln.A, xt);
 const Se = ln.A && ln.A.locals ? ln.A.locals : void 0, gr = () => {
   const { t: n } = (0, _.useContext)(Z.TranslateContext);
-  return r("span", Object.assign({ className: G()(Se.lastUsed) }, { children: n("labels.lastUsed") }));
+  return r("span", Object.assign({ className: Q()(Se.lastUsed) }, { children: n("labels.lastUsed") }));
 }, te = (n) => {
   var { uiAction: e, title: t, children: o, secondary: i, dangerous: s, autofocus: a, showLastUsed: d, onClick: c, icon: l } = n, u = function(x, P) {
     var $ = {};
@@ -2433,13 +2433,13 @@ const Se = ln.A && ln.A.locals ? ln.A.locals : void 0, gr = () => {
     }
     return $;
   }(n, ["uiAction", "title", "children", "secondary", "dangerous", "autofocus", "showLastUsed", "onClick", "icon"]);
-  const h = (0, _.useRef)(null), { uiState: v, isDisabled: f } = (0, _.useContext)(de);
+  const h = (0, _.useRef)(null), { uiState: v, isDisabled: f } = (0, _.useContext)(ue);
   (0, _.useEffect)(() => {
     const { current: x } = h;
     x && a && x.focus();
   }, [a]);
   const S = (0, _.useMemo)(() => e && v.loadingAction === e || u.isLoading, [u, e, v]), O = (0, _.useMemo)(() => e && v.succeededAction === e || u.isSuccess, [u, e, v]), C = (0, _.useMemo)(() => f || u.disabled, [u, f]);
-  return r("button", Object.assign({ part: s ? "button dangerous-button" : i ? "button secondary-button" : "button primary-button", title: t, ref: h, type: "submit", disabled: C, onClick: c, className: G()(Se.button, s ? Se.dangerous : i ? Se.secondary : Se.primary) }, { children: r(go, Object.assign({ isLoading: S, isSuccess: O, secondary: !0, hasIcon: !!l, maxWidth: !0 }, { children: [l ? r(Wt, { name: l, secondary: i, disabled: C }) : null, r("div", Object.assign({ className: Se.caption }, { children: [r("span", { children: o }), d ? r(gr, {}) : null] }))] })) }));
+  return r("button", Object.assign({ part: s ? "button dangerous-button" : i ? "button secondary-button" : "button primary-button", title: t, ref: h, type: "submit", disabled: C, onClick: c, className: Q()(Se.button, s ? Se.dangerous : i ? Se.secondary : Se.primary) }, { children: r(go, Object.assign({ isLoading: S, isSuccess: O, secondary: !0, hasIcon: !!l, maxWidth: !0 }, { children: [l ? r(Wt, { name: l, secondary: i, disabled: C }) : null, r("div", Object.assign({ className: Se.caption }, { children: [r("span", { children: o }), d ? r(gr, {}) : null] }))] })) }));
 }, Ke = (n) => {
   var e, t, o, i, s, { label: a } = n, d = function(f, S) {
     var O = {};
@@ -2450,7 +2450,7 @@ const Se = ln.A && ln.A.locals ? ln.A.locals : void 0, gr = () => {
     }
     return O;
   }(n, ["label"]);
-  const c = (0, _.useRef)(null), { isDisabled: l } = (0, _.useContext)(de), { t: u } = (0, _.useContext)(Z.TranslateContext), h = (0, _.useMemo)(() => l || d.disabled, [d, l]);
+  const c = (0, _.useRef)(null), { isDisabled: l } = (0, _.useContext)(ue), { t: u } = (0, _.useContext)(Z.TranslateContext), h = (0, _.useMemo)(() => l || d.disabled, [d, l]);
   (0, _.useEffect)(() => {
     const { current: f } = c;
     f && d.autofocus && (f.focus(), f.select());
@@ -2459,8 +2459,8 @@ const Se = ln.A && ln.A.locals ? ln.A.locals : void 0, gr = () => {
     var f;
     return d.markOptional && !(!((f = d.flowInput) === null || f === void 0) && f.required) ? `${d.placeholder} (${u("labels.optional")})` : d.placeholder;
   }, [d.markOptional, d.placeholder, d.flowInput, u]);
-  return r("div", Object.assign({ className: Se.inputWrapper }, { children: r("input", Object.assign({ part: "input text-input", required: (e = d.flowInput) === null || e === void 0 ? void 0 : e.required, maxLength: (t = d.flowInput) === null || t === void 0 ? void 0 : t.max_length, minLength: (o = d.flowInput) === null || o === void 0 ? void 0 : o.min_length, hidden: (i = d.flowInput) === null || i === void 0 ? void 0 : i.hidden }, d, { ref: c, "aria-label": v, placeholder: v, className: G()(Se.input, !!(!((s = d.flowInput) === null || s === void 0) && s.error) && d.markError && Se.error), disabled: h })) }));
-}, Ae = ({ children: n }) => r("section", Object.assign({ className: Rt.content }, { children: n })), ne = ({ onSubmit: n, children: e, hidden: t, maxWidth: o }) => t ? null : r("form", Object.assign({ onSubmit: n, className: Se.form }, { children: r("ul", Object.assign({ className: Se.ul }, { children: (0, A.toChildArray)(e).map((i, s) => r("li", Object.assign({ part: "form-item", className: G()(Se.li, o ? Se.maxWidth : null) }, { children: i }), s)) })) }));
+  return r("div", Object.assign({ className: Se.inputWrapper }, { children: r("input", Object.assign({ part: "input text-input", required: (e = d.flowInput) === null || e === void 0 ? void 0 : e.required, maxLength: (t = d.flowInput) === null || t === void 0 ? void 0 : t.max_length, minLength: (o = d.flowInput) === null || o === void 0 ? void 0 : o.min_length, hidden: (i = d.flowInput) === null || i === void 0 ? void 0 : i.hidden }, d, { ref: c, "aria-label": v, placeholder: v, className: Q()(Se.input, !!(!((s = d.flowInput) === null || s === void 0) && s.error) && d.markError && Se.error), disabled: h })) }));
+}, Ae = ({ children: n }) => r("section", Object.assign({ className: Rt.content }, { children: n })), ne = ({ onSubmit: n, children: e, hidden: t, maxWidth: o }) => t ? null : r("form", Object.assign({ onSubmit: n, className: Se.form }, { children: r("ul", Object.assign({ className: Se.ul }, { children: (0, A.toChildArray)(e).map((i, s) => r("li", Object.assign({ part: "form-item", className: Q()(Se.li, o ? Se.maxWidth : null) }, { children: i }), s)) })) }));
 var cn = Y(111), St = {};
 St.setAttributes = tt(), St.insert = (n) => {
   window._hankoStyle = n;
@@ -2472,7 +2472,7 @@ Ct.setAttributes = tt(), Ct.insert = (n) => {
 }, Ct.domAPI = et(), Ct.insertStyleElement = nt(), Xe()(dn.A, Ct);
 const ji = dn.A && dn.A.locals ? dn.A.locals : void 0, Oe = ({ state: n, error: e, flowError: t }) => {
   var o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { uiState: a, setUIState: d } = (0, _.useContext)(de);
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { uiState: a, setUIState: d } = (0, _.useContext)(ue);
   return (0, _.useEffect)(() => {
     var c, l;
     if (((c = n == null ? void 0 : n.error) === null || c === void 0 ? void 0 : c.code) == "form_data_invalid_error") for (const u of Object.values(n == null ? void 0 : n.actions)) {
@@ -2488,7 +2488,7 @@ var un = Y(619), At = {};
 At.setAttributes = tt(), At.insert = (n) => {
   window._hankoStyle = n;
 }, At.domAPI = et(), At.insertStyleElement = nt(), Xe()(un.A, At);
-const bn = un.A && un.A.locals ? un.A.locals : void 0, ce = ({ children: n }) => r("h1", Object.assign({ part: "headline1", className: G()(bn.headline, bn.grade1) }, { children: n }));
+const bn = un.A && un.A.locals ? un.A.locals : void 0, de = ({ children: n }) => r("h1", Object.assign({ part: "headline1", className: Q()(bn.headline, bn.grade1) }, { children: n }));
 var hn = Y(995), Ot = {};
 Ot.setAttributes = tt(), Ot.insert = (n) => {
   window._hankoStyle = n;
@@ -2503,7 +2503,7 @@ const Zt = hn.A && hn.A.locals ? hn.A.locals : void 0, Jn = (n) => {
     }
     return N;
   }(n, ["loadingSpinnerPosition", "dangerous", "onClick", "uiAction"]);
-  const { t: a } = (0, _.useContext)(Z.TranslateContext), { uiState: d, isDisabled: c } = (0, _.useContext)(de), [l, u] = (0, _.useState)();
+  const { t: a } = (0, _.useContext)(Z.TranslateContext), { uiState: d, isDisabled: c } = (0, _.useContext)(ue), [l, u] = (0, _.useState)();
   let h;
   const v = (P) => {
     P.preventDefault(), u(!0);
@@ -2511,8 +2511,8 @@ const Zt = hn.A && hn.A.locals ? hn.A.locals : void 0, Jn = (n) => {
     P.preventDefault(), u(!1);
   }, S = (0, _.useMemo)(() => i && d.loadingAction === i || s.isLoading, [s, i, d]), O = (0, _.useMemo)(() => i && d.succeededAction === i || s.isSuccess, [s, i, d]), C = (0, _.useCallback)((P) => {
     P.preventDefault(), u(!1), o(P);
-  }, [o]), x = (0, _.useCallback)(() => r(A.Fragment, { children: [l ? r(A.Fragment, { children: [r(Jn, Object.assign({ onClick: C }, { children: a("labels.yes") })), " / ", r(Jn, Object.assign({ onClick: f }, { children: a("labels.no") })), " "] }) : null, r("button", Object.assign({}, s, { onClick: t ? v : o, disabled: l || s.disabled || c, part: "link", className: G()(Zt.link, t ? Zt.danger : null) }, { children: s.children }))] }), [l, t, o, C, s, a, c]);
-  return r(A.Fragment, { children: r("span", Object.assign({ className: G()(Zt.linkWrapper, e === "right" ? Zt.reverse : null), hidden: s.hidden, onMouseEnter: () => {
+  }, [o]), x = (0, _.useCallback)(() => r(A.Fragment, { children: [l ? r(A.Fragment, { children: [r(Jn, Object.assign({ onClick: C }, { children: a("labels.yes") })), " / ", r(Jn, Object.assign({ onClick: f }, { children: a("labels.no") })), " "] }) : null, r("button", Object.assign({}, s, { onClick: t ? v : o, disabled: l || s.disabled || c, part: "link", className: Q()(Zt.link, t ? Zt.danger : null) }, { children: s.children }))] }), [l, t, o, C, s, a, c]);
+  return r(A.Fragment, { children: r("span", Object.assign({ className: Q()(Zt.linkWrapper, e === "right" ? Zt.reverse : null), hidden: s.hidden, onMouseEnter: () => {
     h && window.clearTimeout(h);
   }, onMouseLeave: () => {
     h = window.setTimeout(() => {
@@ -2529,7 +2529,7 @@ const Zt = hn.A && hn.A.locals ? hn.A.locals : void 0, Jn = (n) => {
     }
     return s;
   }(n, ["label"]);
-  return r("div", Object.assign({ className: Se.inputWrapper }, { children: r("label", Object.assign({ className: Se.checkboxWrapper }, { children: [r("input", Object.assign({ part: "input checkbox-input", type: "checkbox", "aria-label": e, className: Se.checkbox }, t)), r("span", Object.assign({ className: G()(Se.label, t.disabled ? Se.disabled : null) }, { children: e }))] })) }));
+  return r("div", Object.assign({ className: Se.inputWrapper }, { children: r("label", Object.assign({ className: Se.checkboxWrapper }, { children: [r("input", Object.assign({ part: "input checkbox-input", type: "checkbox", "aria-label": e, className: Se.checkbox }, t)), r("span", Object.assign({ className: Q()(Se.label, t.disabled ? Se.disabled : null) }, { children: e }))] })) }));
 }, Pn = () => r("section", { className: Lt.spacer });
 var Pt = function(n, e, t, o) {
   return new (t || (t = Promise))(function(i, s) {
@@ -2558,10 +2558,10 @@ var Pt = function(n, e, t, o) {
 };
 const _r = (n) => {
   var e, t, o, i, s, a, d, c, l;
-  const { t: u } = (0, _.useContext)(Z.TranslateContext), { init: h, hanko: v, initialComponentName: f, setLoadingAction: S, uiState: O, setUIState: C, stateHandler: x, hidePasskeyButtonOnLogin: P, lastLogin: $ } = (0, _.useContext)(de), [N, U] = (0, _.useState)(null), [ie, ge] = (0, _.useState)(O.username || O.email), { flowState: se } = Ne(n.state), be = mt.supported(), [M, q] = (0, _.useState)(void 0), [me, De] = (0, _.useState)(null), [Pe, Le] = (0, _.useState)(!1), re = (k) => {
+  const { t: u } = (0, _.useContext)(Z.TranslateContext), { init: h, hanko: v, initialComponentName: f, setLoadingAction: S, uiState: O, setUIState: C, stateHandler: x, hidePasskeyButtonOnLogin: P, lastLogin: $ } = (0, _.useContext)(ue), [N, U] = (0, _.useState)(null), [ie, _e] = (0, _.useState)(O.username || O.email), { flowState: se } = Ne(n.state), be = mt.supported(), [M, q] = (0, _.useState)(void 0), [ve, De] = (0, _.useState)(null), [Pe, Le] = (0, _.useState)(!1), re = (k) => {
     if (k.preventDefault(), k.target instanceof HTMLInputElement) {
       const { value: p } = k.target;
-      ge(p), ae(p);
+      _e(p), ae(p);
     }
   }, ae = (k) => {
     const p = () => C((L) => Object.assign(Object.assign({}, L), { email: k, username: null })), y = () => C((L) => Object.assign(Object.assign({}, L), { email: null, username: k }));
@@ -2575,7 +2575,7 @@ const _r = (n) => {
       case "identifier":
         k.match(/^[^@]+@[^@]+\.[^@]+$/) ? p() : y();
     }
-  }, ue = (0, _.useMemo)(() => {
+  }, he = (0, _.useMemo)(() => {
     var k, p, y, L;
     return !!(!((p = (k = se.actions).webauthn_generate_request_options) === null || p === void 0) && p.call(k, null)) || !!(!((L = (y = se.actions).thirdparty_oauth) === null || L === void 0) && L.call(y, null));
   }, [se.actions]), Ee = (t = (e = se.actions).continue_with_login_identifier) === null || t === void 0 ? void 0 : t.call(e, null).inputs;
@@ -2590,11 +2590,11 @@ const _r = (n) => {
     p = k.get("error") === "access_denied" ? "thirdPartyAccessDenied" : "somethingWentWrong";
     const y = { name: p, code: p, message: k.get("error_description") };
     q(y), k.delete("error"), k.delete("error_description"), history.replaceState(null, null, window.location.pathname + (k.size < 1 ? "" : `?${k.toString()}`));
-  }, []), r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: u("headlines.signIn") }), r(Oe, { state: se, error: M }), Ee ? r(A.Fragment, { children: [r(ne, Object.assign({ onSubmit: (k) => Pt(void 0, void 0, void 0, function* () {
+  }, []), r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: u("headlines.signIn") }), r(Oe, { state: se, error: M }), Ee ? r(A.Fragment, { children: [r(ne, Object.assign({ onSubmit: (k) => Pt(void 0, void 0, void 0, function* () {
     k.preventDefault(), S("email-submit");
     const p = yield se.actions.continue_with_login_identifier({ [N]: ie }).run();
     ae(ie), S(null), yield v.flow.run(p, x);
-  }), maxWidth: !0 }, { children: [Ee.email ? r(Ke, { type: "email", autoComplete: "username webauthn", autoCorrect: "off", flowInput: Ee.email, onInput: re, value: ie, placeholder: u("labels.email"), pattern: "^[^@]+@[^@]+\\.[^@]+$" }) : Ee.username ? r(Ke, { type: "text", autoComplete: "username webauthn", autoCorrect: "off", flowInput: Ee.username, onInput: re, value: ie, placeholder: u("labels.username") }) : r(Ke, { type: "text", autoComplete: "username webauthn", autoCorrect: "off", flowInput: Ee.identifier, onInput: re, value: ie, placeholder: u("labels.emailOrUsername") }), r(te, Object.assign({ uiAction: "email-submit" }, { children: u("labels.continue") }))] })), r(_o, Object.assign({ hidden: !ue }, { children: u("labels.or") }))] }) : null, !((i = (o = se.actions).webauthn_generate_request_options) === null || i === void 0) && i.call(o, null) && !P ? r(ne, Object.assign({ onSubmit: (k) => ((p) => Pt(void 0, void 0, void 0, function* () {
+  }), maxWidth: !0 }, { children: [Ee.email ? r(Ke, { type: "email", autoComplete: "username webauthn", autoCorrect: "off", flowInput: Ee.email, onInput: re, value: ie, placeholder: u("labels.email"), pattern: "^[^@]+@[^@]+\\.[^@]+$" }) : Ee.username ? r(Ke, { type: "text", autoComplete: "username webauthn", autoCorrect: "off", flowInput: Ee.username, onInput: re, value: ie, placeholder: u("labels.username") }) : r(Ke, { type: "text", autoComplete: "username webauthn", autoCorrect: "off", flowInput: Ee.identifier, onInput: re, value: ie, placeholder: u("labels.emailOrUsername") }), r(te, Object.assign({ uiAction: "email-submit" }, { children: u("labels.continue") }))] })), r(_o, Object.assign({ hidden: !he }, { children: u("labels.or") }))] }) : null, !((i = (o = se.actions).webauthn_generate_request_options) === null || i === void 0) && i.call(o, null) && !P ? r(ne, Object.assign({ onSubmit: (k) => ((p) => Pt(void 0, void 0, void 0, function* () {
     p.preventDefault(), S("passkey-submit");
     const y = yield se.actions.webauthn_generate_request_options(null).run();
     yield v.flow.run(y, x);
@@ -2602,7 +2602,7 @@ const _r = (n) => {
     y.preventDefault(), De(L);
     const K = yield se.actions.thirdparty_oauth({ provider: L, redirect_to: window.location.toString() }).run();
     K.error && De(null), yield v.flow.run(K, x);
-  }))(p, k.value) }, { children: r(te, Object.assign({ isLoading: k.value == me, secondary: !0, icon: k.value.startsWith("custom_") ? "customProvider" : k.value, showLastUsed: ($ == null ? void 0 : $.login_method) == "third_party" && ($ == null ? void 0 : $.third_party_provider) == k.value }, { children: u("labels.signInWith", { provider: k.name }) })) }), k.value)) : null, ((l = (c = se.actions).remember_me) === null || l === void 0 ? void 0 : l.call(c, null)) && r(A.Fragment, { children: [r(Pn, {}), r(yo, { required: !1, type: "checkbox", label: u("labels.staySignedIn"), checked: Pe, onChange: (k) => Pt(void 0, void 0, void 0, function* () {
+  }))(p, k.value) }, { children: r(te, Object.assign({ isLoading: k.value == ve, secondary: !0, icon: k.value.startsWith("custom_") ? "customProvider" : k.value, showLastUsed: ($ == null ? void 0 : $.login_method) == "third_party" && ($ == null ? void 0 : $.third_party_provider) == k.value }, { children: u("labels.signInWith", { provider: k.name }) })) }), k.value)) : null, ((l = (c = se.actions).remember_me) === null || l === void 0 ? void 0 : l.call(c, null)) && r(A.Fragment, { children: [r(Pn, {}), r(yo, { required: !1, type: "checkbox", label: u("labels.staySignedIn"), checked: Pe, onChange: (k) => Pt(void 0, void 0, void 0, function* () {
     const p = yield se.actions.remember_me({ remember_me: !Pe }).run();
     Le((y) => !y), yield v.flow.run(p, x);
   }) })] })] }), r(Ue, Object.assign({ hidden: f !== "auth" }, { children: [r("span", { hidden: !0 }), r(ee, Object.assign({ uiAction: "switch-flow", onClick: (k) => Pt(void 0, void 0, void 0, function* () {
@@ -2618,7 +2618,7 @@ const _r = (n) => {
     }
     return h;
   }(n, ["index", "focus", "digit"]);
-  const s = (0, _.useRef)(null), { isDisabled: a } = (0, _.useContext)(de), d = () => {
+  const s = (0, _.useRef)(null), { isDisabled: a } = (0, _.useContext)(ue), d = () => {
     const { current: l } = s;
     l && (l.focus(), l.select());
   }, c = (0, _.useMemo)(() => a || i.disabled, [i, a]);
@@ -2684,7 +2684,7 @@ var Jt = function(n, e, t, o) {
 };
 const kr = (n) => {
   var e, t;
-  const { t: o } = (0, _.useContext)(Z.TranslateContext), { flowState: i } = Ne(n.state), { hanko: s, uiState: a, setUIState: d, setLoadingAction: c, setSucceededAction: l, stateHandler: u } = (0, _.useContext)(de), [h, v] = (0, _.useState)(), [f, S] = (0, _.useState)(i.payload.resend_after), [O, C] = (0, _.useState)([]), x = (0, _.useMemo)(() => {
+  const { t: o } = (0, _.useContext)(Z.TranslateContext), { flowState: i } = Ne(n.state), { hanko: s, uiState: a, setUIState: d, setLoadingAction: c, setSucceededAction: l, stateHandler: u } = (0, _.useContext)(ue), [h, v] = (0, _.useState)(), [f, S] = (0, _.useState)(i.payload.resend_after), [O, C] = (0, _.useState)([]), x = (0, _.useMemo)(() => {
     var $;
     return (($ = i.error) === null || $ === void 0 ? void 0 : $.code) === "passcode_max_attempts_reached";
   }, [i]), P = (0, _.useCallback)(($) => Jt(void 0, void 0, void 0, function* () {
@@ -2710,7 +2710,7 @@ const kr = (n) => {
   }, [f]), (0, _.useEffect)(() => {
     var $;
     (($ = i.error) === null || $ === void 0 ? void 0 : $.code) === "passcode_invalid" && C([]), i.payload.resend_after >= 0 && S(i.payload.resend_after);
-  }, [i]), r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: o("headlines.loginPasscode") }), r(Oe, { state: i }), r(z, { children: a.email ? o("texts.enterPasscode", { emailAddress: a.email }) : o("texts.enterPasscodeNoEmail") }), r(ne, Object.assign({ onSubmit: ($) => Jt(void 0, void 0, void 0, function* () {
+  }, [i]), r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: o("headlines.loginPasscode") }), r(Oe, { state: i }), r(z, { children: a.email ? o("texts.enterPasscode", { emailAddress: a.email }) : o("texts.enterPasscodeNoEmail") }), r(ne, Object.assign({ onSubmit: ($) => Jt(void 0, void 0, void 0, function* () {
     return $.preventDefault(), P(O.join(""));
   }) }, { children: [r(bo, { onInput: ($) => {
     if (C($), $.filter((N) => N !== "").length === 6) return P($.join(""));
@@ -2751,8 +2751,8 @@ var Rn = function(n, e, t, o) {
 };
 const wr = (n) => {
   var e, t, o, i, s, a, d, c;
-  const { t: l } = (0, _.useContext)(Z.TranslateContext), { hanko: u, setLoadingAction: h, stateHandler: v } = (0, _.useContext)(de), { flowState: f } = Ne(n.state);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: l("headlines.registerAuthenticator") }), r(Oe, { state: f }), r(z, { children: l("texts.setupPasskey") }), r(ne, Object.assign({ onSubmit: (S) => Rn(void 0, void 0, void 0, function* () {
+  const { t: l } = (0, _.useContext)(Z.TranslateContext), { hanko: u, setLoadingAction: h, stateHandler: v } = (0, _.useContext)(ue), { flowState: f } = Ne(n.state);
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: l("headlines.registerAuthenticator") }), r(Oe, { state: f }), r(z, { children: l("texts.setupPasskey") }), r(ne, Object.assign({ onSubmit: (S) => Rn(void 0, void 0, void 0, function* () {
     S.preventDefault(), h("passkey-submit");
     const O = yield f.actions.webauthn_generate_creation_options(null).run();
     yield u.flow.run(O, v);
@@ -2793,7 +2793,7 @@ var It = function(n, e, t, o) {
 };
 const xr = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, stateHandler: d, setLoadingAction: c } = (0, _.useContext)(de), { flowState: l } = Ne(n.state), [u, h] = (0, _.useState)(), [v, f] = (0, _.useState)(), S = (P) => It(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, stateHandler: d, setLoadingAction: c } = (0, _.useContext)(ue), { flowState: l } = Ne(n.state), [u, h] = (0, _.useState)(), [v, f] = (0, _.useState)(), S = (P) => It(void 0, void 0, void 0, function* () {
     P.preventDefault(), c("password-recovery");
     const $ = yield l.actions.continue_to_passcode_confirmation_recovery(null).run();
     c(null), yield a.flow.run($, d);
@@ -2808,7 +2808,7 @@ const xr = (n) => {
   return (0, _.useEffect)(() => {
     const P = v > 0 && setInterval(() => f(v - 1), 1e3);
     return () => clearInterval(P);
-  }, [v]), r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.loginPassword") }), r(Oe, { state: l }), r(ne, Object.assign({ onSubmit: (P) => It(void 0, void 0, void 0, function* () {
+  }, [v]), r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.loginPassword") }), r(Oe, { state: l }), r(ne, Object.assign({ onSubmit: (P) => It(void 0, void 0, void 0, function* () {
     P.preventDefault(), c("password-submit");
     const $ = yield l.actions.password_login({ password: u }).run();
     c(null), yield a.flow.run($, d);
@@ -2846,60 +2846,14 @@ var Vo = function(n, e, t, o) {
   });
 };
 const Sr = (n) => {
-  const { t: e } = (0, _.useContext)(Z.TranslateContext), { hanko: t, stateHandler: o, setLoadingAction: i } = (0, _.useContext)(de), { flowState: s } = Ne(n.state), [a, d] = (0, _.useState)();
-  return r(Ae, { children: [r(ce, { children: e("headlines.registerPassword") }), r(Oe, { state: s }), r(z, { children: e("texts.passwordFormatHint", { minLength: s.actions.password_recovery(null).inputs.new_password.min_length, maxLength: 72 }) }), r(ne, Object.assign({ onSubmit: (c) => Vo(void 0, void 0, void 0, function* () {
+  const { t: e } = (0, _.useContext)(Z.TranslateContext), { hanko: t, stateHandler: o, setLoadingAction: i } = (0, _.useContext)(ue), { flowState: s } = Ne(n.state), [a, d] = (0, _.useState)();
+  return r(Ae, { children: [r(de, { children: e("headlines.registerPassword") }), r(Oe, { state: s }), r(z, { children: e("texts.passwordFormatHint", { minLength: s.actions.password_recovery(null).inputs.new_password.min_length, maxLength: 72 }) }), r(ne, Object.assign({ onSubmit: (c) => Vo(void 0, void 0, void 0, function* () {
     c.preventDefault(), i("password-submit");
     const l = yield s.actions.password_recovery({ new_password: a }).run();
     i(null), yield t.flow.run(l, o);
   }) }, { children: [r(Ke, { type: "password", autocomplete: "new-password", flowInput: s.actions.password_recovery(null).inputs.new_password, placeholder: e("labels.newPassword"), onInput: (c) => Vo(void 0, void 0, void 0, function* () {
     c.target instanceof HTMLInputElement && d(c.target.value);
   }), autofocus: !0 }), r(te, Object.assign({ uiAction: "password-submit" }, { children: e("labels.continue") }))] }))] });
-};
-var Gt = function(n, e, t, o) {
-  return new (t || (t = Promise))(function(i, s) {
-    function a(l) {
-      try {
-        c(o.next(l));
-      } catch (u) {
-        s(u);
-      }
-    }
-    function d(l) {
-      try {
-        c(o.throw(l));
-      } catch (u) {
-        s(u);
-      }
-    }
-    function c(l) {
-      var u;
-      l.done ? i(l.value) : (u = l.value, u instanceof t ? u : new t(function(h) {
-        h(u);
-      })).then(a, d);
-    }
-    c((o = o.apply(n, [])).next());
-  });
-};
-const Cr = (n) => {
-  var e, t, o, i, s, a;
-  const { t: d } = (0, _.useContext)(Z.TranslateContext), { hanko: c, setLoadingAction: l, stateHandler: u, lastLogin: h } = (0, _.useContext)(de), { flowState: v } = Ne(n.state);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: d("headlines.selectLoginMethod") }), r(Oe, { flowError: v == null ? void 0 : v.error }), r(z, { children: d("texts.howDoYouWantToLogin") }), r(ne, Object.assign({ hidden: !(!((t = (e = v.actions).continue_to_passcode_confirmation) === null || t === void 0) && t.call(e, null)), onSubmit: (f) => Gt(void 0, void 0, void 0, function* () {
-    f.preventDefault(), l("passcode-submit");
-    const S = yield v.actions.continue_to_passcode_confirmation(null).run();
-    l(null), yield c.flow.run(S, u);
-  }) }, { children: r(te, Object.assign({ secondary: !0, uiAction: "passcode-submit", icon: "mail" }, { children: d("labels.passcode") })) })), r(ne, Object.assign({ hidden: !(!((i = (o = v.actions).continue_to_password_login) === null || i === void 0) && i.call(o, null)), onSubmit: (f) => Gt(void 0, void 0, void 0, function* () {
-    f.preventDefault(), l("password-submit");
-    const S = yield v.actions.continue_to_password_login(null).run();
-    l(null), yield c.flow.run(S, u);
-  }) }, { children: r(te, Object.assign({ secondary: !0, uiAction: "password-submit", icon: "password" }, { children: d("labels.password") })) })), r(ne, Object.assign({ hidden: !(!((a = (s = v.actions).webauthn_generate_request_options) === null || a === void 0) && a.call(s, null)), onSubmit: (f) => Gt(void 0, void 0, void 0, function* () {
-    f.preventDefault(), l("passkey-submit");
-    const S = yield v.actions.webauthn_generate_request_options(null).run();
-    l(null), yield c.flow.run(S, u);
-  }) }, { children: r(te, Object.assign({ secondary: !0, uiAction: "passkey-submit", icon: "passkey" }, { children: d("labels.passkey") })) }))] }), r(Ue, { children: r(ee, Object.assign({ uiAction: "back", onClick: (f) => Gt(void 0, void 0, void 0, function* () {
-    f.preventDefault(), l("back");
-    const S = yield v.actions.back(null).run();
-    l(null), yield c.flow.run(S, u);
-  }), loadingSpinnerPosition: "right" }, { children: d("labels.back") })) })] });
 };
 var Qt = function(n, e, t, o) {
   return new (t || (t = Promise))(function(i, s) {
@@ -2926,9 +2880,55 @@ var Qt = function(n, e, t, o) {
     c((o = o.apply(n, [])).next());
   });
 };
+const Cr = (n) => {
+  var e, t, o, i, s, a;
+  const { t: d } = (0, _.useContext)(Z.TranslateContext), { hanko: c, setLoadingAction: l, stateHandler: u, lastLogin: h } = (0, _.useContext)(ue), { flowState: v } = Ne(n.state);
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: d("headlines.selectLoginMethod") }), r(Oe, { flowError: v == null ? void 0 : v.error }), r(z, { children: d("texts.howDoYouWantToLogin") }), r(ne, Object.assign({ hidden: !(!((t = (e = v.actions).continue_to_passcode_confirmation) === null || t === void 0) && t.call(e, null)), onSubmit: (f) => Qt(void 0, void 0, void 0, function* () {
+    f.preventDefault(), l("passcode-submit");
+    const S = yield v.actions.continue_to_passcode_confirmation(null).run();
+    l(null), yield c.flow.run(S, u);
+  }) }, { children: r(te, Object.assign({ secondary: !0, uiAction: "passcode-submit", icon: "mail" }, { children: d("labels.passcode") })) })), r(ne, Object.assign({ hidden: !(!((i = (o = v.actions).continue_to_password_login) === null || i === void 0) && i.call(o, null)), onSubmit: (f) => Qt(void 0, void 0, void 0, function* () {
+    f.preventDefault(), l("password-submit");
+    const S = yield v.actions.continue_to_password_login(null).run();
+    l(null), yield c.flow.run(S, u);
+  }) }, { children: r(te, Object.assign({ secondary: !0, uiAction: "password-submit", icon: "password" }, { children: d("labels.password") })) })), r(ne, Object.assign({ hidden: !(!((a = (s = v.actions).webauthn_generate_request_options) === null || a === void 0) && a.call(s, null)), onSubmit: (f) => Qt(void 0, void 0, void 0, function* () {
+    f.preventDefault(), l("passkey-submit");
+    const S = yield v.actions.webauthn_generate_request_options(null).run();
+    l(null), yield c.flow.run(S, u);
+  }) }, { children: r(te, Object.assign({ secondary: !0, uiAction: "passkey-submit", icon: "passkey" }, { children: d("labels.passkey") })) }))] }), r(Ue, { children: r(ee, Object.assign({ uiAction: "back", onClick: (f) => Qt(void 0, void 0, void 0, function* () {
+    f.preventDefault(), l("back");
+    const S = yield v.actions.back(null).run();
+    l(null), yield c.flow.run(S, u);
+  }), loadingSpinnerPosition: "right" }, { children: d("labels.back") })) })] });
+};
+var Gt = function(n, e, t, o) {
+  return new (t || (t = Promise))(function(i, s) {
+    function a(l) {
+      try {
+        c(o.next(l));
+      } catch (u) {
+        s(u);
+      }
+    }
+    function d(l) {
+      try {
+        c(o.throw(l));
+      } catch (u) {
+        s(u);
+      }
+    }
+    function c(l) {
+      var u;
+      l.done ? i(l.value) : (u = l.value, u instanceof t ? u : new t(function(h) {
+        h(u);
+      })).then(a, d);
+    }
+    c((o = o.apply(n, [])).next());
+  });
+};
 const Ar = (n) => {
   var e, t, o, i, s, a, d;
-  const { t: c } = (0, _.useContext)(Z.TranslateContext), { init: l, hanko: u, uiState: h, setUIState: v, stateHandler: f, setLoadingAction: S, initialComponentName: O } = (0, _.useContext)(de), { flowState: C } = Ne(n.state), x = (t = (e = C.actions).register_login_identifier) === null || t === void 0 ? void 0 : t.call(e, null).inputs, P = !(!(x != null && x.email) || !(x != null && x.username)), [$, N] = (0, _.useState)(void 0), [U, ie] = (0, _.useState)(null), [ge, se] = (0, _.useState)(!1), be = (0, _.useMemo)(() => {
+  const { t: c } = (0, _.useContext)(Z.TranslateContext), { init: l, hanko: u, uiState: h, setUIState: v, stateHandler: f, setLoadingAction: S, initialComponentName: O } = (0, _.useContext)(ue), { flowState: C } = Ne(n.state), x = (t = (e = C.actions).register_login_identifier) === null || t === void 0 ? void 0 : t.call(e, null).inputs, P = !(!(x != null && x.email) || !(x != null && x.username)), [$, N] = (0, _.useState)(void 0), [U, ie] = (0, _.useState)(null), [_e, se] = (0, _.useState)(!1), be = (0, _.useMemo)(() => {
     var M, q;
     return !!(!((q = (M = C.actions).thirdparty_oauth) === null || q === void 0) && q.call(M, null));
   }, [C.actions]);
@@ -2937,30 +2937,30 @@ const Ar = (n) => {
     if (M.get("error") == null || M.get("error").length === 0) return;
     let q = "";
     q = M.get("error") === "access_denied" ? "thirdPartyAccessDenied" : "somethingWentWrong";
-    const me = { name: q, code: q, message: M.get("error_description") };
-    N(me), M.delete("error"), M.delete("error_description"), history.replaceState(null, null, window.location.pathname + (M.size < 1 ? "" : `?${M.toString()}`));
-  }, []), r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: c("headlines.signUp") }), r(Oe, { state: C, error: $ }), x ? r(A.Fragment, { children: [r(ne, Object.assign({ onSubmit: (M) => Qt(void 0, void 0, void 0, function* () {
+    const ve = { name: q, code: q, message: M.get("error_description") };
+    N(ve), M.delete("error"), M.delete("error_description"), history.replaceState(null, null, window.location.pathname + (M.size < 1 ? "" : `?${M.toString()}`));
+  }, []), r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: c("headlines.signUp") }), r(Oe, { state: C, error: $ }), x ? r(A.Fragment, { children: [r(ne, Object.assign({ onSubmit: (M) => Gt(void 0, void 0, void 0, function* () {
     M.preventDefault(), S("email-submit");
     const q = yield C.actions.register_login_identifier({ email: h.email, username: h.username }).run();
     S(null), yield u.flow.run(q, f);
   }), maxWidth: !0 }, { children: [x.username ? r(Ke, { markOptional: P, markError: P, type: "text", autoComplete: "username", autoCorrect: "off", flowInput: x.username, onInput: (M) => {
     if (M.preventDefault(), M.target instanceof HTMLInputElement) {
       const { value: q } = M.target;
-      v((me) => Object.assign(Object.assign({}, me), { username: q }));
+      v((ve) => Object.assign(Object.assign({}, ve), { username: q }));
     }
   }, value: h.username, placeholder: c("labels.username") }) : null, x.email ? r(Ke, { markOptional: P, markError: P, type: "email", autoComplete: "email", autoCorrect: "off", flowInput: x.email, onInput: (M) => {
     if (M.preventDefault(), M.target instanceof HTMLInputElement) {
       const { value: q } = M.target;
-      v((me) => Object.assign(Object.assign({}, me), { email: q }));
+      v((ve) => Object.assign(Object.assign({}, ve), { email: q }));
     }
-  }, value: h.email, placeholder: c("labels.email"), pattern: "^.*[^0-9]+$" }) : null, r(te, Object.assign({ uiAction: "email-submit", autofocus: !0 }, { children: c("labels.continue") }))] })), r(_o, Object.assign({ hidden: !be }, { children: c("labels.or") }))] }) : null, !((i = (o = C.actions).thirdparty_oauth) === null || i === void 0) && i.call(o, null) ? (s = C.actions.thirdparty_oauth(null).inputs.provider.allowed_values) === null || s === void 0 ? void 0 : s.map((M) => r(ne, Object.assign({ onSubmit: (q) => ((me, De) => Qt(void 0, void 0, void 0, function* () {
-    me.preventDefault(), ie(De);
+  }, value: h.email, placeholder: c("labels.email"), pattern: "^.*[^0-9]+$" }) : null, r(te, Object.assign({ uiAction: "email-submit", autofocus: !0 }, { children: c("labels.continue") }))] })), r(_o, Object.assign({ hidden: !be }, { children: c("labels.or") }))] }) : null, !((i = (o = C.actions).thirdparty_oauth) === null || i === void 0) && i.call(o, null) ? (s = C.actions.thirdparty_oauth(null).inputs.provider.allowed_values) === null || s === void 0 ? void 0 : s.map((M) => r(ne, Object.assign({ onSubmit: (q) => ((ve, De) => Gt(void 0, void 0, void 0, function* () {
+    ve.preventDefault(), ie(De);
     const Pe = yield C.actions.thirdparty_oauth({ provider: De, redirect_to: window.location.toString() }).run();
     ie(null), yield u.flow.run(Pe, f);
-  }))(q, M.value) }, { children: r(te, Object.assign({ isLoading: M.value == U, secondary: !0, icon: M.value.startsWith("custom_") ? "customProvider" : M.value }, { children: c("labels.signInWith", { provider: M.name }) })) }), M.value)) : null, ((d = (a = C.actions).remember_me) === null || d === void 0 ? void 0 : d.call(a, null)) && r(A.Fragment, { children: [r(Pn, {}), r(yo, { required: !1, type: "checkbox", label: c("labels.staySignedIn"), checked: ge, onChange: (M) => Qt(void 0, void 0, void 0, function* () {
-    const q = yield C.actions.remember_me({ remember_me: !ge }).run();
-    se((me) => !me), yield u.flow.run(q, f);
-  }) })] })] }), r(Ue, Object.assign({ hidden: O !== "auth" }, { children: [r("span", { hidden: !0 }), r(ee, Object.assign({ uiAction: "switch-flow", onClick: (M) => Qt(void 0, void 0, void 0, function* () {
+  }))(q, M.value) }, { children: r(te, Object.assign({ isLoading: M.value == U, secondary: !0, icon: M.value.startsWith("custom_") ? "customProvider" : M.value }, { children: c("labels.signInWith", { provider: M.name }) })) }), M.value)) : null, ((d = (a = C.actions).remember_me) === null || d === void 0 ? void 0 : d.call(a, null)) && r(A.Fragment, { children: [r(Pn, {}), r(yo, { required: !1, type: "checkbox", label: c("labels.staySignedIn"), checked: _e, onChange: (M) => Gt(void 0, void 0, void 0, function* () {
+    const q = yield C.actions.remember_me({ remember_me: !_e }).run();
+    se((ve) => !ve), yield u.flow.run(q, f);
+  }) })] })] }), r(Ue, Object.assign({ hidden: O !== "auth" }, { children: [r("span", { hidden: !0 }), r(ee, Object.assign({ uiAction: "switch-flow", onClick: (M) => Gt(void 0, void 0, void 0, function* () {
     M.preventDefault(), l("login");
   }), loadingSpinnerPosition: "left" }, { children: c("labels.alreadyHaveAnAccount") }))] }))] });
 };
@@ -2991,8 +2991,8 @@ var Yt = function(n, e, t, o) {
 };
 const Or = (n) => {
   var e, t, o, i, s, a, d, c;
-  const { t: l } = (0, _.useContext)(Z.TranslateContext), { hanko: u, stateHandler: h, setLoadingAction: v } = (0, _.useContext)(de), { flowState: f } = Ne(n.state), [S, O] = (0, _.useState)();
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: l("headlines.registerPassword") }), r(Oe, { state: f }), r(z, { children: l("texts.passwordFormatHint", { minLength: f.actions.register_password(null).inputs.new_password.min_length, maxLength: 72 }) }), r(ne, Object.assign({ onSubmit: (C) => Yt(void 0, void 0, void 0, function* () {
+  const { t: l } = (0, _.useContext)(Z.TranslateContext), { hanko: u, stateHandler: h, setLoadingAction: v } = (0, _.useContext)(ue), { flowState: f } = Ne(n.state), [S, O] = (0, _.useState)();
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: l("headlines.registerPassword") }), r(Oe, { state: f }), r(z, { children: l("texts.passwordFormatHint", { minLength: f.actions.register_password(null).inputs.new_password.min_length, maxLength: 72 }) }), r(ne, Object.assign({ onSubmit: (C) => Yt(void 0, void 0, void 0, function* () {
     C.preventDefault(), v("password-submit");
     const x = yield f.actions.register_password({ new_password: S }).run();
     v(null), yield u.flow.run(x, h);
@@ -3018,8 +3018,8 @@ const Ze = fn.A && fn.A.locals ? fn.A.locals : void 0, En = function({ name: n, 
     const h = parseInt(u.target.value, 10), v = d(h);
     s(v === i ? null : v);
   };
-  return r("div", Object.assign({ className: Ze.accordion }, { children: o.map((u, h) => r("div", Object.assign({ className: Ze.accordionItem }, { children: [r("input", { type: "radio", className: Ze.accordionInput, id: `${n}-${h}`, name: n, onClick: l, value: h, checked: c(h) }), r("label", Object.assign({ className: G()(Ze.label, a && Ze.dropdown), for: `${n}-${h}` }, { children: r("span", Object.assign({ className: Ze.labelText }, { children: e(u, h) })) })), r("div", Object.assign({ className: G()(Ze.accordionContent, a && Ze.dropdownContent) }, { children: t(u, h) }))] }), h)) }));
-}, Re = ({ children: n }) => r("h2", Object.assign({ part: "headline2", className: G()(bn.headline, bn.grade2) }, { children: n })), Pr = ({ onEmailDelete: n, onEmailSetPrimary: e, onEmailVerify: t, checkedItemID: o, setCheckedItemID: i, emails: s = [], deletableEmailIDs: a = [] }) => {
+  return r("div", Object.assign({ className: Ze.accordion }, { children: o.map((u, h) => r("div", Object.assign({ className: Ze.accordionItem }, { children: [r("input", { type: "radio", className: Ze.accordionInput, id: `${n}-${h}`, name: n, onClick: l, value: h, checked: c(h) }), r("label", Object.assign({ className: Q()(Ze.label, a && Ze.dropdown), for: `${n}-${h}` }, { children: r("span", Object.assign({ className: Ze.labelText }, { children: e(u, h) })) })), r("div", Object.assign({ className: Q()(Ze.accordionContent, a && Ze.dropdownContent) }, { children: t(u, h) }))] }), h)) }));
+}, Re = ({ children: n }) => r("h2", Object.assign({ part: "headline2", className: Q()(bn.headline, bn.grade2) }, { children: n })), Pr = ({ onEmailDelete: n, onEmailSetPrimary: e, onEmailVerify: t, checkedItemID: o, setCheckedItemID: i, emails: s = [], deletableEmailIDs: a = [] }) => {
   const { t: d } = (0, _.useContext)(Z.TranslateContext), c = (0, _.useMemo)(() => !1, []);
   return r(En, { name: "email-edit-dropdown", columnSelector: (l) => {
     const u = r("span", Object.assign({ className: Ze.description }, { children: l.is_verified ? l.is_primary ? r(A.Fragment, { children: [" -", " ", d("labels.primaryEmail")] }) : null : r(A.Fragment, { children: [" -", " ", d("labels.unverifiedEmail")] }) }));
@@ -3030,7 +3030,7 @@ const Ze = fn.A && fn.A.locals ? fn.A.locals : void 0, En = function({ name: n, 
   }, checkedItemID: o, setCheckedItemID: i });
 }, Er = ({ onCredentialNameSubmit: n, oldName: e, onBack: t, credential: o, credentialType: i }) => {
   const { t: s } = (0, _.useContext)(Z.TranslateContext), [a, d] = (0, _.useState)(e);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s(i === "security-key" ? "headlines.renameSecurityKey" : "headlines.renamePasskey") }), r(Oe, { flowError: null }), r(z, { children: s(i === "security-key" ? "texts.renameSecurityKey" : "texts.renamePasskey") }), r(ne, Object.assign({ onSubmit: (c) => n(c, o.id, a) }, { children: [r(Ke, { type: "text", name: i, value: a, minLength: 3, maxLength: 32, required: !0, placeholder: s(i === "security-key" ? "labels.newSecurityKeyName" : "labels.newPasskeyName"), onInput: (c) => {
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s(i === "security-key" ? "headlines.renameSecurityKey" : "headlines.renamePasskey") }), r(Oe, { flowError: null }), r(z, { children: s(i === "security-key" ? "texts.renameSecurityKey" : "texts.renamePasskey") }), r(ne, Object.assign({ onSubmit: (c) => n(c, o.id, a) }, { children: [r(Ke, { type: "text", name: i, value: a, minLength: 3, maxLength: 32, required: !0, placeholder: s(i === "security-key" ? "labels.newSecurityKeyName" : "labels.newPasskeyName"), onInput: (c) => {
     return l = void 0, u = void 0, v = function* () {
       c.target instanceof HTMLInputElement && d(c.target.value);
     }, new ((h = void 0) || (h = Promise))(function(f, S) {
@@ -3059,7 +3059,7 @@ const Ze = fn.A && fn.A.locals ? fn.A.locals : void 0, En = function({ name: n, 
     var l, u, h, v;
   }, autofocus: !0 }), r(te, Object.assign({ uiAction: "webauthn-credential-rename" }, { children: s("labels.save") }))] }))] }), r(Ue, { children: r(ee, Object.assign({ onClick: t, loadingSpinnerPosition: "right" }, { children: s("labels.back") })) })] });
 }, Zo = ({ credentials: n = [], checkedItemID: e, setCheckedItemID: t, onBack: o, onCredentialNameSubmit: i, onCredentialDelete: s, allowCredentialDeletion: a, credentialType: d }) => {
-  const { t: c } = (0, _.useContext)(Z.TranslateContext), { setPage: l } = (0, _.useContext)(de), u = (v) => {
+  const { t: c } = (0, _.useContext)(Z.TranslateContext), { setPage: l } = (0, _.useContext)(ue), u = (v) => {
     if (v.name) return v.name;
     const f = v.public_key.replace(/[\W_]/g, "");
     return `${d === "security-key" ? "SecurityKey" : "Passkey"}-${f.substring(f.length - 7, f.length)}`;
@@ -3082,10 +3082,10 @@ const Ze = fn.A && fn.A.locals ? fn.A.locals : void 0, En = function({ name: n, 
   return r(zt, Object.assign({ name: "password-edit-dropdown", title: u(a ? "labels.changePassword" : "labels.setPassword"), checkedItemID: e, setCheckedItemID: t }, { children: [r(z, { children: u("texts.passwordFormatHint", { minLength: (d = n.password.min_length) === null || d === void 0 ? void 0 : d.toString(10), maxLength: (c = n.password.max_length) === null || c === void 0 ? void 0 : c.toString(10) }) }), r(ko, { flowError: (l = n.password) === null || l === void 0 ? void 0 : l.error }), r(ne, Object.assign({ onSubmit: (f) => o(f, h).then(() => v("")) }, { children: [r(Ke, { markError: !0, autoComplete: "new-password", placeholder: u("labels.newPassword"), type: "password", onInput: (f) => {
     f.preventDefault(), f.target instanceof HTMLInputElement && v(f.target.value);
   }, value: h, flowInput: n.password }), r(te, Object.assign({ uiAction: "password-submit" }, { children: u("labels.save") }))] })), r(ee, Object.assign({ hidden: !s, uiAction: "password-delete", dangerous: !0, onClick: (f) => i(f).then(() => v("")), loadingSpinnerPosition: "right" }, { children: u("labels.delete") }))] }));
-}, Go = ({ checkedItemID: n, setCheckedItemID: e, onCredentialSubmit: t, credentialType: o }) => {
+}, Qo = ({ checkedItemID: n, setCheckedItemID: e, onCredentialSubmit: t, credentialType: o }) => {
   const { t: i } = (0, _.useContext)(Z.TranslateContext), s = mt.supported();
   return r(zt, Object.assign({ name: o === "security-key" ? "security-key-create-dropdown" : "passkey-create-dropdown", title: i(o === "security-key" ? "labels.createSecurityKey" : "labels.createPasskey"), checkedItemID: n, setCheckedItemID: e }, { children: [r(z, { children: i(o === "security-key" ? "texts.securityKeySetUp" : "texts.setupPasskey") }), r(ne, Object.assign({ onSubmit: t }, { children: r(te, Object.assign({ uiAction: o === "security-key" ? "security-key-submit" : "passkey-submit", title: s ? null : i("labels.webauthnUnsupported") }, { children: i(o === "security-key" ? "labels.createSecurityKey" : "labels.createPasskey") })) }))] }));
-}, Qo = ({ inputs: n, checkedItemID: e, setCheckedItemID: t, onUsernameSubmit: o, onUsernameDelete: i, hasUsername: s, allowUsernameDeletion: a }) => {
+}, Go = ({ inputs: n, checkedItemID: e, setCheckedItemID: t, onUsernameSubmit: o, onUsernameDelete: i, hasUsername: s, allowUsernameDeletion: a }) => {
   var d;
   const { t: c } = (0, _.useContext)(Z.TranslateContext), [l, u] = (0, _.useState)();
   return r(zt, Object.assign({ name: "username-edit-dropdown", title: c(s ? "labels.changeUsername" : "labels.setUsername"), checkedItemID: e, setCheckedItemID: t }, { children: [r(ko, { flowError: (d = n.username) === null || d === void 0 ? void 0 : d.error }), r(ne, Object.assign({ onSubmit: (h) => o(h, l).then(() => u("")) }, { children: [r(Ke, { markError: !0, placeholder: c("labels.username"), type: "text", onInput: (h) => {
@@ -3093,7 +3093,7 @@ const Ze = fn.A && fn.A.locals ? fn.A.locals : void 0, En = function({ name: n, 
   }, value: l, flowInput: n.username }), r(te, Object.assign({ uiAction: "username-set" }, { children: c("labels.save") }))] })), r(ee, Object.assign({ hidden: !a, uiAction: "username-delete", dangerous: !0, onClick: (h) => i(h).then(() => u("")), loadingSpinnerPosition: "right" }, { children: c("labels.delete") }))] }));
 }, jr = ({ onBack: n, onAccountDelete: e }) => {
   const { t } = (0, _.useContext)(Z.TranslateContext);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: t("headlines.deleteAccount") }), r(Oe, { flowError: null }), r(z, { children: t("texts.deleteAccount") }), r(ne, Object.assign({ onSubmit: e }, { children: [r(yo, { required: !0, type: "checkbox", label: t("labels.deleteAccount") }), r(te, Object.assign({ uiAction: "account_delete" }, { children: t("labels.delete") }))] }))] }), r(Ue, { children: r(ee, Object.assign({ onClick: n }, { children: t("labels.back") })) })] });
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: t("headlines.deleteAccount") }), r(Oe, { flowError: null }), r(z, { children: t("texts.deleteAccount") }), r(ne, Object.assign({ onSubmit: e }, { children: [r(yo, { required: !0, type: "checkbox", label: t("labels.deleteAccount") }), r(te, Object.assign({ uiAction: "account_delete" }, { children: t("labels.delete") }))] }))] }), r(Ue, { children: r(ee, Object.assign({ onClick: n }, { children: t("labels.back") })) })] });
 }, $r = ({ sessions: n = [], checkedItemID: e, setCheckedItemID: t, onSessionDelete: o, deletableSessionIDs: i }) => {
   const { t: s } = (0, _.useContext)(Z.TranslateContext), a = (d) => new Date(d).toLocaleString();
   return r(En, { name: "session-edit-dropdown", columnSelector: (d) => {
@@ -3130,56 +3130,56 @@ var Ie = function(n, e, t, o) {
   });
 };
 const $i = (n) => {
-  var e, t, o, i, s, a, d, c, l, u, h, v, f, S, O, C, x, P, $, N, U, ie, ge, se, be, M, q, me, De, Pe, Le, re, ae, ue, Ee, k, p, y, L, K, he, We, qe, ze, m, g, b, j, T, I, W, X;
-  const { t: Q } = (0, _.useContext)(Z.TranslateContext), { hanko: ve, setLoadingAction: w, stateHandler: _e, setUIState: J, setPage: H } = (0, _.useContext)(de), { flowState: E } = Ne(n.state), [ke, B] = (0, _.useState)(""), F = (R, V, Ge) => Ie(void 0, void 0, void 0, function* () {
+  var e, t, o, i, s, a, d, c, l, u, h, v, f, S, O, C, x, P, $, N, U, ie, _e, se, be, M, q, ve, De, Pe, Le, re, ae, he, Ee, k, p, y, L, K, pe, We, qe, ze, m, g, b, j, T, I, W, X;
+  const { t: G } = (0, _.useContext)(Z.TranslateContext), { hanko: ge, setLoadingAction: w, stateHandler: ye, setUIState: J, setPage: H } = (0, _.useContext)(ue), { flowState: E } = Ne(n.state), [ke, B] = (0, _.useState)(""), F = (R, V, Qe) => Ie(void 0, void 0, void 0, function* () {
     R.preventDefault(), w(V);
-    const In = yield Ge();
-    In != null && In.error || (B(null), yield new Promise((Hi) => setTimeout(Hi, 360))), w(null), yield ve.flow.run(In, _e);
+    const In = yield Qe();
+    In != null && In.error || (B(null), yield new Promise((Hi) => setTimeout(Hi, 360))), w(null), yield ge.flow.run(In, ye);
   }), Me = (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "password-delete", E.actions.password_delete(null).run);
   }), ot = (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "username-delete", E.actions.username_delete(null).run);
-  }), pe = (R, V, Ge) => Ie(void 0, void 0, void 0, function* () {
-    return F(R, "webauthn-credential-rename", E.actions.webauthn_credential_rename({ passkey_id: V, passkey_name: Ge }).run);
+  }), fe = (R, V, Qe) => Ie(void 0, void 0, void 0, function* () {
+    return F(R, "webauthn-credential-rename", E.actions.webauthn_credential_rename({ passkey_id: V, passkey_name: Qe }).run);
   }), Kt = (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "account_delete", E.actions.account_delete(null).run);
   }), it = (R) => (R.preventDefault(), H(r($i, { state: E, enablePasskeys: n.enablePasskeys })), Promise.resolve());
-  return r(Ae, { children: [r(Oe, { state: ((e = E == null ? void 0 : E.error) === null || e === void 0 ? void 0 : e.code) !== "form_data_invalid_error" ? E : null }), !((o = (t = E.actions).username_create) === null || o === void 0) && o.call(t, null) || !((s = (i = E.actions).username_update) === null || s === void 0) && s.call(i, null) || !((d = (a = E.actions).username_delete) === null || d === void 0) && d.call(a, null) ? r(A.Fragment, { children: [r(ce, { children: Q("labels.username") }), E.payload.user.username ? r(z, { children: r("b", { children: E.payload.user.username.username }) }) : null, r(z, { children: [!((l = (c = E.actions).username_create) === null || l === void 0) && l.call(c, null) ? r(Qo, { inputs: E.actions.username_create(null).inputs, hasUsername: !!E.payload.user.username, allowUsernameDeletion: !!(!((h = (u = E.actions).username_delete) === null || h === void 0) && h.call(u, null)), onUsernameSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  return r(Ae, { children: [r(Oe, { state: ((e = E == null ? void 0 : E.error) === null || e === void 0 ? void 0 : e.code) !== "form_data_invalid_error" ? E : null }), !((o = (t = E.actions).username_create) === null || o === void 0) && o.call(t, null) || !((s = (i = E.actions).username_update) === null || s === void 0) && s.call(i, null) || !((d = (a = E.actions).username_delete) === null || d === void 0) && d.call(a, null) ? r(A.Fragment, { children: [r(de, { children: G("labels.username") }), E.payload.user.username ? r(z, { children: r("b", { children: E.payload.user.username.username }) }) : null, r(z, { children: [!((l = (c = E.actions).username_create) === null || l === void 0) && l.call(c, null) ? r(Go, { inputs: E.actions.username_create(null).inputs, hasUsername: !!E.payload.user.username, allowUsernameDeletion: !!(!((h = (u = E.actions).username_delete) === null || h === void 0) && h.call(u, null)), onUsernameSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "username-set", E.actions.username_create({ username: V }).run);
-  }), onUsernameDelete: ot, checkedItemID: ke, setCheckedItemID: B }) : null, !((f = (v = E.actions).username_update) === null || f === void 0) && f.call(v, null) ? r(Qo, { inputs: E.actions.username_update(null).inputs, hasUsername: !!E.payload.user.username, allowUsernameDeletion: !!(!((O = (S = E.actions).username_delete) === null || O === void 0) && O.call(S, null)), onUsernameSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), onUsernameDelete: ot, checkedItemID: ke, setCheckedItemID: B }) : null, !((f = (v = E.actions).username_update) === null || f === void 0) && f.call(v, null) ? r(Go, { inputs: E.actions.username_update(null).inputs, hasUsername: !!E.payload.user.username, allowUsernameDeletion: !!(!((O = (S = E.actions).username_delete) === null || O === void 0) && O.call(S, null)), onUsernameSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "username-set", E.actions.username_update({ username: V }).run);
-  }), onUsernameDelete: ot, checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((x = (C = E.payload) === null || C === void 0 ? void 0 : C.user) === null || x === void 0) && x.emails || !(($ = (P = E.actions).email_create) === null || $ === void 0) && $.call(P, null) ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.profileEmails") }), r(z, { children: [r(Pr, { emails: E.payload.user.emails, onEmailDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), onUsernameDelete: ot, checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((x = (C = E.payload) === null || C === void 0 ? void 0 : C.user) === null || x === void 0) && x.emails || !(($ = (P = E.actions).email_create) === null || $ === void 0) && $.call(P, null) ? r(A.Fragment, { children: [r(de, { children: G("headlines.profileEmails") }), r(z, { children: [r(Pr, { emails: E.payload.user.emails, onEmailDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "email-delete", E.actions.email_delete({ email_id: V }).run);
   }), onEmailSetPrimary: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "email-set-primary", E.actions.email_set_primary({ email_id: V }).run);
   }), onEmailVerify: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "email-verify", E.actions.email_verify({ email_id: V }).run);
-  }), checkedItemID: ke, setCheckedItemID: B, deletableEmailIDs: (ie = (U = (N = E.actions).email_delete) === null || U === void 0 ? void 0 : U.call(N, null).inputs.email_id.allowed_values) === null || ie === void 0 ? void 0 : ie.map((R) => R.value) }), !((se = (ge = E.actions).email_create) === null || se === void 0) && se.call(ge, null) ? r(Ir, { inputs: E.actions.email_create(null).inputs, onEmailSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
-    return J((Ge) => Object.assign(Object.assign({}, Ge), { email: V })), F(R, "email-submit", E.actions.email_create({ email: V }).run);
-  }), checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((M = (be = E.actions).password_create) === null || M === void 0) && M.call(be, null) ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.profilePassword") }), r(z, { children: r(Jo, { inputs: E.actions.password_create(null).inputs, onPasswordSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), checkedItemID: ke, setCheckedItemID: B, deletableEmailIDs: (ie = (U = (N = E.actions).email_delete) === null || U === void 0 ? void 0 : U.call(N, null).inputs.email_id.allowed_values) === null || ie === void 0 ? void 0 : ie.map((R) => R.value) }), !((se = (_e = E.actions).email_create) === null || se === void 0) && se.call(_e, null) ? r(Ir, { inputs: E.actions.email_create(null).inputs, onEmailSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
+    return J((Qe) => Object.assign(Object.assign({}, Qe), { email: V })), F(R, "email-submit", E.actions.email_create({ email: V }).run);
+  }), checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((M = (be = E.actions).password_create) === null || M === void 0) && M.call(be, null) ? r(A.Fragment, { children: [r(de, { children: G("headlines.profilePassword") }), r(z, { children: r(Jo, { inputs: E.actions.password_create(null).inputs, onPasswordSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "password-submit", E.actions.password_create({ password: V }).run);
-  }), onPasswordDelete: Me, checkedItemID: ke, setCheckedItemID: B }) })] }) : null, !((me = (q = E.actions).password_update) === null || me === void 0) && me.call(q, null) ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.profilePassword") }), r(z, { children: r(Jo, { allowPasswordDelete: !!(!((Pe = (De = E.actions).password_delete) === null || Pe === void 0) && Pe.call(De, null)), inputs: E.actions.password_update(null).inputs, onPasswordSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), onPasswordDelete: Me, checkedItemID: ke, setCheckedItemID: B }) })] }) : null, !((ve = (q = E.actions).password_update) === null || ve === void 0) && ve.call(q, null) ? r(A.Fragment, { children: [r(de, { children: G("headlines.profilePassword") }), r(z, { children: r(Jo, { allowPasswordDelete: !!(!((Pe = (De = E.actions).password_delete) === null || Pe === void 0) && Pe.call(De, null)), inputs: E.actions.password_update(null).inputs, onPasswordSubmit: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "password-submit", E.actions.password_update({ password: V }).run);
-  }), onPasswordDelete: Me, checkedItemID: ke, setCheckedItemID: B, passwordExists: !0 }) })] }) : null, n.enablePasskeys && (!((re = (Le = E.payload) === null || Le === void 0 ? void 0 : Le.user) === null || re === void 0) && re.passkeys || !((ue = (ae = E.actions).webauthn_credential_create) === null || ue === void 0) && ue.call(ae, null)) ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.profilePasskeys") }), r(z, { children: [r(Zo, { onBack: it, onCredentialNameSubmit: pe, onCredentialDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), onPasswordDelete: Me, checkedItemID: ke, setCheckedItemID: B, passwordExists: !0 }) })] }) : null, n.enablePasskeys && (!((re = (Le = E.payload) === null || Le === void 0 ? void 0 : Le.user) === null || re === void 0) && re.passkeys || !((he = (ae = E.actions).webauthn_credential_create) === null || he === void 0) && he.call(ae, null)) ? r(A.Fragment, { children: [r(de, { children: G("headlines.profilePasskeys") }), r(z, { children: [r(Zo, { onBack: it, onCredentialNameSubmit: fe, onCredentialDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "passkey-delete", E.actions.webauthn_credential_delete({ passkey_id: V }).run);
-  }), credentials: E.payload.user.passkeys, setError: null, checkedItemID: ke, setCheckedItemID: B, allowCredentialDeletion: !!(!((k = (Ee = E.actions).webauthn_credential_delete) === null || k === void 0) && k.call(Ee, null)), credentialType: "passkey" }), !((y = (p = E.actions).webauthn_credential_create) === null || y === void 0) && y.call(p, null) ? r(Go, { credentialType: "passkey", onCredentialSubmit: (R) => Ie(void 0, void 0, void 0, function* () {
+  }), credentials: E.payload.user.passkeys, setError: null, checkedItemID: ke, setCheckedItemID: B, allowCredentialDeletion: !!(!((k = (Ee = E.actions).webauthn_credential_delete) === null || k === void 0) && k.call(Ee, null)), credentialType: "passkey" }), !((y = (p = E.actions).webauthn_credential_create) === null || y === void 0) && y.call(p, null) ? r(Qo, { credentialType: "passkey", onCredentialSubmit: (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "passkey-submit", E.actions.webauthn_credential_create(null).run);
-  }), setError: null, checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((L = E.payload.user.mfa_config) === null || L === void 0) && L.security_keys_enabled ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.securityKeys") }), r(z, { children: [r(Zo, { onBack: it, onCredentialNameSubmit: pe, onCredentialDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), setError: null, checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((L = E.payload.user.mfa_config) === null || L === void 0) && L.security_keys_enabled ? r(A.Fragment, { children: [r(de, { children: G("headlines.securityKeys") }), r(z, { children: [r(Zo, { onBack: it, onCredentialNameSubmit: fe, onCredentialDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "security-key-delete", E.actions.security_key_delete({ security_key_id: V }).run);
-  }), credentials: E.payload.user.security_keys, setError: null, checkedItemID: ke, setCheckedItemID: B, allowCredentialDeletion: !!(!((he = (K = E.actions).security_key_delete) === null || he === void 0) && he.call(K, null)), credentialType: "security-key" }), !((qe = (We = E.actions).security_key_create) === null || qe === void 0) && qe.call(We, null) ? r(Go, { credentialType: "security-key", onCredentialSubmit: (R) => Ie(void 0, void 0, void 0, function* () {
+  }), credentials: E.payload.user.security_keys, setError: null, checkedItemID: ke, setCheckedItemID: B, allowCredentialDeletion: !!(!((pe = (K = E.actions).security_key_delete) === null || pe === void 0) && pe.call(K, null)), credentialType: "security-key" }), !((qe = (We = E.actions).security_key_create) === null || qe === void 0) && qe.call(We, null) ? r(Qo, { credentialType: "security-key", onCredentialSubmit: (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "security-key-submit", E.actions.security_key_create(null).run);
-  }), setError: null, checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((ze = E.payload.user.mfa_config) === null || ze === void 0) && ze.totp_enabled ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.authenticatorApp") }), r(z, { children: r(Dr, { onConnect: (R) => Ie(void 0, void 0, void 0, function* () {
+  }), setError: null, checkedItemID: ke, setCheckedItemID: B }) : null] })] }) : null, !((ze = E.payload.user.mfa_config) === null || ze === void 0) && ze.totp_enabled ? r(A.Fragment, { children: [r(de, { children: G("headlines.authenticatorApp") }), r(z, { children: r(Dr, { onConnect: (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "auth-app-add", E.actions.continue_to_otp_secret_creation(null).run);
   }), onDelete: (R) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "auth-app-remove", E.actions.otp_secret_delete(null).run);
-  }), allowDeletion: !!(!((g = (m = E.actions).otp_secret_delete) === null || g === void 0) && g.call(m, null)), authAppSetUp: (b = E.payload.user.mfa_config) === null || b === void 0 ? void 0 : b.auth_app_set_up, checkedItemID: ke, setCheckedItemID: B }) })] }) : null, E.payload.sessions ? r(A.Fragment, { children: [r(ce, { children: Q("headlines.profileSessions") }), r(z, { children: r($r, { sessions: E.payload.sessions, setError: null, checkedItemID: ke, setCheckedItemID: B, onSessionDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
+  }), allowDeletion: !!(!((g = (m = E.actions).otp_secret_delete) === null || g === void 0) && g.call(m, null)), authAppSetUp: (b = E.payload.user.mfa_config) === null || b === void 0 ? void 0 : b.auth_app_set_up, checkedItemID: ke, setCheckedItemID: B }) })] }) : null, E.payload.sessions ? r(A.Fragment, { children: [r(de, { children: G("headlines.profileSessions") }), r(z, { children: r($r, { sessions: E.payload.sessions, setError: null, checkedItemID: ke, setCheckedItemID: B, onSessionDelete: (R, V) => Ie(void 0, void 0, void 0, function* () {
     return F(R, "session-delete", E.actions.session_delete({ session_id: V }).run);
-  }), deletableSessionIDs: (I = (T = (j = E.actions).session_delete) === null || T === void 0 ? void 0 : T.call(j, null).inputs.session_id.allowed_values) === null || I === void 0 ? void 0 : I.map((R) => R.value) }) })] }) : null, !((X = (W = E.actions).account_delete) === null || X === void 0) && X.call(W, null) ? r(A.Fragment, { children: [r(Pn, {}), r(z, { children: r(_o, {}) }), r(z, { children: r(ne, Object.assign({ onSubmit: (R) => (R.preventDefault(), H(r(jr, { onBack: it, onAccountDelete: Kt })), Promise.resolve()) }, { children: r(te, Object.assign({ dangerous: !0 }, { children: Q("headlines.deleteAccount") })) })) })] }) : null] });
+  }), deletableSessionIDs: (I = (T = (j = E.actions).session_delete) === null || T === void 0 ? void 0 : T.call(j, null).inputs.session_id.allowed_values) === null || I === void 0 ? void 0 : I.map((R) => R.value) }) })] }) : null, !((X = (W = E.actions).account_delete) === null || X === void 0) && X.call(W, null) ? r(A.Fragment, { children: [r(Pn, {}), r(z, { children: r(_o, {}) }), r(z, { children: r(ne, Object.assign({ onSubmit: (R) => (R.preventDefault(), H(r(jr, { onBack: it, onAccountDelete: Kt })), Promise.resolve()) }, { children: r(te, Object.assign({ dangerous: !0 }, { children: G("headlines.deleteAccount") })) })) })] }) : null] });
 }, Lr = $i, Yo = ({ state: n, error: e }) => {
-  const { t } = (0, _.useContext)(Z.TranslateContext), { init: o, componentName: i } = (0, _.useContext)(de), s = (0, _.useCallback)(() => o(i), [i, o]);
+  const { t } = (0, _.useContext)(Z.TranslateContext), { init: o, componentName: i } = (0, _.useContext)(ue), s = (0, _.useCallback)(() => o(i), [i, o]);
   return (0, _.useEffect)(() => (addEventListener("hankoAuthSuccess", s), () => {
     removeEventListener("hankoAuthSuccess", s);
-  }), [s]), r(Ae, { children: [r(ce, { children: t("headlines.error") }), r(Oe, { state: n, error: e }), r(ne, Object.assign({ onSubmit: (a) => {
+  }), [s]), r(Ae, { children: [r(de, { children: t("headlines.error") }), r(Oe, { state: n, error: e }), r(ne, Object.assign({ onSubmit: (a) => {
     a.preventDefault(), s();
   } }, { children: r(te, Object.assign({ uiAction: "retry" }, { children: t("labels.continue") })) }))] });
 };
@@ -3210,8 +3210,8 @@ var Wn = function(n, e, t, o) {
 };
 const Tr = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, stateHandler: d, setLoadingAction: c } = (0, _.useContext)(de), { flowState: l } = Ne(n.state), [u, h] = (0, _.useState)();
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.createEmail") }), r(Oe, { state: l }), r(ne, Object.assign({ onSubmit: (v) => Wn(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, stateHandler: d, setLoadingAction: c } = (0, _.useContext)(ue), { flowState: l } = Ne(n.state), [u, h] = (0, _.useState)();
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.createEmail") }), r(Oe, { state: l }), r(ne, Object.assign({ onSubmit: (v) => Wn(void 0, void 0, void 0, function* () {
     v.preventDefault(), c("email-submit");
     const f = yield l.actions.email_address_set({ email: u }).run();
     c(null), yield a.flow.run(f, d);
@@ -3250,8 +3250,8 @@ var qn = function(n, e, t, o) {
 };
 const Nr = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, stateHandler: d, setLoadingAction: c } = (0, _.useContext)(de), { flowState: l } = Ne(n.state), [u, h] = (0, _.useState)();
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.createUsername") }), r(Oe, { state: l }), r(ne, Object.assign({ onSubmit: (v) => qn(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, stateHandler: d, setLoadingAction: c } = (0, _.useContext)(ue), { flowState: l } = Ne(n.state), [u, h] = (0, _.useState)();
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.createUsername") }), r(Oe, { state: l }), r(ne, Object.assign({ onSubmit: (v) => qn(void 0, void 0, void 0, function* () {
     v.preventDefault(), c("username-set");
     const f = yield l.actions.username_create({ username: u }).run();
     c(null), yield a.flow.run(f, d);
@@ -3290,8 +3290,8 @@ var Xt = function(n, e, t, o) {
 };
 const Ur = (n) => {
   var e, t, o, i, s, a, d, c, l, u, h, v;
-  const { t: f } = (0, _.useContext)(Z.TranslateContext), { hanko: S, setLoadingAction: O, stateHandler: C } = (0, _.useContext)(de), { flowState: x } = Ne(n.state);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: f("headlines.setupLoginMethod") }), r(Oe, { flowError: x == null ? void 0 : x.error }), r(z, { children: f("texts.selectLoginMethodForFutureLogins") }), r(ne, Object.assign({ hidden: !(!((t = (e = x.actions).continue_to_passkey_registration) === null || t === void 0) && t.call(e, null)), onSubmit: (P) => Xt(void 0, void 0, void 0, function* () {
+  const { t: f } = (0, _.useContext)(Z.TranslateContext), { hanko: S, setLoadingAction: O, stateHandler: C } = (0, _.useContext)(ue), { flowState: x } = Ne(n.state);
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: f("headlines.setupLoginMethod") }), r(Oe, { flowError: x == null ? void 0 : x.error }), r(z, { children: f("texts.selectLoginMethodForFutureLogins") }), r(ne, Object.assign({ hidden: !(!((t = (e = x.actions).continue_to_passkey_registration) === null || t === void 0) && t.call(e, null)), onSubmit: (P) => Xt(void 0, void 0, void 0, function* () {
     P.preventDefault(), O("passkey-submit");
     const $ = yield x.actions.continue_to_passkey_registration(null).run();
     O(null), yield S.flow.run($, C);
@@ -3336,7 +3336,7 @@ var zn = function(n, e, t, o) {
 };
 const Mr = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { flowState: a } = Ne(n.state), { hanko: d, setLoadingAction: c, stateHandler: l } = (0, _.useContext)(de), [u, h] = (0, _.useState)([]), v = (0, _.useCallback)((f) => zn(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { flowState: a } = Ne(n.state), { hanko: d, setLoadingAction: c, stateHandler: l } = (0, _.useContext)(ue), [u, h] = (0, _.useState)([]), v = (0, _.useCallback)((f) => zn(void 0, void 0, void 0, function* () {
     c("passcode-submit");
     const S = yield a.actions.otp_code_validate({ otp_code: f }).run();
     c(null), yield d.flow.run(S, l);
@@ -3344,7 +3344,7 @@ const Mr = (n) => {
   return (0, _.useEffect)(() => {
     var f;
     ((f = a.error) === null || f === void 0 ? void 0 : f.code) === "passcode_invalid" && h([]);
-  }, [a]), r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.otpLogin") }), r(Oe, { state: a }), r(z, { children: s("texts.otpLogin") }), r(ne, Object.assign({ onSubmit: (f) => zn(void 0, void 0, void 0, function* () {
+  }, [a]), r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.otpLogin") }), r(Oe, { state: a }), r(z, { children: s("texts.otpLogin") }), r(ne, Object.assign({ onSubmit: (f) => zn(void 0, void 0, void 0, function* () {
     return f.preventDefault(), v(u.join(""));
   }) }, { children: [r(bo, { onInput: (f) => {
     if (h(f), f.filter((S) => S !== "").length === 6) return v(f.join(""));
@@ -3381,8 +3381,8 @@ var Xo = function(n, e, t, o) {
 };
 const Hr = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, setLoadingAction: d, stateHandler: c } = (0, _.useContext)(de), { flowState: l } = Ne(n.state);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.securityKeyLogin") }), r(Oe, { state: l }), r(z, { children: s("texts.securityKeyLogin") }), r(ne, Object.assign({ onSubmit: (u) => Xo(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, setLoadingAction: d, stateHandler: c } = (0, _.useContext)(ue), { flowState: l } = Ne(n.state);
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.securityKeyLogin") }), r(Oe, { state: l }), r(z, { children: s("texts.securityKeyLogin") }), r(ne, Object.assign({ onSubmit: (u) => Xo(void 0, void 0, void 0, function* () {
     u.preventDefault(), d("passkey-submit");
     const h = yield l.actions.webauthn_generate_request_options(null).run();
     yield a.flow.run(h, c);
@@ -3419,7 +3419,7 @@ var en = function(n, e, t, o) {
 };
 const Rr = (n) => {
   var e, t, o, i, s, a, d, c;
-  const { t: l } = (0, _.useContext)(Z.TranslateContext), { hanko: u, setLoadingAction: h, stateHandler: v } = (0, _.useContext)(de), { flowState: f } = Ne(n.state), S = (x) => en(void 0, void 0, void 0, function* () {
+  const { t: l } = (0, _.useContext)(Z.TranslateContext), { hanko: u, setLoadingAction: h, stateHandler: v } = (0, _.useContext)(ue), { flowState: f } = Ne(n.state), S = (x) => en(void 0, void 0, void 0, function* () {
     x.preventDefault(), h("passcode-submit");
     const P = yield f.actions.continue_to_security_key_creation(null).run();
     h(null), yield u.flow.run(P, v);
@@ -3431,7 +3431,7 @@ const Rr = (n) => {
     const { actions: x } = f;
     return x.continue_to_security_key_creation && !x.continue_to_otp_secret_creation ? S : !x.continue_to_security_key_creation && x.continue_to_otp_secret_creation ? O : void 0;
   }, [f, S, O]);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: l("headlines.mfaSetUp") }), r(Oe, { flowError: f == null ? void 0 : f.error }), r(z, { children: l("texts.mfaSetUp") }), C ? r(ne, Object.assign({ onSubmit: C }, { children: r(te, Object.assign({ uiAction: "passcode-submit" }, { children: l("labels.continue") })) })) : r(A.Fragment, { children: [r(ne, Object.assign({ hidden: !(!((t = (e = f.actions).continue_to_security_key_creation) === null || t === void 0) && t.call(e, null)), onSubmit: S }, { children: r(te, Object.assign({ secondary: !0, uiAction: "passcode-submit", icon: "securityKey" }, { children: l("labels.securityKey") })) })), r(ne, Object.assign({ hidden: !(!((i = (o = f.actions).continue_to_otp_secret_creation) === null || i === void 0) && i.call(o, null)), onSubmit: O }, { children: r(te, Object.assign({ secondary: !0, uiAction: "password-submit", icon: "qrCodeScanner" }, { children: l("labels.authenticatorApp") })) }))] })] }), r(Ue, { children: [r(ee, Object.assign({ uiAction: "back", onClick: (x) => en(void 0, void 0, void 0, function* () {
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: l("headlines.mfaSetUp") }), r(Oe, { flowError: f == null ? void 0 : f.error }), r(z, { children: l("texts.mfaSetUp") }), C ? r(ne, Object.assign({ onSubmit: C }, { children: r(te, Object.assign({ uiAction: "passcode-submit" }, { children: l("labels.continue") })) })) : r(A.Fragment, { children: [r(ne, Object.assign({ hidden: !(!((t = (e = f.actions).continue_to_security_key_creation) === null || t === void 0) && t.call(e, null)), onSubmit: S }, { children: r(te, Object.assign({ secondary: !0, uiAction: "passcode-submit", icon: "securityKey" }, { children: l("labels.securityKey") })) })), r(ne, Object.assign({ hidden: !(!((i = (o = f.actions).continue_to_otp_secret_creation) === null || i === void 0) && i.call(o, null)), onSubmit: O }, { children: r(te, Object.assign({ secondary: !0, uiAction: "password-submit", icon: "qrCodeScanner" }, { children: l("labels.authenticatorApp") })) }))] })] }), r(Ue, { children: [r(ee, Object.assign({ uiAction: "back", onClick: (x) => en(void 0, void 0, void 0, function* () {
     x.preventDefault(), h("back");
     const P = yield f.actions.back(null).run();
     h(null), yield u.flow.run(P, v);
@@ -3510,7 +3510,7 @@ var Fn = function(n, e, t, o) {
   });
 };
 const Fr = (n) => {
-  const { t: e } = (0, _.useContext)(Z.TranslateContext), { flowState: t } = Ne(n.state), { hanko: o, uiState: i, setLoadingAction: s, stateHandler: a } = (0, _.useContext)(de), [d, c] = (0, _.useState)([]), l = (0, _.useCallback)((u) => Fn(void 0, void 0, void 0, function* () {
+  const { t: e } = (0, _.useContext)(Z.TranslateContext), { flowState: t } = Ne(n.state), { hanko: o, uiState: i, setLoadingAction: s, stateHandler: a } = (0, _.useContext)(ue), [d, c] = (0, _.useState)([]), l = (0, _.useCallback)((u) => Fn(void 0, void 0, void 0, function* () {
     s("passcode-submit");
     const h = yield t.actions.otp_code_verify({ otp_code: u }).run();
     s(null), yield o.flow.run(h, a);
@@ -3518,7 +3518,7 @@ const Fr = (n) => {
   return (0, _.useEffect)(() => {
     var u;
     ((u = t.error) === null || u === void 0 ? void 0 : u.code) === "passcode_invalid" && c([]);
-  }, [t]), r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: e("headlines.otpSetUp") }), r(Oe, { state: t }), r(z, { children: e("texts.otpScanQRCode") }), r(zr, { src: t.payload.otp_image_source, secret: t.payload.otp_secret }), r(z, { children: e("texts.otpEnterVerificationCode") }), r(ne, Object.assign({ onSubmit: (u) => Fn(void 0, void 0, void 0, function* () {
+  }, [t]), r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: e("headlines.otpSetUp") }), r(Oe, { state: t }), r(z, { children: e("texts.otpScanQRCode") }), r(zr, { src: t.payload.otp_image_source, secret: t.payload.otp_secret }), r(z, { children: e("texts.otpEnterVerificationCode") }), r(ne, Object.assign({ onSubmit: (u) => Fn(void 0, void 0, void 0, function* () {
     return u.preventDefault(), l(d.join(""));
   }) }, { children: [r(bo, { onInput: (u) => {
     if (c(u), u.filter((h) => h !== "").length === 6) return l(u.join(""));
@@ -3555,8 +3555,8 @@ var ei = function(n, e, t, o) {
 };
 const Kr = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, setLoadingAction: d, stateHandler: c } = (0, _.useContext)(de), { flowState: l } = Ne(n.state);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.securityKeySetUp") }), r(Oe, { state: l }), r(z, { children: s("texts.securityKeySetUp") }), r(ne, Object.assign({ onSubmit: (u) => ei(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, setLoadingAction: d, stateHandler: c } = (0, _.useContext)(ue), { flowState: l } = Ne(n.state);
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.securityKeySetUp") }), r(Oe, { state: l }), r(z, { children: s("texts.securityKeySetUp") }), r(ne, Object.assign({ onSubmit: (u) => ei(void 0, void 0, void 0, function* () {
     u.preventDefault(), d("passkey-submit");
     const h = yield l.actions.webauthn_generate_creation_options(null).run();
     yield a.flow.run(h, c);
@@ -3593,8 +3593,8 @@ var Kn = function(n, e, t, o) {
 };
 const Br = (n) => {
   var e, t, o, i;
-  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, setLoadingAction: d, stateHandler: c } = (0, _.useContext)(de), { flowState: l } = Ne(n.state);
-  return r(A.Fragment, { children: [r(Ae, { children: [r(ce, { children: s("headlines.trustDevice") }), r(Oe, { flowError: l == null ? void 0 : l.error }), r(z, { children: s("texts.trustDevice") }), r(ne, Object.assign({ onSubmit: (u) => Kn(void 0, void 0, void 0, function* () {
+  const { t: s } = (0, _.useContext)(Z.TranslateContext), { hanko: a, setLoadingAction: d, stateHandler: c } = (0, _.useContext)(ue), { flowState: l } = Ne(n.state);
+  return r(A.Fragment, { children: [r(Ae, { children: [r(de, { children: s("headlines.trustDevice") }), r(Oe, { flowError: l == null ? void 0 : l.error }), r(z, { children: s("texts.trustDevice") }), r(ne, Object.assign({ onSubmit: (u) => Kn(void 0, void 0, void 0, function* () {
     u.preventDefault(), d("trust-device-submit");
     const h = yield l.actions.trust_device(null).run();
     d(null), yield a.flow.run(h, c);
@@ -3633,21 +3633,21 @@ var Fe = function(n, e, t, o) {
     c((o = o.apply(n, [])).next());
   });
 };
-const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
+const tn = "flow-state", ue = (0, A.createContext)(null), Vr = (n) => {
   var { lang: e, experimental: t = "", prefilledEmail: o, prefilledUsername: i, globalOptions: s, createWebauthnAbortSignal: a } = n, d = function(p, y) {
     var L = {};
     for (var K in p) Object.prototype.hasOwnProperty.call(p, K) && y.indexOf(K) < 0 && (L[K] = p[K]);
     if (p != null && typeof Object.getOwnPropertySymbols == "function") {
-      var he = 0;
-      for (K = Object.getOwnPropertySymbols(p); he < K.length; he++) y.indexOf(K[he]) < 0 && Object.prototype.propertyIsEnumerable.call(p, K[he]) && (L[K[he]] = p[K[he]]);
+      var pe = 0;
+      for (K = Object.getOwnPropertySymbols(p); pe < K.length; pe++) y.indexOf(K[pe]) < 0 && Object.prototype.propertyIsEnumerable.call(p, K[pe]) && (L[K[pe]] = p[K[pe]]);
     }
     return L;
   }(n, ["lang", "experimental", "prefilledEmail", "prefilledUsername", "globalOptions", "createWebauthnAbortSignal"]);
   const { hanko: c, injectStyles: l, hidePasskeyButtonOnLogin: u, translations: h, translationsLocation: v, fallbackLanguage: f } = s;
   c.setLang((e == null ? void 0 : e.toString()) || f);
-  const S = (0, _.useRef)(null), O = (0, _.useMemo)(() => `${s.storageKey}_last_login`, [s.storageKey]), [C, x] = (0, _.useState)(d.componentName), P = (0, _.useMemo)(() => t.split(" ").filter((p) => p.length).map((p) => p), [t]), $ = (0, _.useMemo)(() => r(vr, {}), []), [N, U] = (0, _.useState)($), [, ie] = (0, _.useState)(c), [ge, se] = (0, _.useState)(), [be, M] = (0, _.useState)({ email: o, username: i }), q = (0, _.useCallback)((p) => {
+  const S = (0, _.useRef)(null), O = (0, _.useMemo)(() => `${s.storageKey}_last_login`, [s.storageKey]), [C, x] = (0, _.useState)(d.componentName), P = (0, _.useMemo)(() => t.split(" ").filter((p) => p.length).map((p) => p), [t]), $ = (0, _.useMemo)(() => r(vr, {}), []), [N, U] = (0, _.useState)($), [, ie] = (0, _.useState)(c), [_e, se] = (0, _.useState)(), [be, M] = (0, _.useState)({ email: o, username: i }), q = (0, _.useCallback)((p) => {
     M((y) => Object.assign(Object.assign({}, y), { loadingAction: p, succeededAction: null, error: null, lastAction: p || y.lastAction }));
-  }, []), me = (0, _.useCallback)((p) => {
+  }, []), ve = (0, _.useCallback)((p) => {
     M((y) => Object.assign(Object.assign({}, y), { succeededAction: p, loadingAction: null }));
   }, []), De = (0, _.useCallback)(() => {
     M((p) => Object.assign(Object.assign({}, p), { succeededAction: p.lastAction, loadingAction: null, error: null }));
@@ -3694,8 +3694,8 @@ const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
       try {
         y = yield Ko(Object.assign(Object.assign({}, p.payload.request_options), { signal: a() }));
       } catch {
-        const he = yield p.actions.back(null).run();
-        return M((We) => Object.assign(Object.assign({}, We), { error: p.error, loadingAction: null })), c.flow.run(he, ae);
+        const pe = yield p.actions.back(null).run();
+        return M((We) => Object.assign(Object.assign({}, We), { error: p.error, loadingAction: null })), c.flow.run(pe, ae);
       }
       const L = yield p.actions.webauthn_verify_assertion_response({ assertion_response: y }).run();
       q(null), yield c.flow.run(L, ae);
@@ -3708,8 +3708,8 @@ const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
       try {
         y = yield Fo(Object.assign(Object.assign({}, p.payload.creation_options), { signal: a() }));
       } catch {
-        const he = yield p.actions.back(null).run();
-        return q(null), yield c.flow.run(he, ae), void M((We) => Object.assign(Object.assign({}, We), { error: { code: "webauthn_credential_already_exists", message: "Webauthn credential already exists" } }));
+        const pe = yield p.actions.back(null).run();
+        return q(null), yield c.flow.run(pe, ae), void M((We) => Object.assign(Object.assign({}, We), { error: { code: "webauthn_credential_already_exists", message: "Webauthn credential already exists" } }));
       }
       const L = yield p.actions.webauthn_verify_attestation_response({ public_key: y }).run();
       q(null), yield c.flow.run(L, ae);
@@ -3720,8 +3720,8 @@ const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
       try {
         y = yield Fo(Object.assign(Object.assign({}, p.payload.creation_options), { signal: a() }));
       } catch {
-        const he = yield p.actions.back(null).run();
-        return q(null), yield c.flow.run(he, ae), void M((We) => Object.assign(Object.assign({}, We), { error: { code: "webauthn_credential_already_exists", message: "Webauthn credential already exists" } }));
+        const pe = yield p.actions.back(null).run();
+        return q(null), yield c.flow.run(pe, ae), void M((We) => Object.assign(Object.assign({}, We), { error: { code: "webauthn_credential_already_exists", message: "Webauthn credential already exists" } }));
       }
       const L = yield p.actions.webauthn_verify_attestation_response({ public_key: y }).run();
       yield c.flow.run(L, ae);
@@ -3781,7 +3781,7 @@ const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
     });
   }, device_trust(p) {
     U(r(Br, { state: p }));
-  } }), [s.enablePasskeys, c, De, q]), ue = (0, _.useCallback)((p) => Fe(void 0, void 0, void 0, function* () {
+  } }), [s.enablePasskeys, c, De, q]), he = (0, _.useCallback)((p) => Fe(void 0, void 0, void 0, function* () {
     q("switch-flow");
     const y = localStorage.getItem(O);
     y && se(JSON.parse(y));
@@ -3791,15 +3791,15 @@ const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
     switch (p) {
       case "auth":
       case "login":
-        ue("/login").catch(re);
+        he("/login").catch(re);
         break;
       case "registration":
-        ue("/registration").catch(re);
+        he("/registration").catch(re);
         break;
       case "profile":
-        ue("/profile").catch(re);
+        he("/profile").catch(re);
     }
-  }, [ue]);
+  }, [he]);
   (0, _.useEffect)(() => Ee(C), []), (0, _.useEffect)(() => {
     c.onUserDeleted(() => {
       Le("onUserDeleted");
@@ -3817,7 +3817,7 @@ const tn = "flow-state", de = (0, A.createContext)(null), Vr = (n) => {
     ["auth", "login", "registration"].includes(C) ? (c.onUserLoggedOut(p), c.onSessionExpired(p), c.onUserDeleted(p)) : C === "profile" && c.onSessionCreated(p);
   }, []);
   const k = mt.supported();
-  return r(de.Provider, Object.assign({ value: { init: Ee, initialComponentName: d.componentName, isDisabled: Pe, setUIState: M, setLoadingAction: q, setSucceededAction: me, uiState: be, hanko: c, setHanko: ie, lang: (e == null ? void 0 : e.toString()) || f, prefilledEmail: o, prefilledUsername: i, componentName: C, setComponentName: x, experimentalFeatures: P, hidePasskeyButtonOnLogin: u, page: N, setPage: U, stateHandler: ae, lastLogin: ge } }, { children: r(Z.TranslateProvider, Object.assign({ translations: h, fallbackLang: f, root: v }, { children: r(Qs, Object.assign({ ref: S }, { children: C !== "events" ? r(A.Fragment, { children: [l ? r("style", { dangerouslySetInnerHTML: { __html: window._hankoStyle.innerHTML } }) : null, N] }) : null })) })) }));
+  return r(ue.Provider, Object.assign({ value: { init: Ee, initialComponentName: d.componentName, isDisabled: Pe, setUIState: M, setLoadingAction: q, setSucceededAction: ve, uiState: be, hanko: c, setHanko: ie, lang: (e == null ? void 0 : e.toString()) || f, prefilledEmail: o, prefilledUsername: i, componentName: C, setComponentName: x, experimentalFeatures: P, hidePasskeyButtonOnLogin: u, page: N, setPage: U, stateHandler: ae, lastLogin: _e } }, { children: r(Z.TranslateProvider, Object.assign({ translations: h, fallbackLang: f, root: v }, { children: r(Gs, Object.assign({ ref: S }, { children: C !== "events" ? r(A.Fragment, { children: [l ? r("style", { dangerouslySetInnerHTML: { __html: window._hankoStyle.innerHTML } }) : null, N] }) : null })) })) }));
 }, Zr = { en: Y(6).en };
 var Di = function(n, e, t, o) {
   return new (t || (t = Promise))(function(i, s) {
@@ -3844,7 +3844,7 @@ var Di = function(n, e, t, o) {
     c((o = o.apply(n, [])).next());
   });
 };
-const Qe = {}, Ft = (n, e) => r(Vr, Object.assign({ componentName: n, globalOptions: Qe, createWebauthnAbortSignal: ea }, e)), Jr = (n) => Ft("auth", n), Gr = (n) => Ft("login", n), Qr = (n) => Ft("registration", n), Yr = (n) => Ft("profile", n), Xr = (n) => Ft("events", n);
+const Ge = {}, Ft = (n, e) => r(Vr, Object.assign({ componentName: n, globalOptions: Ge, createWebauthnAbortSignal: ea }, e)), Jr = (n) => Ft("auth", n), Qr = (n) => Ft("login", n), Gr = (n) => Ft("registration", n), Yr = (n) => Ft("profile", n), Xr = (n) => Ft("events", n);
 let nn = new AbortController();
 const ea = () => (nn && nn.abort(), nn = new AbortController(), nn.signal), Dt = ({ tagName: n, entryComponent: e, shadow: t = !0, observedAttributes: o }) => Di(void 0, void 0, void 0, function* () {
   customElements.get(n) || function(i, s, a, d) {
@@ -3865,7 +3865,7 @@ const ea = () => (nn && nn.abort(), nn = new AbortController(), nn.signal), Dt =
   }(e, n, o, { shadow: t });
 }), ta = (n, e = {}) => Di(void 0, void 0, void 0, function* () {
   const t = ["api", "lang", "experimental", "prefilled-email", "entry"];
-  return e = Object.assign({ shadow: !0, injectStyles: !0, enablePasskeys: !0, hidePasskeyButtonOnLogin: !1, translations: null, translationsLocation: "/i18n", fallbackLanguage: "en", storageKey: "hanko", sessionCheckInterval: 3e4 }, e), Qe.hanko = new Ii(n, { cookieName: e.storageKey, cookieDomain: e.cookieDomain, cookieSameSite: e.cookieSameSite, localStorageKey: e.storageKey, sessionCheckInterval: e.sessionCheckInterval, sessionTokenLocation: e.sessionTokenLocation }), Qe.injectStyles = e.injectStyles, Qe.enablePasskeys = e.enablePasskeys, Qe.hidePasskeyButtonOnLogin = e.hidePasskeyButtonOnLogin, Qe.translations = e.translations || Zr, Qe.translationsLocation = e.translationsLocation, Qe.fallbackLanguage = e.fallbackLanguage, Qe.storageKey = e.storageKey, yield Promise.all([Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-auth", entryComponent: Jr, observedAttributes: t })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-login", entryComponent: Gr, observedAttributes: t })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-registration", entryComponent: Qr, observedAttributes: t })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-profile", entryComponent: Yr, observedAttributes: t.filter((o) => ["api", "lang"].includes(o)) })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-events", entryComponent: Xr, observedAttributes: [] }))]), { hanko: Qe.hanko };
+  return e = Object.assign({ shadow: !0, injectStyles: !0, enablePasskeys: !0, hidePasskeyButtonOnLogin: !1, translations: null, translationsLocation: "/i18n", fallbackLanguage: "en", storageKey: "hanko", sessionCheckInterval: 3e4 }, e), Ge.hanko = new Ii(n, { cookieName: e.storageKey, cookieDomain: e.cookieDomain, cookieSameSite: e.cookieSameSite, localStorageKey: e.storageKey, sessionCheckInterval: e.sessionCheckInterval, sessionTokenLocation: e.sessionTokenLocation }), Ge.injectStyles = e.injectStyles, Ge.enablePasskeys = e.enablePasskeys, Ge.hidePasskeyButtonOnLogin = e.hidePasskeyButtonOnLogin, Ge.translations = e.translations || Zr, Ge.translationsLocation = e.translationsLocation, Ge.fallbackLanguage = e.fallbackLanguage, Ge.storageKey = e.storageKey, yield Promise.all([Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-auth", entryComponent: Jr, observedAttributes: t })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-login", entryComponent: Qr, observedAttributes: t })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-registration", entryComponent: Gr, observedAttributes: t })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-profile", entryComponent: Yr, observedAttributes: t.filter((o) => ["api", "lang"].includes(o)) })), Dt(Object.assign(Object.assign({}, e), { tagName: "hanko-events", entryComponent: Xr, observedAttributes: [] }))]), { hanko: Ge.hanko };
 });
 oe.fK;
 oe.tJ;
@@ -3904,12 +3904,12 @@ const oa = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   Hanko: na,
   register: Li
 }, Symbol.toStringTag, { value: "Module" }));
-var Gn = "";
+var Qn = "";
 function ti(n) {
-  Gn = n;
+  Qn = n;
 }
 function ia(n = "") {
-  if (!Gn) {
+  if (!Qn) {
     const e = document.querySelector("[data-webawesome]");
     if (e != null && e.hasAttribute("data-webawesome")) {
       const t = new URL(e.getAttribute("data-webawesome") ?? "", window.location.href).pathname;
@@ -3924,7 +3924,7 @@ function ia(n = "") {
       }
     }
   }
-  return Gn.replace(/\/$/, "") + (n ? `/${n.replace(/^\//, "")}` : "");
+  return Qn.replace(/\/$/, "") + (n ? `/${n.replace(/^\//, "")}` : "");
 }
 new MutationObserver((n) => {
   for (const { addedNodes: e } of n)
@@ -4010,7 +4010,7 @@ var ca = Object.defineProperty, da = Object.getOwnPropertyDescriptor, $e = (n, e
     (a = n[s]) && (i = (o ? a(e, t, i) : a(i)) || i);
   return o && i && ca(e, t, i), i;
 };
-const ye = {
+const ce = {
   primary: null,
   // The primary instance that makes API calls
   user: null,
@@ -4024,13 +4024,14 @@ const ye = {
 let Ce = class extends Ut {
   constructor() {
     super(...arguments), this.hankoUrlAttr = "", this.basePath = "", this.authPath = "/api/auth/osm", this.osmRequired = !1, this.osmScopes = "read_prefs", this.showProfile = !1, this.redirectAfterLogin = "", this.autoConnect = !1, this.verifySession = !1, this.redirectAfterLogout = "", this.displayNameAttr = "", this.user = null, this.osmConnected = !1, this.osmData = null, this.osmLoading = !1, this.loading = !0, this.error = null, this.profileDisplayName = "", this._trailingSlashCache = {}, this._debugMode = !1, this._sessionJWT = null, this._lastSessionId = null, this._hanko = null, this._isPrimary = !1, this._handleVisibilityChange = () => {
-      !document.hidden && !this.showProfile && !this.user && (this.log("👁️ Page visible, re-checking session..."), this.checkSession());
+      this._isPrimary && !document.hidden && !this.showProfile && !this.user && (this.log("👁️ Page visible, re-checking session..."), this.checkSession());
     }, this._handleWindowFocus = () => {
-      !this.showProfile && !this.user && (this.log("🎯 Window focused, re-checking session..."), this.checkSession());
+      this._isPrimary && !this.showProfile && !this.user && (this.log("🎯 Window focused, re-checking session..."), this.checkSession());
     }, this._handleExternalLogin = (n) => {
       var t;
+      if (!this._isPrimary) return;
       const e = n;
-      !this.showProfile && !this.user && ((t = e.detail) != null && t.user) && (this.log("🔔 External login detected, updating user state..."), this.user = e.detail.user, this.checkOSMConnection());
+      !this.showProfile && !this.user && ((t = e.detail) != null && t.user) && (this.log("🔔 External login detected, updating user state..."), this.user = e.detail.user, this._broadcastState(), this.checkOSMConnection());
     };
   }
   // Get computed hankoUrl (priority: attribute > meta tag > window.HANKO_URL > origin)
@@ -4052,29 +4053,29 @@ let Ce = class extends Ut {
     return this.log("🔍 hanko-url auto-detected from window.location.origin:", e), e;
   }
   connectedCallback() {
-    super.connectedCallback(), this._debugMode = this._checkDebugMode(), this.log("🔌 hanko-auth connectedCallback called"), ye.instances.add(this), document.addEventListener("visibilitychange", this._handleVisibilityChange), window.addEventListener("focus", this._handleWindowFocus), document.addEventListener("hanko-login", this._handleExternalLogin);
+    super.connectedCallback(), this._debugMode = this._checkDebugMode(), this.log("🔌 hanko-auth connectedCallback called"), ce.instances.add(this), document.addEventListener("visibilitychange", this._handleVisibilityChange), window.addEventListener("focus", this._handleWindowFocus), document.addEventListener("hanko-login", this._handleExternalLogin);
   }
   // Use firstUpdated instead of connectedCallback to ensure React props are set
   firstUpdated() {
-    this.log("🔌 hanko-auth firstUpdated called"), this.log("  hankoUrl:", this.hankoUrl), this.log("  basePath:", this.basePath), ye.initialized ? (this.log("🔄 Using shared state from primary instance"), this._syncFromShared(), this._isPrimary = !1) : (this.log("👑 This is the primary instance"), this._isPrimary = !0, ye.primary = this, this.init());
+    this.log("🔌 hanko-auth firstUpdated called"), this.log("  hankoUrl:", this.hankoUrl), this.log("  basePath:", this.basePath), ce.initialized || ce.primary ? (this.log("🔄 Using shared state from primary instance"), this._syncFromShared(), this._isPrimary = !1) : (this.log("👑 This is the primary instance"), this._isPrimary = !0, ce.primary = this, ce.initialized = !0, this.init());
   }
   disconnectedCallback() {
     if (super.disconnectedCallback(), document.removeEventListener(
       "visibilitychange",
       this._handleVisibilityChange
-    ), window.removeEventListener("focus", this._handleWindowFocus), document.removeEventListener("hanko-login", this._handleExternalLogin), ye.instances.delete(this), this._isPrimary && ye.instances.size > 0) {
-      const n = ye.instances.values().next().value;
-      n && (this.log("👑 Promoting new primary instance"), n._isPrimary = !0, ye.primary = n);
+    ), window.removeEventListener("focus", this._handleWindowFocus), document.removeEventListener("hanko-login", this._handleExternalLogin), ce.instances.delete(this), this._isPrimary && ce.instances.size > 0) {
+      const n = ce.instances.values().next().value;
+      n && (this.log("👑 Promoting new primary instance"), n._isPrimary = !0, ce.primary = n);
     }
-    ye.instances.size === 0 && (ye.initialized = !1, ye.primary = null);
+    ce.instances.size === 0 && (ce.initialized = !1, ce.primary = null);
   }
-  // Sync local state from shared state
+  // Sync local state from shared state (only if values changed to prevent render loops)
   _syncFromShared() {
-    this.user = ye.user, this.osmConnected = ye.osmConnected, this.osmData = ye.osmData, this.loading = ye.loading, this._hanko = ye.hanko;
+    this.user !== ce.user && (this.user = ce.user), this.osmConnected !== ce.osmConnected && (this.osmConnected = ce.osmConnected), this.osmData !== ce.osmData && (this.osmData = ce.osmData), this.loading !== ce.loading && (this.loading = ce.loading), this._hanko !== ce.hanko && (this._hanko = ce.hanko);
   }
   // Update shared state and broadcast to all instances
   _broadcastState() {
-    ye.user = this.user, ye.osmConnected = this.osmConnected, ye.osmData = this.osmData, ye.loading = this.loading, ye.instances.forEach((n) => {
+    ce.user = this.user, ce.osmConnected = this.osmConnected, ce.osmData = this.osmData, ce.loading = this.loading, ce.instances.forEach((n) => {
       n !== this && n._syncFromShared();
     });
   }
@@ -4138,13 +4139,13 @@ let Ce = class extends Ut {
         cookieName: "hanko",
         cookieSameSite: "lax"
       };
-      this._hanko = new n(this.hankoUrl, o), ye.hanko = this._hanko, this._hanko.onSessionExpired(() => {
+      this._hanko = new n(this.hankoUrl, o), ce.hanko = this._hanko, this._hanko.onSessionExpired(() => {
         this.log("🕒 Hanko session expired event received"), this.handleSessionExpired();
       }), this._hanko.onUserLoggedOut(() => {
         this.log("🚪 Hanko user logged out event received"), this.handleUserLoggedOut();
-      }), await this.checkSession(), await this.checkOSMConnection(), await this.fetchProfileDisplayName(), this.loading = !1, ye.initialized = !0, this._broadcastState(), this.setupEventListeners();
+      }), await this.checkSession(), await this.checkOSMConnection(), await this.fetchProfileDisplayName(), this.loading = !1, this._broadcastState(), this.setupEventListeners();
     } catch (n) {
-      console.error("Failed to initialize hanko-auth:", n), this.error = n.message, this.loading = !1, ye.initialized = !0, this._broadcastState();
+      console.error("Failed to initialize hanko-auth:", n), this.error = n.message, this.loading = !1, this._broadcastState();
     }
   }
   async checkSession() {
@@ -4489,10 +4490,14 @@ let Ce = class extends Ut {
     ), this.redirectAfterLogout && (this.log("🔄 Redirecting after logout to:", this.redirectAfterLogout), window.location.href = this.redirectAfterLogout);
   }
   async handleSessionExpired() {
-    console.log("🆕🆕🆕 NEW CODE RUNNING - handleSessionExpired v3.0 🆕🆕🆕"), console.log("🕒 Session expired - cleaning up state"), console.log("📊 State before cleanup:", {
+    if (console.log("🕒 Session expired event received"), console.log("📊 Current state:", {
       user: this.user,
       osmConnected: this.osmConnected
-    });
+    }), this.user) {
+      console.log("✅ User is logged in, ignoring stale session expired event");
+      return;
+    }
+    console.log("🧹 No active user - cleaning up state");
     try {
       const t = this.getBasePath(), o = this.authPath, i = window.location.origin, s = this.addTrailingSlash(
         `${t}${o}/disconnect`,
