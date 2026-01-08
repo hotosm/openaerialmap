@@ -26,6 +26,10 @@ const sharedAuth = {
   instances: new Set<any>(),
 };
 
+// Session storage key generators to avoid duplication
+const getSessionVerifyKey = (hostname: string) => `hanko-verified-${hostname}`;
+const getSessionOnboardingKey = (hostname: string) => `hanko-onboarding-${hostname}`;
+
 interface UserState {
   id: string;
   email: string | null;
@@ -57,6 +61,10 @@ export class HankoAuth extends LitElement {
   redirectAfterLogout = "";
   @property({ type: String, attribute: "display-name" })
   displayNameAttr = "";
+  // URL to check if user has app mapping (for cross-app auth scenarios)
+  @property({ type: String, attribute: "mapping-check-url" }) mappingCheckUrl = "";
+  // App identifier for onboarding redirect
+  @property({ type: String, attribute: "app-id" }) appId = "";
 
   // Internal state
   @state() private user: UserState | null = null;
@@ -66,9 +74,9 @@ export class HankoAuth extends LitElement {
   @state() private loading = true;
   @state() private error: string | null = null;
   @state() private profileDisplayName: string = "";
+  @state() private hasAppMapping = false; // True if user has mapping in the app
 
   // Private fields
-  private _trailingSlashCache: Record<string, boolean> = {};
   private _debugMode = false;
   private _sessionJWT: string | null = null;
   private _lastSessionId: string | null = null;
@@ -522,54 +530,6 @@ export class HankoAuth extends LitElement {
     return path;
   }
 
-  private async detectTrailingSlash(
-    basePath: string,
-    endpoint: string
-  ): Promise<boolean> {
-    if (this._trailingSlashCache[basePath] !== undefined) {
-      this.log(
-        `🔍 Using cached trailing slash preference for ${basePath}: ${this._trailingSlashCache[basePath]}`
-      );
-      return this._trailingSlashCache[basePath];
-    }
-
-    const origin = window.location.origin;
-    const pathWithoutSlash = `${basePath}${endpoint}`;
-
-    this.log("🔍 Auto-detecting trailing slash preference...");
-    this.log(`  Testing: ${origin}${pathWithoutSlash}`);
-
-    try {
-      const response = await fetch(`${origin}${pathWithoutSlash}`, {
-        method: "GET",
-        credentials: "include",
-        redirect: "follow",
-      });
-
-      const finalUrl = new URL(response.url);
-      const finalPath = finalUrl.pathname;
-
-      this.log(`  Original path: ${pathWithoutSlash}`);
-      this.log(`  Final path: ${finalPath}`);
-
-      if (!pathWithoutSlash.endsWith("/") && finalPath.endsWith("/")) {
-        this.log(
-          `  ✅ Detected trailing slash needed (redirected to ${finalPath})`
-        );
-        this._trailingSlashCache[basePath] = true;
-        return true;
-      }
-
-      this.log("  ✅ Detected no trailing slash needed");
-      this._trailingSlashCache[basePath] = false;
-      return false;
-    } catch (error) {
-      console.error("  ❌ Error during trailing slash detection:", error);
-      this._trailingSlashCache[basePath] = false;
-      return false;
-    }
-  }
-
   private async init() {
     // Only primary instance should initialize
     if (!this._isPrimary) {
@@ -621,7 +581,7 @@ export class HankoAuth extends LitElement {
 
       this.setupEventListeners();
     } catch (error: any) {
-      console.error("Failed to initialize hanko-auth:", error);
+      this.logError("Failed to initialize hanko-auth:", error);
       this.error = error.message;
       this.loading = false;
       this._broadcastState();
@@ -716,7 +676,7 @@ export class HankoAuth extends LitElement {
             // If verify-session is enabled and we have a redirect URL,
             // redirect to the callback so the app can verify the user mapping
             // Use sessionStorage to avoid redirect loops
-            const verifyKey = `hanko-verified-${window.location.hostname}`;
+            const verifyKey = getSessionVerifyKey(window.location.hostname);
             const alreadyVerified = sessionStorage.getItem(verifyKey);
 
             if (
@@ -729,6 +689,14 @@ export class HankoAuth extends LitElement {
               );
               sessionStorage.setItem(verifyKey, "true");
               window.location.href = this.redirectAfterLogin;
+              return;
+            }
+
+            // Silent app mapping check (for cross-app auth scenarios)
+            // If app-status-url is configured, check if user needs onboarding
+            const mappingOk = await this.checkAppMapping();
+            if (!mappingOk) {
+              // Redirect to onboarding in progress, don't proceed
               return;
             }
 
@@ -752,7 +720,7 @@ export class HankoAuth extends LitElement {
             // Fetch profile display name
             await this.fetchProfileDisplayName();
             if (this.osmRequired && this.autoConnect && !this.osmConnected) {
-              console.log(
+              this.log(
                 "🔄 Auto-connecting to OSM (from existing session)..."
               );
               this.handleOSMConnect();
@@ -789,16 +757,16 @@ export class HankoAuth extends LitElement {
           : `; domain=.hotosm.org`;
 
         document.cookie = `hanko=${jwt}; path=/${domainPart}; max-age=86400; SameSite=Lax; Secure`;
-        console.log(
+        this.log(
           `🔐 JWT synced to cookie for SSO${
             isLocalhost ? ` (domain=${hostname})` : " (domain=.hotosm.org)"
           }`
         );
       } else {
-        console.log("⚠️ No JWT found in session event");
+        this.log("⚠️ No JWT found in session event");
       }
     } catch (error) {
-      console.error("Failed to sync JWT to cookie:", error);
+      this.logError("Failed to sync JWT to cookie:", error);
     }
   }
 
@@ -824,19 +792,19 @@ export class HankoAuth extends LitElement {
       const statusPath = `${basePath}${authPath}/status`;
       const statusUrl = `${statusPath}`; // Relative URL for proxy
 
-      console.log("🔍 Checking OSM connection at:", statusUrl);
-      console.log("  basePath:", basePath);
-      console.log("  authPath:", authPath);
-      console.log("🍪 Current cookies:", document.cookie);
+      this.log("🔍 Checking OSM connection at:", statusUrl);
+      this.log("  basePath:", basePath);
+      this.log("  authPath:", authPath);
+      this.log("🍪 Current cookies:", document.cookie);
 
       const response = await fetch(statusUrl, {
         credentials: "include",
         redirect: "follow",
       });
 
-      console.log("📡 OSM status response:", response.status);
-      console.log("📡 Final URL after redirects:", response.url);
-      console.log("📡 Response headers:", [...response.headers.entries()]);
+      this.log("📡 OSM status response:", response.status);
+      this.log("📡 Final URL after redirects:", response.url);
+      this.log("📡 Response headers:", [...response.headers.entries()]);
 
       if (response.ok) {
         const text = await response.text();
@@ -846,7 +814,7 @@ export class HankoAuth extends LitElement {
         try {
           data = JSON.parse(text);
         } catch (e) {
-          console.error(
+          this.logError(
             "Failed to parse OSM response as JSON:",
             text.substring(0, 500)
           );
@@ -879,7 +847,7 @@ export class HankoAuth extends LitElement {
         }
       }
     } catch (error) {
-      console.error("OSM connection check failed:", error);
+      this.logError("OSM connection check failed:", error);
     } finally {
       if (!wasLoading) {
         this.osmLoading = false;
@@ -888,6 +856,72 @@ export class HankoAuth extends LitElement {
       if (this._isPrimary) {
         this._broadcastState();
       }
+    }
+  }
+
+  // Check app mapping status (for cross-app auth scenarios)
+  // Only used when mapping-check-url is configured
+  private async checkAppMapping(): Promise<boolean> {
+    // Only check if mapping-check-url is configured
+    if (!this.mappingCheckUrl || !this.user) {
+      return true; // No check needed, proceed normally
+    }
+
+    // Prevent redirect loops - if we already tried onboarding this session, don't redirect again
+    const onboardingKey = getSessionOnboardingKey(window.location.hostname);
+    const alreadyTriedOnboarding = sessionStorage.getItem(onboardingKey);
+
+    this.log("🔍 Checking app mapping at:", this.mappingCheckUrl);
+
+    try {
+      const response = await fetch(this.mappingCheckUrl, {
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        this.log("📡 Mapping check response:", data);
+
+        if (data.needs_onboarding) {
+          if (alreadyTriedOnboarding) {
+            this.log("⚠️ Already tried onboarding this session, skipping redirect");
+            return true; // Don't loop, let user continue
+          }
+          // User has Hanko session but no app mapping - redirect to onboarding
+          this.log("⚠️ User needs onboarding, redirecting...");
+          sessionStorage.setItem(onboardingKey, "true");
+          const returnTo = encodeURIComponent(window.location.origin);
+          const appParam = this.appId ? `onboarding=${this.appId}` : "";
+          window.location.href = `${this.hankoUrl}/app?${appParam}&return_to=${returnTo}`;
+          return false; // Redirect in progress, don't proceed
+        }
+
+        // User has mapping - clear the onboarding flag
+        sessionStorage.removeItem(onboardingKey);
+        this.hasAppMapping = true;
+        this.log("✅ User has app mapping");
+        return true;
+      } else if (response.status === 401 || response.status === 403) {
+        if (alreadyTriedOnboarding) {
+          this.log("⚠️ Already tried onboarding this session, skipping redirect");
+          return true;
+        }
+        // Needs onboarding
+        this.log("⚠️ 401/403 - User needs onboarding, redirecting...");
+        sessionStorage.setItem(onboardingKey, "true");
+        const returnTo = encodeURIComponent(window.location.origin);
+        const appParam = this.appId ? `onboarding=${this.appId}` : "";
+        window.location.href = `${this.hankoUrl}/app?${appParam}&return_to=${returnTo}`;
+        return false;
+      }
+
+      // Other status codes - proceed without blocking
+      this.log("⚠️ Unexpected status from mapping check:", response.status);
+      return true;
+    } catch (error) {
+      this.log("⚠️ App mapping check failed:", error);
+      // Don't block the user, just log the error
+      return true;
     }
   }
 
@@ -947,7 +981,7 @@ export class HankoAuth extends LitElement {
     this._sessionJWT = event.detail?.jwt || null;
 
     if (!this._hanko) {
-      console.error("Hanko instance not initialized");
+      this.logError("Hanko instance not initialized");
       return;
     }
 
@@ -1026,12 +1060,12 @@ export class HankoAuth extends LitElement {
             userInfoRetrieved = true;
             this.log("✅ User info extracted from JWT claims");
           } else {
-            console.error("No user claims available in event");
+            this.logError("No user claims available in event");
             this.user = null;
             return;
           }
         } catch (claimsError) {
-          console.error("Failed to extract user info from claims:", claimsError);
+          this.logError("Failed to extract user info from claims:", claimsError);
           this.user = null;
           return;
         }
@@ -1060,7 +1094,7 @@ export class HankoAuth extends LitElement {
 
     // Auto-connect to OSM if required and auto-connect is enabled
     if (this.osmRequired && this.autoConnect && !this.osmConnected) {
-      console.log("🔄 Auto-connecting to OSM...");
+      this.log("🔄 Auto-connecting to OSM...");
       this.handleOSMConnect();
       return; // Exit early - redirect will happen after OSM OAuth callback
     }
@@ -1068,7 +1102,7 @@ export class HankoAuth extends LitElement {
     // Only redirect if OSM is not required OR if OSM is connected
     const canRedirect = !this.osmRequired || this.osmConnected;
 
-    console.log(
+    this.log(
       "🔄 Checking redirect-after-login:",
       this.redirectAfterLogin,
       "showProfile:",
@@ -1086,13 +1120,13 @@ export class HankoAuth extends LitElement {
       );
 
       if (this.redirectAfterLogin) {
-        console.log("✅ Redirecting to:", this.redirectAfterLogin);
+        this.log("✅ Redirecting to:", this.redirectAfterLogin);
         window.location.href = this.redirectAfterLogin;
       } else {
-        console.log("❌ No redirect (redirectAfterLogin not set)");
+        this.log("❌ No redirect (redirectAfterLogin not set)");
       }
     } else {
-      console.log("⏸️ Waiting for OSM connection before redirect");
+      this.log("⏸️ Waiting for OSM connection before redirect");
     }
   }
 
@@ -1105,11 +1139,11 @@ export class HankoAuth extends LitElement {
     const loginPath = `${basePath}${authPath}/login`;
     const fullUrl = `${loginPath}?scopes=${scopes}`;
 
-    console.log("🔗 OSM Connect clicked!");
-    console.log("  basePath:", basePath);
-    console.log("  authPath:", authPath);
-    console.log("  Login path:", fullUrl);
-    console.log("  Fetching redirect URL from backend...");
+    this.log("🔗 OSM Connect clicked!");
+    this.log("  basePath:", basePath);
+    this.log("  authPath:", authPath);
+    this.log("  Login path:", fullUrl);
+    this.log("  Fetching redirect URL from backend...");
 
     try {
       // Use fetch with credentials to get the redirect URL
@@ -1120,27 +1154,27 @@ export class HankoAuth extends LitElement {
         redirect: "manual", // Don't follow redirect, we'll do it manually
       });
 
-      console.log("  Response status:", response.status);
-      console.log("  Response type:", response.type);
+      this.log("  Response status:", response.status);
+      this.log("  Response type:", response.type);
 
       if (response.status === 0 || response.type === "opaqueredirect") {
         // This is a redirect response
         const redirectUrl = response.headers.get("Location") || response.url;
-        console.log("  ✅ Got redirect URL:", redirectUrl);
+        this.log("  ✅ Got redirect URL:", redirectUrl);
         window.location.href = redirectUrl;
       } else if (response.status >= 300 && response.status < 400) {
         const redirectUrl = response.headers.get("Location");
-        console.log("  ✅ Got redirect URL from header:", redirectUrl);
+        this.log("  ✅ Got redirect URL from header:", redirectUrl);
         if (redirectUrl) {
           window.location.href = redirectUrl;
         }
       } else {
-        console.error("  ❌ Unexpected response:", response.status);
+        this.logError("  ❌ Unexpected response:", response.status);
         const text = await response.text();
-        console.error("  Response body:", text.substring(0, 200));
+        this.logError("  Response body:", text.substring(0, 200));
       }
     } catch (error) {
-      console.error("  ❌ Failed to fetch redirect URL:", error);
+      this.logError("  ❌ Failed to fetch redirect URL:", error);
     }
   }
 
@@ -1174,7 +1208,7 @@ export class HankoAuth extends LitElement {
       this.log("📡 Disconnect response data:", data);
       this.log("✅ OSM disconnected");
     } catch (error) {
-      console.error("❌ OSM disconnect failed:", error);
+      this.logError("❌ OSM disconnect failed:", error);
     }
 
     if (this._hanko) {
@@ -1182,38 +1216,12 @@ export class HankoAuth extends LitElement {
         await this._hanko.user.logout();
         this.log("✅ Hanko logout successful");
       } catch (error) {
-        console.error("Hanko logout failed:", error);
+        this.logError("Hanko logout failed:", error);
       }
     }
 
-    const hostname = window.location.hostname;
-    document.cookie = `hanko=; path=/; domain=${hostname}; max-age=0`;
-    document.cookie = "hanko=; path=/; max-age=0";
-    document.cookie = `osm_connection=; path=/; domain=${hostname}; max-age=0`;
-    document.cookie = "osm_connection=; path=/; max-age=0";
-
-    this.log("🍪 Cookies cleared");
-
-    // Clear session verification flag so next login triggers verification
-    const verifyKey = `hanko-verified-${window.location.hostname}`;
-    sessionStorage.removeItem(verifyKey);
-    this.log("🔄 Session verification flag cleared");
-
-    this.user = null;
-    this.osmConnected = false;
-    this.osmData = null;
-
-    // Broadcast state changes to other instances
-    if (this._isPrimary) {
-      this._broadcastState();
-    }
-
-    this.dispatchEvent(
-      new CustomEvent("logout", {
-        bubbles: true,
-        composed: true,
-      })
-    );
+    // Use shared cleanup method
+    this._clearAuthState();
 
     this.log(
       "✅ Logout complete - component will re-render with updated state"
@@ -1227,9 +1235,48 @@ export class HankoAuth extends LitElement {
     // Otherwise let Lit's reactivity handle the re-render
   }
 
+  /**
+   * Clear all auth state - shared between logout and session expired handlers
+   */
+  private _clearAuthState() {
+    // Clear cookies
+    const hostname = window.location.hostname;
+    document.cookie = `hanko=; path=/; domain=${hostname}; max-age=0`;
+    document.cookie = "hanko=; path=/; max-age=0";
+    document.cookie = `osm_connection=; path=/; domain=${hostname}; max-age=0`;
+    document.cookie = "osm_connection=; path=/; max-age=0";
+    this.log("🍪 Cookies cleared");
+
+    // Clear session verification and onboarding flags
+    const verifyKey = getSessionVerifyKey(hostname);
+    const onboardingKey = getSessionOnboardingKey(hostname);
+    sessionStorage.removeItem(verifyKey);
+    sessionStorage.removeItem(onboardingKey);
+    this.log("🔄 Session flags cleared");
+
+    // Reset state
+    this.user = null;
+    this.osmConnected = false;
+    this.osmData = null;
+    this.hasAppMapping = false;
+
+    // Broadcast state changes to other instances
+    if (this._isPrimary) {
+      this._broadcastState();
+    }
+
+    // Dispatch logout event
+    this.dispatchEvent(
+      new CustomEvent("logout", {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private async handleSessionExpired() {
-    console.log("🕒 Session expired event received");
-    console.log("📊 Current state:", {
+    this.log("🕒 Session expired event received");
+    this.log("📊 Current state:", {
       user: this.user,
       osmConnected: this.osmConnected,
     });
@@ -1237,11 +1284,11 @@ export class HankoAuth extends LitElement {
     // If we have an active user, the session is still valid
     // The SDK may fire this event for old/stale sessions while a new session exists
     if (this.user) {
-      console.log("✅ User is logged in, ignoring stale session expired event");
+      this.log("✅ User is logged in, ignoring stale session expired event");
       return;
     }
 
-    console.log("🧹 No active user - cleaning up state");
+    this.log("🧹 No active user - cleaning up state");
 
     // Call OSM disconnect endpoint to clear httpOnly cookie
     try {
@@ -1253,7 +1300,7 @@ export class HankoAuth extends LitElement {
         basePath
       );
       const disconnectUrl = `${origin}${disconnectPath}`;
-      console.log(
+      this.log(
         "🔌 Calling OSM disconnect (session expired):",
         disconnectUrl
       );
@@ -1263,51 +1310,22 @@ export class HankoAuth extends LitElement {
         credentials: "include",
       });
 
-      console.log("📡 Disconnect response status:", response.status);
+      this.log("📡 Disconnect response status:", response.status);
       const data = await response.json();
-      console.log("📡 Disconnect response data:", data);
-      console.log("✅ OSM disconnected");
+      this.log("📡 Disconnect response data:", data);
+      this.log("✅ OSM disconnected");
     } catch (error) {
-      console.error("❌ OSM disconnect failed:", error);
+      this.logError("❌ OSM disconnect failed:", error);
     }
 
-    // Clear user state
-    this.user = null;
-    this.osmConnected = false;
-    this.osmData = null;
+    // Use shared cleanup method
+    this._clearAuthState();
 
-    // Broadcast state changes to other instances
-    if (this._isPrimary) {
-      this._broadcastState();
-    }
-
-    // Clear cookies
-    const hostname = window.location.hostname;
-    document.cookie = `hanko=; path=/; domain=${hostname}; max-age=0`;
-    document.cookie = "hanko=; path=/; max-age=0";
-    document.cookie = `osm_connection=; path=/; domain=${hostname}; max-age=0`;
-    document.cookie = "osm_connection=; path=/; max-age=0";
-
-    console.log("🍪 Cookies cleared after session expiration");
-
-    // Clear session verification flag so next login triggers verification
-    const verifyKey = `hanko-verified-${window.location.hostname}`;
-    sessionStorage.removeItem(verifyKey);
-    console.log("🔄 Session verification flag cleared");
-
-    // Dispatch logout event
-    this.dispatchEvent(
-      new CustomEvent("logout", {
-        bubbles: true,
-        composed: true,
-      })
-    );
-
-    console.log("✅ Session cleanup complete");
+    this.log("✅ Session cleanup complete");
 
     // Redirect after session expired if configured
     if (this.redirectAfterLogout) {
-      console.log(
+      this.log(
         "🔄 Redirecting after session expired to:",
         this.redirectAfterLogout
       );
@@ -1328,8 +1346,10 @@ export class HankoAuth extends LitElement {
 
     if (selectedValue === "profile") {
       // Profile page lives on the login site
+      // Pass return URL so profile can navigate back to the app
       const baseUrl = this.hankoUrl;
-      window.location.href = `${baseUrl}/app/profile`;
+      const returnTo = this.redirectAfterLogin || window.location.origin;
+      window.location.href = `${baseUrl}/app/profile?return_to=${encodeURIComponent(returnTo)}`;
     } else if (selectedValue === "connect-osm") {
       // Smart return_to: if already on a login page, redirect to home instead
       const currentPath = window.location.pathname;
@@ -1357,7 +1377,7 @@ export class HankoAuth extends LitElement {
   }
 
   render() {
-    console.log(
+    this.log(
       "🎨 RENDER - showProfile:",
       this.showProfile,
       "user:",
@@ -1554,7 +1574,7 @@ export class HankoAuth extends LitElement {
 
         // Use the getter which handles all fallbacks correctly
         const baseUrl = this.hankoUrl;
-        console.log("🔗 Login URL base:", baseUrl);
+        this.log("🔗 Login URL base:", baseUrl);
         const loginUrl = `${baseUrl}/app?return_to=${encodeURIComponent(
           returnTo
         )}${this.osmRequired ? "&osm_required=true" : ""}${autoConnectParam}`;
