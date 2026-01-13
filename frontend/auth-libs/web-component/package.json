@@ -1,10 +1,17 @@
 {
   "name": "@hotosm/hanko-auth",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Web component for HOTOSM SSO authentication with Hanko and OSM integration",
-  "main": "dist/hanko-auth.js",
+  "type": "module",
+  "main": "dist/hanko-auth.umd.js",
   "module": "dist/hanko-auth.esm.js",
-  "types": "dist/hanko-auth.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/hanko-auth.esm.js",
+      "require": "./dist/hanko-auth.umd.js"
+    },
+    "./dist/*": "./dist/*"
+  },
   "files": [
     "dist",
     "src"
@@ -15,16 +22,26 @@
     "preview": "vite preview"
   },
   "keywords": [
+    "hotosm",
     "hanko",
     "auth",
     "sso",
     "openstreetmap",
     "osm",
-    "hotosm",
-    "web-component"
+    "web-component",
+    "lit"
   ],
-  "author": "HOTOSM",
+  "author": "HOTOSM <tech@hotosm.org>",
   "license": "AGPL-3.0",
+  "homepage": "https://hotosm.github.io/auth-docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hotosm/login.git",
+    "directory": "auth-libs/web-component"
+  },
+  "bugs": {
+    "url": "https://github.com/hotosm/login/issues"
+  },
   "dependencies": {
     "@awesome.me/webawesome": "3.0.0-beta.1",
     "@teamhanko/hanko-elements": "^1.0.0",

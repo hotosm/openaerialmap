@@ -354,18 +354,9 @@ export default function Sidebar({
     setSelectedItem
   } = useStac();
 
+  // Login service URL (handles both Hanko auth and OSM OAuth)
   const hankoUrl = import.meta.env.VITE_HANKO_URL || 'https://login.hotosm.test';
-  const loginServiceUrl = import.meta.env.VITE_LOGIN_URL || 'https://login.hotosm.test';
   const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
-
-  // Debug: log what values React is passing to the component
-  console.log('🔧 OAM Sidebar - Auth component props:', {
-    'VITE_HANKO_URL': import.meta.env.VITE_HANKO_URL,
-    'VITE_LOGIN_URL': import.meta.env.VITE_LOGIN_URL,
-    hankoUrl,
-    loginServiceUrl,
-    frontendUrl,
-  });
 
   return (
     <div
@@ -398,7 +389,7 @@ export default function Sidebar({
         </h2>
         <hotosm-auth
           hanko-url={hankoUrl}
-          base-path={loginServiceUrl}
+          base-path={hankoUrl}
           redirect-after-login={frontendUrl}
           redirect-after-logout="/"
         />

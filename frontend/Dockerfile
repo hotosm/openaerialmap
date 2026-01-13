@@ -4,13 +4,11 @@ ARG VITE_STAC_API_PATHNAME
 ARG VITE_STAC_TILER_PATHNAME
 ARG VITE_STAC_ITEMS_LIMIT
 ARG VITE_HANKO_URL
-ARG VITE_LOGIN_URL
 ENV VITE_STAC_API_URL=${VITE_STAC_API_URL} \
     VITE_STAC_API_PATHNAME=${VITE_STAC_API_PATHNAME} \
     VITE_STAC_TILER_PATHNAME=${VITE_STAC_TILER_PATHNAME} \
     VITE_STAC_ITEMS_LIMIT=${VITE_STAC_ITEMS_LIMIT} \
     VITE_HANKO_URL=${VITE_HANKO_URL} \
-    VITE_LOGIN_URL=${VITE_LOGIN_URL} \
     PNPM_HOME="/pnpm" \
     PATH="$PATH:/pnpm"
 WORKDIR /app
@@ -40,7 +38,6 @@ ARG VITE_STAC_API_PATHNAME
 ARG VITE_STAC_TILER_PATHNAME
 ARG VITE_STAC_ITEMS_LIMIT
 ARG VITE_HANKO_URL
-ARG VITE_LOGIN_URL
 LABEL org.hotosm.openaerialmap.app-name="frontend" \
       org.hotosm.openaerialmap.app-version="${APP_VERSION}" \
       org.hotosm.openaerialmap.git-commit-ref="${COMMIT_REF:-none}" \
@@ -49,7 +46,6 @@ LABEL org.hotosm.openaerialmap.app-name="frontend" \
       org.hotosm.openaerialmap.stac-api-pathname="${VITE_STAC_API_PATHNAME}" \
       org.hotosm.openaerialmap.stac-tiler-pathname="${VITE_STAC_TILER_PATHNAME}" \
       org.hotosm.openaerialmap.stac-items-limit="${VITE_STAC_ITEMS_LIMIT}" \
-      org.hotosm.openaerialmap.hanko-url="${VITE_HANKO_URL}" \
-      org.hotosm.openaerialmap.login-url="${VITE_LOGIN_URL}"
+      org.hotosm.openaerialmap.hanko-url="${VITE_HANKO_URL}"
 WORKDIR /app
 COPY --from=build /app/dist .

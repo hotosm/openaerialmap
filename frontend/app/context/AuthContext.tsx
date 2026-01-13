@@ -31,8 +31,8 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// OSM routes are centralized in Login service
-const LOGIN_SERVICE_URL = import.meta.env.VITE_LOGIN_URL || "https://login.hotosm.test";
+// Login service URL (handles both Hanko auth and OSM OAuth)
+const LOGIN_SERVICE_URL = import.meta.env.VITE_HANKO_URL || "https://login.hotosm.test";
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<HankoUser | null>(null);
