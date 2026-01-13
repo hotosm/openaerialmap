@@ -24,6 +24,7 @@ const sharedAuth = {
   hanko: null as any,
   initialized: false,
   instances: new Set<any>(),
+  profileDisplayName: "", // Shared profile display name
 };
 
 // Session storage key generators to avoid duplication
@@ -357,6 +358,9 @@ export class HankoAuth extends LitElement {
     this._debugMode = this._checkDebugMode();
     this.log("🔌 hanko-auth connectedCallback called");
 
+    // Auto-inject Web Awesome styles if not already present
+    this._injectWebAwesomeStyles();
+
     // Register this instance
     sharedAuth.instances.add(this);
 
@@ -426,6 +430,7 @@ export class HankoAuth extends LitElement {
     if (this.osmData !== sharedAuth.osmData) this.osmData = sharedAuth.osmData;
     if (this.loading !== sharedAuth.loading) this.loading = sharedAuth.loading;
     if (this._hanko !== sharedAuth.hanko) this._hanko = sharedAuth.hanko;
+    if (this.profileDisplayName !== sharedAuth.profileDisplayName) this.profileDisplayName = sharedAuth.profileDisplayName;
   }
 
   // Update shared state and broadcast to all instances
@@ -434,6 +439,7 @@ export class HankoAuth extends LitElement {
     sharedAuth.osmConnected = this.osmConnected;
     sharedAuth.osmData = this.osmData;
     sharedAuth.loading = this.loading;
+    sharedAuth.profileDisplayName = this.profileDisplayName;
 
     // Sync to all other instances
     sharedAuth.instances.forEach((instance) => {
@@ -481,6 +487,23 @@ export class HankoAuth extends LitElement {
       this.checkOSMConnection();
     }
   };
+
+  /**
+   * Auto-inject Web Awesome styles into the document if not already present.
+   * This allows the component to work without requiring the consuming app
+   * to manually import Web Awesome CSS.
+   */
+  private _injectWebAwesomeStyles() {
+    const styleId = 'webawesome-styles';
+    if (!document.getElementById(styleId)) {
+      const link = document.createElement('link');
+      link.id = styleId;
+      link.rel = 'stylesheet';
+      link.href = 'https://early.webawesome.com/webawesome@3.0.0-beta.1/dist/styles/webawesome.css';
+      document.head.appendChild(link);
+      this.log("💅 Injected Web Awesome styles");
+    }
+  }
 
   private _checkDebugMode(): boolean {
     const urlParams = new URLSearchParams(window.location.search);
@@ -572,8 +595,11 @@ export class HankoAuth extends LitElement {
       });
 
       await this.checkSession();
-      await this.checkOSMConnection();
-      await this.fetchProfileDisplayName();
+      // Only check OSM and fetch profile if we have a logged-in user
+      if (this.user) {
+        await this.checkOSMConnection();
+        await this.fetchProfileDisplayName();
+      }
       this.loading = false;
 
       // Broadcast final state to other instances
@@ -1162,12 +1188,11 @@ export class HankoAuth extends LitElement {
     try {
       const basePath = this.getBasePath();
       const authPath = this.authPath;
-      const origin = window.location.origin;
-      const disconnectPath = this.addTrailingSlash(
-        `${basePath}${authPath}/disconnect`,
-        basePath
-      );
-      const disconnectUrl = `${origin}${disconnectPath}`;
+      const disconnectPath = `${basePath}${authPath}/disconnect`;
+      // If basePath is already a full URL, use it directly; otherwise prepend origin
+      const disconnectUrl = disconnectPath.startsWith("http")
+        ? disconnectPath
+        : `${window.location.origin}${disconnectPath}`;
       this.log("🔌 Calling OSM disconnect:", disconnectUrl);
 
       const response = await fetch(disconnectUrl, {
@@ -1266,12 +1291,11 @@ export class HankoAuth extends LitElement {
     try {
       const basePath = this.getBasePath();
       const authPath = this.authPath;
-      const origin = window.location.origin;
-      const disconnectPath = this.addTrailingSlash(
-        `${basePath}${authPath}/disconnect`,
-        basePath
-      );
-      const disconnectUrl = `${origin}${disconnectPath}`;
+      const disconnectPath = `${basePath}${authPath}/disconnect`;
+      // If basePath is already a full URL, use it directly; otherwise prepend origin
+      const disconnectUrl = disconnectPath.startsWith("http")
+        ? disconnectPath
+        : `${window.location.origin}${disconnectPath}`;
       this.log(
         "🔌 Calling OSM disconnect (session expired):",
         disconnectUrl
