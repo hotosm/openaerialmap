@@ -19,9 +19,6 @@ ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /app
 
-# Copy auth-libs before sync (needed for local wheel dependency)
-COPY auth-libs /app/auth-libs
-
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
