@@ -23,7 +23,7 @@ import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
 // Import auth-libs web component
-import '../auth-libs/web-component/dist/hanko-auth.esm.js';
+import '@hotosm/hanko-auth';
 
 // If using a router add the public url to the base path.
 // const publicUrl = process.env.BASE_URL || '';

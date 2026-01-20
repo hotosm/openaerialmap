@@ -6,5 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "stac-fastapi-pgstac[server]~=5.0.2",
-    "hotosm-auth @ git+https://github.com/hotosm/login.git@auth-libs-v0.2.5#subdirectory=auth-libs/python",
+    "hotosm-auth[fastapi]==0.2.5",
 ]

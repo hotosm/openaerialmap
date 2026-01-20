@@ -11,6 +11,9 @@ importers:
       '@awesome.me/webawesome':
         specifier: 3.0.0-beta.1
         version: 3.0.0-beta.1(@floating-ui/utils@0.2.10)
+      '@hotosm/hanko-auth':
+        specifier: ^0.3.1
+        version: 0.3.1(@awesome.me/webawesome@3.0.0-beta.1(@floating-ui/utils@0.2.10))
       '@hotosm/ui':
         specifier: 0.3.1-b1
         version: 0.3.1-b1
@@ -369,6 +372,11 @@ packages:
     resolution: {integrity: sha512-WyOx8cJQ+FQus4Mm4uPIZA64gbk3Wxh0so5Lcii0aJifqwoVOlfFtorjLE0Hen4OYyHZMXDWqMmaQemBhgxFRQ==}
     engines: {node: '>=14'}
 
+  '@denysvuika/preact-translate@0.5.1':
+    resolution: {integrity: sha512-qqKkpjzR8E55nlLA+H3gP9Q99mCCWiTtRupVQBh8YRZljX+Q8YbsaJtV3F+TX4DR4lV8NLgvv2+sSUcHoWvNtQ==}
+    peerDependencies:
+      preact: '>=10.13.0'
+
   '@emnapi/core@1.4.3':
     resolution: {integrity: sha512-4m62DuCE07lw01soJwPiBGC0nAww0Q+RY70VZ+n49yDIO13yyinhbWCeNnaob0lakDtWQzSdtNWzJeOJt2ma+g==}
 
@@ -578,6 +586,11 @@ packages:
 
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
+
+  '@hotosm/hanko-auth@0.3.1':
+    resolution: {integrity: sha512-8hVKcI2PFkvdSTek7ZXNc6EeFYWgDT4f4xN9o2wWbsaIOiJ73qg3cRMvNchUZwLm4YgSBSMqDg976LQLvO4xCA==}
+    peerDependencies:
+      '@awesome.me/webawesome': ^3.0.0-beta.1
 
   '@hotosm/ui@0.3.1-b1':
     resolution: {integrity: sha512-mzf8v3jff1H4CEausEILTgZsvJxEnLnjYtIfUNyxLWTNYh2x60z4PdsJtYVgHKDyci7z+DCTMJ4/HhDo+tuztg==}
@@ -911,6 +924,17 @@ packages:
     peerDependencies:
       react: ^18 || ^19
 
+  '@teamhanko/hanko-elements@1.5.2':
+    resolution: {integrity: sha512-RrOgSoKwHbysDOOffOHn3p8s/zXxY2qvWwZFQdMeEP8Qp/C/RQBwGOzax0Y2gySWflDHM2uu4+tW8dXB+mZfQg==}
+
+  '@teamhanko/hanko-frontend-sdk@1.5.2':
+    resolution: {integrity: sha512-sSY2NGsJRndrC4HwxBIdog9gOGUzJ3EGKmEn7p+rzXzJaLik3ywJb25DloegPekMZQ8hwOzliF0uJh7kNxFgTA==}
+
+  '@teamhanko/preact-custom-element@4.2.2':
+    resolution: {integrity: sha512-3djCQr25IxQIgpidxD8J0fTQ7/hMuoa5Nmv7delQc6sX4kXgv9e/pE01cywpmGZLi69H1KUH4dmZ4cPPJQrsQQ==}
+    peerDependencies:
+      preact: 10.x
+
   '@testing-library/dom@10.4.0':
     resolution: {integrity: sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==}
     engines: {node: '>=18'}
@@ -993,6 +1017,9 @@ packages:
 
   '@types/jest@30.0.0':
     resolution: {integrity: sha512-XTYugzhuwqWjws0CVz8QpM36+T+Dz5mTEBKhNs/esGLnCIlGdRy+Dq78NRjd7ls7r8BC8ZRMOrKlkO1hU0JOwA==}
+
+  '@types/js-cookie@3.0.6':
+    resolution: {integrity: sha512-wkw9yd1kEXOPnvEeEV1Go1MmxtBJL0RR79aOTAApecWFVu7w0NNXNqhcWgvw2YgZDYadliXkl14pa3WXw5jlCQ==}
 
   '@types/jsdom@21.1.7':
     resolution: {integrity: sha512-yOriVnggzrnQ3a9OKOCxaVuSug3w3/SbOj5i7VwXWZEyUNl3bLF9V3MfxGbZKuwqJOQyRfqXyROBB1CoZLFWzA==}
@@ -1419,6 +1446,9 @@ packages:
 
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
+
+  classnames@2.5.1:
+    resolution: {integrity: sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==}
 
   cliui@8.0.1:
     resolution: {integrity: sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ==}
@@ -2372,6 +2402,9 @@ packages:
   lit@3.3.0:
     resolution: {integrity: sha512-DGVsqsOIHBww2DqnuZzW7QsuCdahp50ojuDaBPC7jUDRpYoH0z7kHBBYZewRzer75FwtrkmkKk7iOAwSaWdBmw==}
 
+  lit@3.3.2:
+    resolution: {integrity: sha512-NF9zbsP79l4ao2SNrH3NkfmFgN/hBYSQo90saIVI1o5GpjAdCPVstVzO1MrLOakHoEhYkrtRjPK6Ob521aoYWQ==}
+
   locate-path@5.0.0:
     resolution: {integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==}
     engines: {node: '>=8'}
@@ -2643,6 +2676,9 @@ packages:
 
   potpack@2.0.0:
     resolution: {integrity: sha512-Q+/tYsFU9r7xoOJ+y/ZTtdVQwTWfzjbiXBDMM/JKUux3+QPP02iUuIoeBQ+Ot6oEDlC+/PGjB/5A3K7KKb7hcw==}
+
+  preact@10.28.2:
+    resolution: {integrity: sha512-lbteaWGzGHdlIuiJ0l2Jq454m6kcpI1zNje6d8MlGAFlYvP2GO4ibnat7P74Esfz4sPTdM6UxtTwh/d3pwM9JA==}
 
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
@@ -3522,6 +3558,10 @@ snapshots:
 
   '@ctrl/tinycolor@4.1.0': {}
 
+  '@denysvuika/preact-translate@0.5.1(preact@10.28.2)':
+    dependencies:
+      preact: 10.28.2
+
   '@emnapi/core@1.4.3':
     dependencies:
       '@emnapi/wasi-threads': 1.0.2
@@ -3671,6 +3711,12 @@ snapshots:
       '@floating-ui/utils': 0.2.10
 
   '@floating-ui/utils@0.2.10': {}
+
+  '@hotosm/hanko-auth@0.3.1(@awesome.me/webawesome@3.0.0-beta.1(@floating-ui/utils@0.2.10))':
+    dependencies:
+      '@awesome.me/webawesome': 3.0.0-beta.1(@floating-ui/utils@0.2.10)
+      '@teamhanko/hanko-elements': 1.5.2
+      lit: 3.3.2
 
   '@hotosm/ui@0.3.1-b1':
     dependencies:
@@ -4068,6 +4114,22 @@ snapshots:
       '@tanstack/query-core': 5.81.5
       react: 19.1.0
 
+  '@teamhanko/hanko-elements@1.5.2':
+    dependencies:
+      '@denysvuika/preact-translate': 0.5.1(preact@10.28.2)
+      '@teamhanko/hanko-frontend-sdk': 1.5.2
+      '@teamhanko/preact-custom-element': 4.2.2(preact@10.28.2)
+      classnames: 2.5.1
+      preact: 10.28.2
+
+  '@teamhanko/hanko-frontend-sdk@1.5.2':
+    dependencies:
+      '@types/js-cookie': 3.0.6
+
+  '@teamhanko/preact-custom-element@4.2.2(preact@10.28.2)':
+    dependencies:
+      preact: 10.28.2
+
   '@testing-library/dom@10.4.0':
     dependencies:
       '@babel/code-frame': 7.27.1
@@ -4163,6 +4225,8 @@ snapshots:
     dependencies:
       expect: 30.0.3
       pretty-format: 30.0.2
+
+  '@types/js-cookie@3.0.6': {}
 
   '@types/jsdom@21.1.7':
     dependencies:
@@ -4640,6 +4704,8 @@ snapshots:
   class-variance-authority@0.7.1:
     dependencies:
       clsx: 2.1.1
+
+  classnames@2.5.1: {}
 
   cliui@8.0.1:
     dependencies:
@@ -5913,6 +5979,12 @@ snapshots:
       lit-element: 4.2.0
       lit-html: 3.3.0
 
+  lit@3.3.2:
+    dependencies:
+      '@lit/reactive-element': 2.1.0
+      lit-element: 4.2.0
+      lit-html: 3.3.0
+
   locate-path@5.0.0:
     dependencies:
       p-locate: 4.1.0
@@ -6183,6 +6255,8 @@ snapshots:
       source-map-js: 1.2.1
 
   potpack@2.0.0: {}
+
+  preact@10.28.2: {}
 
   prelude-ls@1.2.1: {}
 
