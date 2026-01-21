@@ -64,7 +64,7 @@
   },
   "dependencies": {
     "@awesome.me/webawesome": "3.0.0-beta.1",
-    "@hotosm/hanko-auth": "^0.3.2",
+    "@hotosm/hanko-auth": "^0.3.3",
     "@hotosm/ui": "0.3.1-b1",
     "@tanstack/react-query": "^5.81.5",
     "d3-scale-chromatic": "^3.1.0",
