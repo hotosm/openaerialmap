@@ -81,6 +81,7 @@ Reach out to us if any questions!
 ## Roadmap
 
 <!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
 | Status | Feature | Description | Version | Effort (person-months) |
 |:------:|:-------|:------------|:-------:|:----------------------:|
 | ✅ | New OAM backend based on STAC | Core backend using pgSTAC, FastAPI STAC endpoints, and TiTiler integration. | v2.0-alpha | 1.5 |
@@ -104,6 +105,7 @@ Reach out to us if any questions!
 | 📅 | Support for multispectral and non-optical imagery | Allow users to upload more advanced imagery formats and non-optical data that can be rendered and visualized alongside common RGB imagery. | v2.5 | 2.0 |
 | 📅 | Support for DEMs | Add capabilities to upload Digital Elevation Models (DEMs) and 3D point clouds - common byproducts of drone mapping - that can be used for risk modeling and humanitarian mapping (e.g. DTMs for flood modeling). | v2.5 | 2.0 |
 <!-- prettier-ignore-end -->
+<!-- markdownlint-restore -->
 
 [1]: https://hotosm.github.io/openaerialmap
 [2]: https://github.com/hotosm/openaerialmap/blob/main/CONTRIBUTING.md

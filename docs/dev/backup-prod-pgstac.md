@@ -16,10 +16,10 @@ aws sso login --profile admin --use-device-code
 # Install postgresql-client-16 (to match current pg version of pgstac)
 apt install lsb-release wget gnupg
 echo \
-    "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
-    > /etc/apt/sources.list.d/pgdg.list
+  "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+  > /etc/apt/sources.list.d/pgdg.list
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-    | apt-key add -
+  | apt-key add -
 apt update
 apt install postgresql-client-16
 
