@@ -370,7 +370,7 @@ wheels = [
 
 [[package]]
 name = "hotosm-auth"
-version = "0.2.6"
+version = "0.2.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -379,9 +379,9 @@ dependencies = [
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-dateutil" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/d8/45eaa1366f79dd82afb2faa326a7c4074ef987cf463828686e2bd14376ea/hotosm_auth-0.2.6.tar.gz", hash = "sha256:1d9fcfd693622a514cd00a1d84898dee8ecabb7e2e11319f40ba936f93823873", size = 104944, upload-time = "2026-02-03T16:10:22.609Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/c6/35aff03102ec3137bba2740708febedcb6227b63cafd72f1084387fb14af/hotosm_auth-0.2.7.tar.gz", hash = "sha256:0ce2a6346c175e4b3cd88f59f5d794aa8026252388406ee12c0bf3c2d2e68e4e", size = 104954, upload-time = "2026-02-03T17:26:36.794Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/6f/cce057ddc254c37e8ce1f0b13d2a2603e24e5b9781cf64f400aaa9d8410d/hotosm_auth-0.2.6-py3-none-any.whl", hash = "sha256:b17c4cd87bbe96581b83351cacde11d75a60378b9c13121cfbcea9dc6be9c684", size = 46117, upload-time = "2026-02-03T16:10:20.984Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/3b/796ddd9f98da2252cb20ea5af8fa47cc842004f5358aac34da1c34b45b67/hotosm_auth-0.2.7-py3-none-any.whl", hash = "sha256:20dffe1c83178975a2dfbabdd7366bc299cc34c623d73886c710c3c8c7baa774", size = 46126, upload-time = "2026-02-03T17:26:34.796Z" },
 ]
 
 [package.optional-dependencies]
@@ -401,7 +401,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "hotosm-auth", extras = ["fastapi"], specifier = "==0.2.6" },
+    { name = "hotosm-auth", extras = ["fastapi"], specifier = "==0.2.7" },
     { name = "stac-fastapi-pgstac", extras = ["server"], specifier = "~=5.0.2" },
 ]
 

@@ -6,5 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "stac-fastapi-pgstac[server]~=5.0.2",
-    "hotosm-auth[fastapi]==0.2.6",
+    "hotosm-auth[fastapi]==0.2.7",
 ]
