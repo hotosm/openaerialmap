@@ -12,8 +12,8 @@ importers:
         specifier: 3.0.0-beta.1
         version: 3.0.0-beta.1(@floating-ui/utils@0.2.10)
       '@hotosm/hanko-auth':
-        specifier: ^0.3.5
-        version: 0.3.5(@awesome.me/webawesome@3.0.0-beta.1(@floating-ui/utils@0.2.10))
+        specifier: ^0.4.2
+        version: 0.4.2
       '@hotosm/ui':
         specifier: 0.3.1-b1
         version: 0.3.1-b1
@@ -587,10 +587,8 @@ packages:
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
 
-  '@hotosm/hanko-auth@0.3.5':
-    resolution: {integrity: sha512-G0l6W9PVHRnvBjCPlY0Z+yiLk+09rSTFvGCowN4UJnVNS7iK3X8k3bzmhiW/amlpDYZqFrY3cC04Rsxbm3HNWA==}
-    peerDependencies:
-      '@awesome.me/webawesome': ^3.0.0-beta.1
+  '@hotosm/hanko-auth@0.4.2':
+    resolution: {integrity: sha512-DAN6r80ane+APwNyQ6P4SDXEh9E8P6EHnOHxNapwfnSSYZrn3ZINzK2yXpD+lwP2u0G9+z7V0mAGs6zg44onoA==}
 
   '@hotosm/ui@0.3.1-b1':
     resolution: {integrity: sha512-mzf8v3jff1H4CEausEILTgZsvJxEnLnjYtIfUNyxLWTNYh2x60z4PdsJtYVgHKDyci7z+DCTMJ4/HhDo+tuztg==}
@@ -3712,9 +3710,8 @@ snapshots:
 
   '@floating-ui/utils@0.2.10': {}
 
-  '@hotosm/hanko-auth@0.3.5(@awesome.me/webawesome@3.0.0-beta.1(@floating-ui/utils@0.2.10))':
+  '@hotosm/hanko-auth@0.4.2':
     dependencies:
-      '@awesome.me/webawesome': 3.0.0-beta.1(@floating-ui/utils@0.2.10)
       '@teamhanko/hanko-elements': 1.5.2
       lit: 3.3.2
 
