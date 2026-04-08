@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels: {{- include "chart.labels" . | nindent 4 }}
+data:
+  STAC_BASE_URL: {{ .Values.config.stacBaseURL | quote }}
+  STAC_COLLECTION: {{ .Values.config.stacCollection | quote }}
+  S3_BUCKET: {{ .Values.config.s3Bucket | quote }}
+  S3_PUBLIC_BASE_URL: {{ .Values.config.s3PublicBaseURL | quote }}
+  AWS_REGION: {{ .Values.s3Credentials.region | quote }}
+  LOCK_TTL_SECONDS: {{ .Values.config.lockTTLSeconds | quote }}
+  MAX_CONCURRENT_JOBS: {{ .Values.config.maxConcurrentJobs | quote }}
+  PER_IP_RATE_PER_SECOND: {{ .Values.config.perIpRatePerSecond | quote }}
+  PER_IP_BURST: {{ .Values.config.perIpBurst | quote }}
+  WORKER_IMAGE: {{ .Values.worker.image | quote }}
+  WORKER_NAMESPACE: {{ .Release.Namespace | quote }}
+  WORKER_SERVICE_ACCOUNT: {{ .Values.worker.serviceAccountName | quote }}
+  S3_CREDS_SECRET: {{ .Values.s3Credentials.secretName | quote }}
+  S3_CREDS_ACCESS_KEY_KEY: {{ .Values.s3Credentials.accessKeyKey | quote }}
+  S3_CREDS_SECRET_KEY_KEY: {{ .Values.s3Credentials.secretKeyKey | quote }}
+  WORKER_CPU_REQUEST: {{ .Values.worker.resources.requests.cpu | quote }}
+  WORKER_MEMORY_REQUEST: {{ .Values.worker.resources.requests.memory | quote }}
+  WORKER_CPU_LIMIT: {{ .Values.worker.resources.limits.cpu | quote }}
+  WORKER_MEMORY_LIMIT: {{ .Values.worker.resources.limits.memory | quote }}

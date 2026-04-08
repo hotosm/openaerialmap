@@ -53,6 +53,7 @@ repos:
             "!CHANGELOG.md",
             "!frontend/pnpm-lock.yaml",
             "!backend/global-tms/chart/**",
+            "!backend/tilepack-api/chart/**",
           ]
 
   # # Lint: Dockerfile (disabled until binary is bundled)

@@ -1,4 +1,4 @@
-name: Build and Deploy Global Mosaicker
+name: Build Global Mosaicker
 
 on:
   push:

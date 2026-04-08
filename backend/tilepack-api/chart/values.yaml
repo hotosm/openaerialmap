@@ -1,0 +1,116 @@
+image:
+  repository: ghcr.io/hotosm/openaerialmap/tilepack/api
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+worker:
+  image: ghcr.io/hotosm/openaerialmap/tilepack/worker:0.1.0
+  serviceAccountName: oam-tilepack-worker
+  # Worker Jobs are created in the same namespace as the API release.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Single replica only - the per-IP rate limiter is in-memory.
+replicaCount: 1
+
+config:
+  stacBaseURL: "https://api.imagery.hotosm.org/stac"
+  stacCollection: "openaerialmap"
+  s3Bucket: "oin-hotosm-temp"
+  s3PublicBaseURL: "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com"
+  lockTTLSeconds: 1800
+  maxConcurrentJobs: 5
+  perIpRatePerSecond: "0.1"
+  perIpBurst: 2
+  # The in-cluster URL the worker calls to patch STAC assets.
+  # Built from the Helm release name at template time if unset.
+  internalBaseURL: ""
+
+# pgstac DB connection - reuses the eoapi-managed secret.
+# The worker never touches this; only the API pod reads it.
+pgstac:
+  secretName: "eoapi-pguser-eoapi"
+  # Key inside the secret holding the libpq connection string.
+  uriKey: "uri"
+
+# S3 credentials with write access to the OAM imagery bucket.
+# Reuses the existing oam-s3-creds Secret (S3_ACCESS_KEY /
+# S3_SECRET_KEY), exposed to both pods as AWS_ACCESS_KEY_ID /
+# AWS_SECRET_ACCESS_KEY so the default AWS credential chain picks
+# them up automatically in both Go (aws-sdk-go-v2) and Python (boto3).
+s3Credentials:
+  secretName: "oam-s3-creds"
+  accessKeyKey: "S3_ACCESS_KEY"
+  secretKeyKey: "S3_SECRET_KEY"
+  region: "us-east-1"
+
+# Shared token between the API and the worker, for the internal
+# asset-patch endpoint. A Secret is created by the chart if
+# `create: true`; otherwise an existing secret is referenced.
+internalTokenSecret:
+  create: true
+  name: "oam-tilepack-api-internal"
+  # Only used when create=true. Generate with `openssl rand -hex 32`.
+  token: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  host: packager.imagery.hotosm.org
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    external-dns.alpha.kubernetes.io/hostname: packager.imagery.hotosm.org
+    external-dns.alpha.kubernetes.io/ttl: "300"
+  tls:
+    enabled: true
+    secretName: oam-tilepack-api-tls
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

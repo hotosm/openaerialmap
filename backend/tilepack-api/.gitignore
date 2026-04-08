@@ -1,0 +1,6 @@
+# Packaged helm chart
+*.tgz
+
+# Output build
+main
+tilepack-api

@@ -1,4 +1,4 @@
-name: Build and Deploy STAC Ingester Backend Service to Container Registry
+name: Build STAC Ingester
 
 on:
   push:
