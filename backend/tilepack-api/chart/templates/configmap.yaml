@@ -13,7 +13,7 @@ data:
   MAX_CONCURRENT_JOBS: {{ .Values.config.maxConcurrentJobs | quote }}
   PER_IP_RATE_PER_SECOND: {{ .Values.config.perIpRatePerSecond | quote }}
   PER_IP_BURST: {{ .Values.config.perIpBurst | quote }}
-  WORKER_IMAGE: {{ .Values.worker.image | quote }}
+  WORKER_IMAGE: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag | default .Chart.AppVersion }}"
   WORKER_NAMESPACE: {{ .Release.Namespace | quote }}
   WORKER_SERVICE_ACCOUNT: {{ .Values.worker.serviceAccountName | quote }}
   S3_CREDS_SECRET: {{ .Values.s3Credentials.secretName | quote }}

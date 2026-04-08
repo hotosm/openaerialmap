@@ -4,5 +4,5 @@ description: Small API to generate mbtiles/pmtiles archives from OAM STAC items
 type: application
 icon: https://raw.githubusercontent.com/hotosm/openaerialmap/refs/heads/main/docs/images/favicon.svg
 
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "main"

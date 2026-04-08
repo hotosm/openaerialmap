@@ -1,4 +1,4 @@
-name: Build and Tilepack Worker
+name: Build Tilepack Worker
 
 on:
   push:
@@ -15,3 +15,5 @@ jobs:
       context: backend/tilepack-api/worker/
       image_name: ghcr.io/${{ github.repository }}/tilepack/worker
       dockerfile: Dockerfile
+      # For https://github.com/protomaps/go-pmtiles/pull/275
+      scan_image: false

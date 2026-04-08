@@ -13,7 +13,8 @@ RUN apt-get update \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir \
+RUN pip install --upgrade pip &&
+    pip install --no-cache-dir \
         "rio-tiler==9.0.5" \
         "rasterio>=1.5.0" \
         "boto3==1.42.85" \
