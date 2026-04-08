@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels: {{- include "chart.labels" . | nindent 4 }}
+rules:
+  # The API needs to create worker Jobs and list them to enforce the
+  # cluster-wide concurrency cap. Nothing else.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels: {{- include "chart.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "chart.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "chart.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

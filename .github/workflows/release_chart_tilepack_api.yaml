@@ -1,0 +1,24 @@
+name: 🚀 Release Tilepack API Chart
+
+on:
+  # Push includes PR merge
+  push:
+    branches:
+      - main
+    paths:
+      # Workflow is triggered only if chart dir changes
+      - backend/tilepack-api/**
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@3.6.0
+    with:
+      environment: "test"
+      command: "chart tilepack-api publish"
+    secrets: inherit

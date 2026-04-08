@@ -1,18 +1,17 @@
-name: Build STAC API
+name: Build and Tilepack Worker
 
 on:
   push:
     branches:
       - main
     paths:
-      - "backend/stac-api/**"
+      - "backend/tilepack-api/worker/**"
   workflow_dispatch:
 
 jobs:
   image-build-and-push:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
     with:
-      context: backend/stac-api/
-      image_name: ghcr.io/${{ github.repository }}/stac-api
-      build_target: prod
+      context: backend/tilepack-api/worker/
+      image_name: ghcr.io/${{ github.repository }}/tilepack/worker
       dockerfile: Dockerfile
