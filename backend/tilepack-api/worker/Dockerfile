@@ -1,48 +1,88 @@
-FROM python:3.13-slim
+# syntax=docker/dockerfile:1
+ARG PYTHON_IMG_TAG=3.13
+
+# ---------------------------------------------------------------------------
+# Build stage – compile native wheels (rasterio, GDAL bindings)
+# ---------------------------------------------------------------------------
+FROM python:${PYTHON_IMG_TAG}-slim-trixie AS build
 
 ARG PMTILES_VERSION=1.30.1
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates curl gdal-bin libgdal-dev \
-    && curl -fsSL \
-        "https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/go-pmtiles_${PMTILES_VERSION}_Linux_x86_64.tar.gz" \
-        | tar -xz -C /usr/local/bin pmtiles \
-    && apt-get purge -y --auto-remove curl \
+# Build-time deps: headers + compilers for rasterio/GDAL wheels
+RUN set -ex \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        g++ \
+        libgdal-dev \
+        libgeos-dev \
+        libproj-dev \
+        curl \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Fetch the pmtiles CLI (static Go binary) – done in the build stage so
+# we can drop curl from the final image.
+RUN curl -fsSL \
+        "https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/go-pmtiles_${PMTILES_VERSION}_Linux_x86_64.tar.gz" \
+        | tar -xz -C /usr/local/bin pmtiles
+
+WORKDIR /project
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:0.11.4 /uv /bin/uv
+
+ARG PYTHON_IMG_TAG=3.13
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_NO_CACHE=1 \
+    UV_PYTHON="python${PYTHON_IMG_TAG}" \
+    UV_PROJECT_ENVIRONMENT=/opt/python
+
+COPY pyproject.toml uv.lock /project/
+
+RUN uv sync --locked --no-editable --no-dev
+
+# ---------------------------------------------------------------------------
+# Runtime stage – minimal image with only shared libraries
+# ---------------------------------------------------------------------------
+FROM python:${PYTHON_IMG_TAG}-slim-trixie AS runtime
+
+ARG PYTHON_IMG_TAG=3.13
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PATH="/opt/python/bin:$PATH"
+
+# Runtime-only shared libs (no headers, no compilers)
+RUN set -ex \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libgdal36 \
+        libgeos-c1t64 \
+        libproj25 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python packages from the build stage
+COPY --from=build /opt/python /opt/python
+
+# pmtiles CLI from the build stage
+COPY --from=build /usr/local/bin/pmtiles /usr/local/bin/pmtiles
+
 WORKDIR /app
-
-RUN pip install --upgrade pip &&
-    pip install --no-cache-dir \
-        "rio-tiler==9.0.5" \
-        "rasterio>=1.5.0" \
-        "boto3==1.42.85" \
-        "httpx==0.28.1"
-
 COPY generate.py /app/generate.py
 
-# GDAL tuning for remote COG reads - matches the settings used by
-# the stac-api service. Without these, rio-tiler is dramatically
-# slower on every tile because GDAL re-opens the file and re-reads
-# the header each time.
+# GDAL tuning for remote COG reads
 ENV VSI_CACHE=TRUE \
-    # 64 MB — enough for 8 concurrent tile readers to keep their
-    # IFD headers and a few recent range-read blocks cached. The
-    # worker only reads one 256x256 tile per thread at a time so
-    # the original 512 MB was pure waste.
     VSI_CACHE_SIZE=67108864 \
-    # 128 MB raster block cache — again, we are reading individual
-    # tiles not doing a full raster scan, so 512 MB was overkill.
     GDAL_CACHEMAX=128 \
     GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES \
     GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR \
     CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif,.tiff" \
-    # Cap per-thread VSICURL initial read to 16 KB. The default
-    # (16 KB in recent GDAL) is fine, but being explicit avoids
-    # surprises if the base image ships a different GDAL version.
     GDAL_INGESTED_BYTES_AT_OPEN=16384 \
-    # Retry transient S3 errors instead of failing the tile.
     GDAL_HTTP_MAX_RETRY=3 \
     GDAL_HTTP_RETRY_DELAY=2
 
