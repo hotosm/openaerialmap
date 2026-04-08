@@ -74,4 +74,4 @@ parcel-bundle-reports
 .env
 **/*.env
 .python-version
-./envsubst
+envsubst

@@ -10,7 +10,7 @@ on:
 
 jobs:
   image-build-and-push:
-    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@1.5.1
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
     with:
       context: backend/global-mosaic/
       image_name: ghcr.io/${{ github.repository }}/global-mosaic

@@ -11,4 +11,4 @@ on:
 
 jobs:
   publish_docs:
-    uses: hotosm/gh-workflows/.github/workflows/mkdocs_build.yml@3.3.2
+    uses: hotosm/gh-workflows/.github/workflows/mkdocs_build.yml@3.6.0

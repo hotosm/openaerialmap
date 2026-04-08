@@ -18,8 +18,6 @@
 
 set dotenv-load
 
-mod prep 'recipes/prep/Justfile'
-
 # List available commands
 [private]
 default:
@@ -28,6 +26,46 @@ default:
 # List available commands
 help:
   just --justfile {{justfile()}} --list
+
+# Prep module from https://github.com/hotosm/justfiles
+prep *args:
+    @curl -sS https://raw.githubusercontent.com/hotosm/justfiles/main/prep.just \
+      -o {{justfile_directory()}}/tasks/prep.just;
+    @just --justfile {{justfile_directory()}}/tasks/prep.just {{args}}
+
+# Chart module from https://github.com/hotosm/justfiles.
+# Pass the chart name (== the directory under backend/) as the first
+# argument; everything after it is forwarded to the chart module.
+#   just chart global-tms build
+#   just chart tilepack-api publish
+chart name *args:
+    @curl -sS https://raw.githubusercontent.com/hotosm/justfiles/main/chart.just \
+      -o {{justfile_directory()}}/tasks/chart.just
+    @just --justfile {{justfile_directory()}}/tasks/chart.just \
+      --set project_dir {{justfile_directory()}}/backend/{{name}} \
+      --set chart_name {{name}} {{args}}
+
+# Install curl if missing
+[private]
+_install-curl:
+  #!/usr/bin/env bash
+  set -e
+
+  if ! command -v curl &> /dev/null; then
+      echo "📦 Installing curl..."
+      if command -v apt-get &> /dev/null; then
+          sudo apt-get update -qq && sudo apt-get install -y curl
+      elif command -v yum &> /dev/null; then
+          sudo yum install -y curl
+      elif command -v apk &> /dev/null; then
+          sudo apk add --no-cache curl
+      else
+          echo "❌ Error: curl is not installed and no package manager found"
+          echo "   Please install curl manually"
+          exit 1
+      fi
+      echo "✓ curl installed"
+  fi
 
 # Generate the .env file from scratch, using .env.example and substitutions
 [no-cd]
@@ -47,7 +85,7 @@ generate-dotenv branch="main":
     exit 0
   fi
 
-  just manage _install_envsubst
+  just prep envsubst
 
   # Generate a .env file from .env.example, substituting values from environment
   ./envsubst -i .env.example | grep -vE '^\s*#|^\s*$' > .env
@@ -79,7 +117,7 @@ get-aws-creds:
 
   set -euo pipefail
 
-  just prep _curl
+  just _install-curl
 
   # NOTE this part is specific to Github
   # Gitlab has a slightly simpler config:

@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: hotosm/gh-workflows/.github/workflows/just.yml@3.3.2
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@3.6.0
     with:
       environment: ${{ github.ref_name }}
       command: "deploy-frontend"
