@@ -2,13 +2,13 @@ api:
   image:
     repository: ghcr.io/hotosm/openaerialmap/tilepack/api
     tag: ""  # defaults to .Chart.AppVersion
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
 worker:
   image:
     repository: ghcr.io/hotosm/openaerialmap/tilepack/worker
     tag: ""  # defaults to .Chart.AppVersion
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   serviceAccountName: oam-tilepack-worker
   # Worker Jobs are created in the same namespace as the API release.
   resources:

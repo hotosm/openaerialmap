@@ -103,6 +103,51 @@ docker compose up --build
 This runs only the Go API against your AWS creds and a STAC URL -- the
 worker side requires a real Kubernetes cluster.
 
+## Performance
+
+The workload is ~85% network I/O (HTTP range reads to S3 COGs). GDAL
+decoding and PNG encoding are C libraries - Python is a thin
+orchestrator adding ~1ms of overhead per tile.
+
+Per-tile cost breakdown:
+
+1. **HTTP range read(s) to S3 COG** (~50–70ms)
+2. **GDAL decode + warp/reproject** (~5–15ms)
+3. **PNG encode with alpha mask** (~2–5ms)
+4. **SQLite insert + Python overhead** (~<1ms)
+
+Baseline benchmarks (8 threads, before optimisations):
+
+| Zoom | Tiles | Time   | Per-tile |
+| ---- | ----- | ------ | -------- |
+| z19  | 77    | 7.0s   | 91ms     |
+| z20  | 210   | 17.7s  | 84ms     |
+| z21  | 840   | 67.6s  | 80ms     |
+| z22  | 3245  | 236.4s | 73ms     |
+| z22  | 12826 | 1077s  | 84ms     |
+
+### What's implemented
+
+**24 concurrent threads**. Since the bottleneck is network
+I/O, higher concurrency scales near-linearly until bandwidth saturates.
+
+| Workers      | Estimated z22 (3245 tiles) |
+| ------------ | -------------------------- |
+| 8            | 236s                       |
+| 16           | ~125s                      |
+| 24 (current) | ~90s                       |
+| 32           | ~75s                       |
+
+**Thread-local GDAL Reader pooling** - each thread keeps a single open
+`Reader` for the duration of the run instead of opening/closing one per
+tile. This eliminates ~5ms of GDAL Open + VSICurl header overhead per
+tile (~10–15% improvement).
+
+**HTTP connection reuse** - GDAL VSICurl is configured with
+`GDAL_HTTP_MULTIPLEX`, `GDAL_HTTP_TCP_KEEPALIVE`, and
+`CPL_VSIL_CURL_USE_HEAD=NO` to reuse TCP connections and avoid
+redundant HEAD requests to S3.
+
 ## Deploy
 
 The chart lives in `./chart`. Apply it via the same flow used by the
