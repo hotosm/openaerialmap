@@ -18,6 +18,9 @@
 
 set dotenv-load
 
+mod start 'tasks/start'
+mod test 'tasks/test'
+
 # List available commands
 [private]
 default:

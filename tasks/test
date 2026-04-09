@@ -1,0 +1,215 @@
+# Copyright (c) Humanitarian OpenStreetMap Team
+#
+# This file is part of OpenAerialMap.
+#
+#     OpenAerialMap is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+#
+#     OpenAerialMap is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with OpenAerialMap.  If not, see <https:#www.gnu.org/licenses/>.
+#
+
+# Auto-detect nerdctl when docker is not installed (e.g. after `just prep machine`)
+docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo found || echo missing` == "found" { "docker" } else { "nerdctl" })
+
+# List available commands
+[private]
+default:
+  just --justfile {{justfile()}} --list test
+
+# Load a sample of production data into the local STAC API
+[no-cd]
+populate-prod:
+  #!/usr/bin/env python3
+
+  import json, os, sys, urllib.request, urllib.error
+
+  local = os.environ.get("STAC_API_URL", "http://imagery.localhost:8080/stac")
+  prod = os.environ.get("PROD_STAC_URL", "https://api.imagery.hotosm.org/stac")
+  n = int(os.environ.get("POPULATE_ITEMS", "20"))
+
+  def fetch(url):
+      with urllib.request.urlopen(url) as r:
+          return json.loads(r.read())
+
+  def post(url, data):
+      body = json.dumps(data).encode()
+      req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+      try:
+          with urllib.request.urlopen(req) as r:
+              return r.status
+      except urllib.error.HTTPError as e:
+          if e.code == 409:
+              print(f"  Already exists (409), skipping")
+              return 409
+          print(f"  Error {e.code}: {e.read().decode()}", file=sys.stderr)
+          raise
+
+  # 1. Fetch and create collection
+  print(f"Fetching collection from {prod}...")
+  col = fetch(f"{prod}/collections/openaerialmap")
+  print(f"Creating collection '{col['id']}' locally...")
+  status = post(f"{local}/collections", col)
+  print(f"  -> {status}")
+
+  # 2. Fetch and ingest items
+  print(f"\nFetching {n} items from prod...")
+  items_resp = fetch(f"{prod}/collections/openaerialmap/items?limit={n}&sortby=-datetime")
+  items = items_resp.get("features", [])
+  print(f"Got {len(items)} items, ingesting...\n")
+  for i, item in enumerate(items):
+      props = item.get("properties", {})
+      # stac-fastapi-pgstac requires "datetime" to be present explicitly,
+      # even when null (STAC 1.1 items use start/end_datetime instead)
+      if "datetime" not in props and ("start_datetime" in props or "end_datetime" in props):
+          props["datetime"] = None
+      print(f"  [{i+1}/{len(items)}] {item['id']}")
+      post(f"{local}/collections/{col['id']}/items", item)
+
+  print("\nDone!")
+
+# Generate mbtiles/pmtiles from a random local STAC item's COG.
+# Uploads to local S3, then patches the STAC item via pgstac.update_item
+# (same DB write path as production — no transactions API).
+[no-cd]
+tilepack format="mbtiles":
+  #!/usr/bin/env python3
+
+  import json, os, random, subprocess, sys, urllib.request
+
+  stac_url = os.environ.get("STAC_API_URL", "http://imagery.localhost:8080/stac")
+  fmt = "{{ format }}"
+  collection = "openaerialmap"
+  s3_public = "http://s3.imagery.localhost:8080/oam"
+
+  if fmt not in ("mbtiles", "pmtiles"):
+      print(f"Error: format must be 'mbtiles' or 'pmtiles', got '{fmt}'", file=sys.stderr)
+      sys.exit(1)
+
+  def fetch(url):
+      with urllib.request.urlopen(url) as r:
+          return json.loads(r.read())
+
+  def psql(sql):
+      """Run SQL via psql in the database container and return stdout."""
+      r = subprocess.run(
+          ["docker", "compose", "exec", "-T", "database",
+           "psql", "-U", "oam", "-d", "postgis", "-tAX", "-c", sql],
+          capture_output=True, text=True,
+      )
+      if r.returncode != 0:
+          print(f"psql error: {r.stderr.strip()}", file=sys.stderr)
+          sys.exit(1)
+      return r.stdout.strip()
+
+  def pgstac_add_asset(item_id, collection, asset_key, asset):
+      """Add an asset to a STAC item via pgstac — same path as production.
+
+      The Go API does exactly this: read item via pgstac.get_item,
+      merge the asset, write back via pgstac.update_item, all inside
+      a serializable transaction.
+      """
+      raw = psql(f"SELECT pgstac.get_item('{item_id}', '{collection}')")
+      if not raw or raw == "null":
+          print(f"ERROR: pgstac.get_item returned nothing for '{item_id}'", file=sys.stderr)
+          sys.exit(1)
+      item = json.loads(raw)
+      assets = item.get("assets", {})
+      assets[asset_key] = asset
+      item["assets"] = assets
+      item_json = json.dumps(item).replace("'", "''")
+      psql(f"SELECT pgstac.update_item('{item_json}'::jsonb)")
+
+  # 1. Pick a random item from local STAC
+  print("Fetching items from local STAC...")
+  items_resp = fetch(f"{stac_url}/collections/{collection}/items?limit=50")
+  items = items_resp.get("features", [])
+  if not items:
+      print("Error: no items in local STAC. Run 'just test populate-prod' first.", file=sys.stderr)
+      sys.exit(1)
+
+  item = random.choice(items)
+  item_id = item["id"]
+  print(f"Selected item: {item_id}")
+
+  # 2. Extract COG URL and GSD
+  visual = item.get("assets", {}).get("visual", {})
+  cog_url = visual.get("href")
+  if not cog_url:
+      print(f"Error: item '{item_id}' has no 'visual' asset", file=sys.stderr)
+      sys.exit(1)
+
+  gsd = item.get("properties", {}).get("gsd", 0)
+  output_key = f"tilepacks/{item_id}.{fmt}"
+  lock_key = f"tilepacks/{item_id}.{fmt}.lock"
+
+  print(f"COG:    {cog_url}")
+  print(f"GSD:    {gsd}")
+  print(f"Output: s3://oam/{output_key}")
+  print(f"Format: {fmt}")
+  print()
+
+  # 3. Run the worker container on the compose network (local S3 only).
+  #    CANONICAL=false because the worker can't reach the Go API locally;
+  #    we do the pgstac write ourselves below (same SQL, same result).
+  rc = subprocess.call([
+      "docker", "compose", "--profile", "tilepack", "run", "--rm", "--build",
+      "-e", f"STAC_ITEM_ID={item_id}",
+      "-e", f"FORMAT={fmt}",
+      "-e", f"COG_URL={cog_url}",
+      "-e", f"OUTPUT_KEY={output_key}",
+      "-e", f"LOCK_KEY={lock_key}",
+      "-e", f"GSD={gsd}",
+      "-e", "MIN_ZOOM=0",
+      "-e", "MAX_ZOOM=0",
+      "-e", "CANONICAL=false",
+      "tilepack-worker",
+  ])
+  if rc != 0:
+      sys.exit(rc)
+
+  # 4. Patch STAC via pgstac (same DB path as production)
+  content_types = {"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}
+
+  # For pmtiles, the worker uploads both formats — register both assets.
+  formats_to_patch = [fmt]
+  if fmt == "pmtiles":
+      formats_to_patch.append("mbtiles")
+
+  for f in formats_to_patch:
+      key = f"tilepacks/{item_id}.{f}"
+      asset_key = f"tilepack_{f}"
+      href = f"{s3_public}/{key}"
+      print(f"Patching STAC item with {asset_key} asset via pgstac.update_item...")
+      pgstac_add_asset(item_id, collection, asset_key, {
+          "href": href,
+          "type": content_types[f],
+          "roles": ["tiles"],
+          "title": f"{f.upper()} archive",
+      })
+      print(f"  {href}")
+
+  # 5. Fetch and display the STAC item to confirm assets are visible
+  print(f"\nSTAC item: {stac_url}/collections/{collection}/items/{item_id}")
+  updated = fetch(f"{stac_url}/collections/{collection}/items/{item_id}")
+  assets = updated.get("assets", {})
+  print(f"\nAssets ({len(assets)}):")
+  for k, v in assets.items():
+      print(f"  {k}: {v.get('href', '(no href)')}")
+
+  print("\nDone!")
+
+# Stop all services and remove volumes (clean slate)
+[no-cd]
+clean:
+  #!/usr/bin/env sh
+
+  cd {{justfile_directory()}}
+  {{docker}} compose --profile tms down -v

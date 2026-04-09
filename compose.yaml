@@ -1,0 +1,262 @@
+volumes:
+  pgstac_data:
+  rustfs_data:
+  pmtiles:
+
+services:
+  # ── Core infrastructure ───────────────────────────────────────────
+
+  nginx:
+    image: docker.io/nginx:1.29-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./local.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      stac-api:
+        condition: service_healthy
+      raster:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    restart: unless-stopped
+
+  database:
+    image: ghcr.io/stac-utils/pgstac:v0.9.6
+    environment:
+      - POSTGRES_USER=oam
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgis
+      - PGUSER=oam
+      - PGPASSWORD=password
+      - PGDATABASE=postgis
+    volumes:
+      - pgstac_data:/var/lib/postgresql/data
+    command: postgres -N 500
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oam -d postgis"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # S3-compatible object storage
+  rustfs:
+    image: rustfs/rustfs:1.0.0-alpha.90
+    environment:
+      - RUSTFS_ACCESS_KEY=oam
+      - RUSTFS_SECRET_KEY=oam
+    volumes:
+      - rustfs_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "curl -f http://localhost:9000/health && curl -f http://localhost:9001/rustfs/console/health",
+        ]
+
+  # One-shot: create default bucket via S3 API (needs proper SigV4 auth)
+  rustfs-init:
+    build: ./backend/tilepack-api/worker
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      - AWS_ENDPOINT_URL=http://rustfs:9000
+      - AWS_ACCESS_KEY_ID=oam
+      - AWS_SECRET_ACCESS_KEY=oam
+      - AWS_REGION=us-east-1
+    entrypoint: python
+    command:
+      - -c
+      - |
+        import json, boto3, botocore.config, botocore.exceptions
+        s3 = boto3.client("s3", config=botocore.config.Config(s3={"addressing_style": "path"}))
+        try:
+            s3.create_bucket(Bucket="oam")
+            print("Created bucket 'oam'")
+        except s3.exceptions.BucketAlreadyOwnedByYou:
+            print("Bucket 'oam' already exists")
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "BucketAlreadyOwnedByYou":
+                print("Bucket 'oam' already exists")
+            else:
+                raise
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::oam/*",
+            }],
+        }
+        s3.put_bucket_policy(Bucket="oam", Policy=json.dumps(policy))
+        print("Set public-read policy on 'oam'")
+        print("RustFS init done.")
+
+  # ── STAC API ──────────────────────────────────────────────────────
+
+  stac-api:
+    build: ./backend/stac-api
+    environment:
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8082
+      - RELOAD=true
+      - ENVIRONMENT=local
+      - POSTGRES_USER=oam
+      - POSTGRES_PASS=password
+      - POSTGRES_DBNAME=postgis
+      - POSTGRES_HOST_READER=database
+      - POSTGRES_HOST_WRITER=database
+      - POSTGRES_PORT=5432
+      - WEB_CONCURRENCY=10
+      - VSI_CACHE=TRUE
+      - GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES
+      - GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR
+      - DB_MIN_CONN_SIZE=1
+      - DB_MAX_CONN_SIZE=1
+      - USE_API_HYDRATE=${USE_API_HYDRATE:-false}
+      - ENABLE_TRANSACTIONS_EXTENSIONS=true
+      - UVICORN_ROOT_PATH=/stac
+    volumes:
+      - ./backend/stac-api/app:/app/app
+      - ./backend/stac-api/scripts:/app/scripts
+    depends_on:
+      database:
+        condition: service_healthy
+    command: bash -c "./scripts/wait-for-it.sh database:5432 && python -m app.main"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8082/'')"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Raster tiler (titiler-pgstac) ─────────────────────────────────
+
+  raster:
+    image: ghcr.io/stac-utils/titiler-pgstac:1.7.2
+    environment:
+      - POSTGRES_USER=oam
+      - POSTGRES_PASS=password
+      - POSTGRES_DBNAME=postgis
+      - POSTGRES_HOST=database
+      - POSTGRES_PORT=5432
+      - TITILER_PGSTAC_API_ROOT_PATH=/raster
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:80/api.html'')"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Frontend ──────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      target: build
+    environment:
+      - VITE_STAC_API_URL=http://imagery.localhost:8080
+      - VITE_STAC_API_PATHNAME=stac
+      - VITE_STAC_TILER_PATHNAME=raster
+      - VITE_STAC_ITEMS_LIMIT=${VITE_STAC_ITEMS_LIMIT:-40}
+    volumes:
+      - ./frontend/app:/app/app
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.mts:/app/vite.config.mts
+    command: pnpm serve --host 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # ── Tilepack worker (profile: tilepack) ────────────────────────────
+  # One-shot: generates mbtiles/pmtiles from a COG. Triggered via
+  # `just test tilepack <item_id>`. Uploads to LOCAL S3 only.
+
+  tilepack-worker:
+    build: ./backend/tilepack-api/worker
+    profiles: [tilepack]
+    environment:
+      # S3 - always points at local RustFS, never prod
+      - AWS_ENDPOINT_URL=http://rustfs:9000
+      - AWS_ACCESS_KEY_ID=oam
+      - AWS_SECRET_ACCESS_KEY=oam
+      - AWS_REGION=us-east-1
+      - S3_BUCKET=oam
+      - S3_PUBLIC_BASE_URL=http://s3.imagery.localhost:8080
+      # Worker inputs - overridden at runtime by `just test tilepack`
+      - STAC_ITEM_ID=placeholder
+      - FORMAT=mbtiles
+      - COG_URL=placeholder
+      - OUTPUT_KEY=placeholder
+      - LOCK_KEY=placeholder
+      - MIN_ZOOM=0
+      - MAX_ZOOM=0
+      - GSD=0
+      - CANONICAL=false
+      - INTERNAL_BASE_URL=http://localhost:0
+      - INTERNAL_TOKEN=unused
+    depends_on:
+      rustfs:
+        condition: service_healthy
+
+  # ── Optional: Global TMS tiles (profile: tms) ────────────────────
+
+  get-tiles:
+    extends:
+      file: backend/global-tms/compose.yaml
+      service: get-tiles
+    profiles: [tms]
+
+  martin:
+    extends:
+      file: backend/global-tms/compose.yaml
+      service: martin
+    profiles: [tms]
+    ports: !override []
+    depends_on:
+      get-tiles:
+        condition: service_completed_successfully
+
+  tileserver:
+    extends:
+      file: backend/global-tms/compose.yaml
+      service: tileserver
+    profiles: [tms]
+    ports: !override []
+
+  tms-nginx:
+    extends:
+      file: backend/global-tms/compose.yaml
+      service: nginx
+    profiles: [tms]
+    ports: !override []
+    depends_on:
+      martin:
+        condition: service_healthy
+      tileserver:
+        condition: service_healthy

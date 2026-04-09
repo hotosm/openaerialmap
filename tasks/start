@@ -1,0 +1,57 @@
+# Copyright (c) Humanitarian OpenStreetMap Team
+#
+# This file is part of OpenAerialMap.
+#
+#     OpenAerialMap is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+#
+#     OpenAerialMap is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with OpenAerialMap.  If not, see <https:#www.gnu.org/licenses/>.
+#
+
+# Auto-detect nerdctl when docker is not installed (e.g. after `just prep machine`)
+docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo found || echo missing` == "found" { "docker" } else { "nerdctl" })
+
+# List available commands
+[private]
+default:
+  just --justfile {{justfile()}} --list start
+
+# Start OpenAerialMap (core services)
+[no-cd]
+all:
+  #!/usr/bin/env sh
+
+  cd {{justfile_directory()}}
+  {{docker}} compose up -d --build
+
+# Start OpenAerialMap with global TMS tiles
+[no-cd]
+all-tms:
+  #!/usr/bin/env sh
+
+  cd {{justfile_directory()}}
+  {{docker}} compose --profile tms up -d --build
+
+# Stop all services
+[no-cd]
+stop:
+  #!/usr/bin/env sh
+
+  cd {{justfile_directory()}}
+  {{docker}} compose --profile tms down
+
+# Follow service logs (optionally specify a service name)
+[no-cd]
+logs *service:
+  #!/usr/bin/env sh
+
+  cd {{justfile_directory()}}
+  {{docker}} compose logs -f {{service}}
