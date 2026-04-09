@@ -230,7 +230,11 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not create job"})
 		return
 	}
-	log.Printf("worker started: stac_id=%s format=%s zoom=%d-%d", id, format, minZoom, maxZoom)
+	if canonical {
+		log.Printf("worker started: stac_id=%s format=%s zoom=auto (gsd=%.4f)", id, format, gsd)
+	} else {
+		log.Printf("worker started: stac_id=%s format=%s zoom=%d-%d", id, format, minZoom, maxZoom)
+	}
 	writeJSON(w, http.StatusAccepted, response{Status: "started"})
 }
 
