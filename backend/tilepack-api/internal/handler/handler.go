@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -91,6 +92,7 @@ func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: err.Error()})
 		return
 	}
+	log.Printf("worker finished: stac_id=%s asset=%s", id, req.Key)
 	writeJSON(w, http.StatusOK, response{Status: "ok"})
 }
 
@@ -228,6 +230,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not create job"})
 		return
 	}
+	log.Printf("worker started: stac_id=%s format=%s zoom=%d-%d", id, format, minZoom, maxZoom)
 	writeJSON(w, http.StatusAccepted, response{Status: "started"})
 }
 

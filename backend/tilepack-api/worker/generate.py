@@ -339,7 +339,7 @@ def upload(bucket: str, key: str, path: Path, content_type: str) -> None:
         Filename=str(path),
         Bucket=bucket,
         Key=key,
-        ExtraArgs={"ContentType": content_type},
+        ExtraArgs={"ContentType": content_type, "ACL": "public-read"},
     )
 
 
