@@ -147,8 +147,21 @@ tilepack format="mbtiles":
       sys.exit(1)
 
   gsd = item.get("properties", {}).get("gsd", 0)
-  output_key = f"tilepacks/{item_id}.{fmt}"
-  lock_key = f"tilepacks/{item_id}.{fmt}.lock"
+
+  # Derive output key from the COG URL, mirroring the Go API's
+  # KeyFromCOGURL: strip the bucket prefix, swap .tif → .{fmt}.
+  from urllib.parse import urlparse
+  bucket = "oam"
+  parsed = urlparse(cog_url)
+  key = parsed.path.lstrip("/")
+  if key.startswith(f"{bucket}/"):
+      key = key[len(f"{bucket}/"):]
+  for ext in (".tif", ".tiff"):
+      if key.lower().endswith(ext):
+          key = key[:-len(ext)]
+          break
+  output_key = f"{key}.{fmt}"
+  lock_key = f"{output_key}.lock"
 
   print(f"COG:    {cog_url}")
   print(f"GSD:    {gsd}")
@@ -184,9 +197,9 @@ tilepack format="mbtiles":
       formats_to_patch.append("mbtiles")
 
   for f in formats_to_patch:
-      key = f"tilepacks/{item_id}.{f}"
-      asset_key = f"tilepack_{f}"
-      href = f"{s3_public}/{key}"
+      f_key = output_key.replace(f".{fmt}", f".{f}") if f != fmt else output_key
+      asset_key = f
+      href = f"{s3_public}/{f_key}"
       print(f"Patching STAC item with {asset_key} asset via pgstac.update_item...")
       pgstac_add_asset(item_id, collection, asset_key, {
           "href": href,

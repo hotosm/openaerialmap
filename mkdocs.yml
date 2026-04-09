@@ -83,6 +83,7 @@ nav:
           - STAC API: dev/backend/stac-api.md
           - STAC Ingester: dev/backend/stac-ingester.md
       - Frontend: dev/frontend.md
+      - Local Setup: dev/local-setup.md
       - Adding New Providers: dev/new-provider.md
       - Backup Prod STAC: dev/backup-prod-pgstac.md
   - Roadmap: https://github.com/hotosm/openaerialmap#roadmap

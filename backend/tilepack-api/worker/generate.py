@@ -302,7 +302,7 @@ def _patch_asset(
         internal_base,
         internal_token,
         item_id,
-        asset_key=f"tilepack_{fmt}",
+        asset_key=fmt,
         asset={
             "href": href,
             "type": content_types[fmt],
@@ -310,7 +310,7 @@ def _patch_asset(
             "title": f"{fmt.upper()} archive",
         },
     )
-    print(f"patched STAC item asset: tilepack_{fmt}")
+    print(f"patched STAC item asset: {fmt}")
 
 
 def _s3_client():

@@ -81,7 +81,7 @@ func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	// The only asset keys the worker is ever allowed to set, to
 	// prevent a compromised worker from overwriting arbitrary assets.
-	if req.Key != "tilepack_pmtiles" && req.Key != "tilepack_mbtiles" {
+	if req.Key != "pmtiles" && req.Key != "mbtiles" {
 		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "asset key not allowed"})
 		return
 	}

@@ -133,5 +133,5 @@ func HasTilepackAsset(item *Item, format string) (string, bool) {
 }
 
 func assetKeyForFormat(format string) string {
-	return "tilepack_" + format
+	return format
 }
