@@ -17,6 +17,7 @@
 #
 
 set dotenv-load
+export HELM_REGISTRY := "ghcr.io/hotosm/charts/openaerialmap"
 
 mod start 'tasks/start'
 mod test 'tasks/test'
