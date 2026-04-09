@@ -148,6 +148,23 @@ tile (~10–15% improvement).
 `CPL_VSIL_CURL_USE_HEAD=NO` to reuse TCP connections and avoid
 redundant HEAD requests to S3.
 
+## Usage
+
+Generate a PMTiles archive for a STAC item:
+
+```sh
+curl -X POST "https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles"
+```
+
+Poll the same endpoint until it returns `200` with a download URL
+(returns `202` while the worker is still running).
+
+Once complete, view the updated STAC record with the new asset:
+
+```sh
+https://api.imagery.hotosm.org/stac/collections/openaerialmap/items/67ac270a43f18e3e3665bef7
+```
+
 ## Deploy
 
 The chart lives in `./chart`. Apply it via the same flow used by the
