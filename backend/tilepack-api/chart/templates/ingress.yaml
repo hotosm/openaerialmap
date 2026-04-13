@@ -22,6 +22,13 @@ spec:
           # Only public paths are exposed through ingress. The
           # /internal/* routes are ClusterIP-only and MUST NOT be
           # added here.
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "chart.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
           - path: /tilepacks
             pathType: Prefix
             backend:

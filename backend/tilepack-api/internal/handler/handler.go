@@ -45,6 +45,11 @@ func New(cfg *config.Config, sc *stac.Client, s3c *tps3.Client, kc *k8s.Client, 
 
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Tilepack API\n\nUsage\n\nGenerate a PMTiles archive for a STAC item:\n\ncurl -X POST \"https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles\"\n\nPoll the same endpoint until it returns 200 with a download URL (returns 202 while the worker is still running).\n\nOnce complete, view the updated STAC record with the new asset:\n\nhttps://api.imagery.hotosm.org/stac/collections/openaerialmap/items/67ac270a43f18e3e3665bef7\n"))
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
