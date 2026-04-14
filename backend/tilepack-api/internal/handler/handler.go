@@ -156,15 +156,6 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Canonical (default-zoom) requests are tracked in STAC itself -
-	// if the asset is already on the item we have nothing to do.
-	if canonical {
-		if href, ok := stac.HasTilepackAsset(item, format); ok {
-			writeJSON(w, http.StatusOK, response{Status: "ready", URL: href})
-			return
-		}
-	}
-
 	cogURL, ok := stac.PrimaryCOGAsset(item)
 	if !ok {
 		writeJSON(w, http.StatusUnprocessableEntity, response{Status: "error", Message: "stac item has no COG asset"})
@@ -178,9 +169,46 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	}
 	lockKey := h.s3.LockKey(outputKey)
 
-	// Belt-and-braces: the worker may have written the output but
-	// crashed before patching STAC. Trust S3 here.
-	if exists, _, err := h.s3.HeadObject(ctx, outputKey); err == nil && exists {
+	assetHref, hasAsset := stac.HasTilepackAsset(item, format)
+	s3Exists, _, err := h.s3.HeadObject(ctx, outputKey)
+	if err != nil {
+		log.Printf("state check failed: stac_id=%s format=%s key=%s err=%v", id, format, outputKey, err)
+		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not check object state"})
+		return
+	}
+
+	if canonical {
+		if hasAsset && s3Exists {
+			log.Printf("ready: stac_id=%s format=%s state=stac+s3", id, format)
+			writeJSON(w, http.StatusOK, response{Status: "ready", URL: assetHref})
+			return
+		}
+		if !hasAsset && s3Exists {
+			log.Printf("reconcile: stac_id=%s format=%s state=s3_only action=patch_stac", id, format)
+			asset := pgstac.Asset{
+				Href:  h.s3.PublicURL(outputKey),
+				Type:  map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
+				Roles: []string{"tiles"},
+				Title: strings.ToUpper(format) + " archive",
+			}
+			if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, asset); err != nil {
+				log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
+				writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"})
+				return
+			}
+			log.Printf("reconcile complete: stac_id=%s format=%s action=patch_stac", id, format)
+			writeJSON(w, http.StatusOK, response{Status: "ready", URL: asset.Href})
+			return
+		}
+		if hasAsset && !s3Exists {
+			log.Printf("reconcile: stac_id=%s format=%s state=stac_only action=regenerate", id, format)
+		}
+		// If STAC says asset exists but S3 object is missing, fall through
+		// and regenerate so both systems converge.
+	} else if s3Exists {
+		// Non-canonical requests are represented by the concrete S3 object,
+		// not by a STAC asset entry.
+		log.Printf("ready: stac_id=%s format=%s mode=non_canonical state=s3", id, format)
 		writeJSON(w, http.StatusOK, response{Status: "ready", URL: h.s3.PublicURL(outputKey)})
 		return
 	}
