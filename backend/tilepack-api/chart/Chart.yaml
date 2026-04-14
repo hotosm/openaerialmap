@@ -3,5 +3,5 @@ name: tilepack-api
 description: Small API to generate mbtiles/pmtiles archives from OAM STAC items
 type: application
 icon: https://raw.githubusercontent.com/hotosm/openaerialmap/refs/heads/main/docs/images/favicon.svg
-version: 0.4.0
+version: 0.4.1
 appVersion: "main"

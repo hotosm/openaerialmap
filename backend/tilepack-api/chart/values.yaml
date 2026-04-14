@@ -37,6 +37,8 @@ config:
   # The in-cluster URL the worker calls to patch STAC assets.
   # Built from the Helm release name at template time if unset.
   internalBaseURL: ""
+  # Mounted secret file path used by the API for runtime internal token validation.
+  internalTokenFile: "/var/run/secrets/oam-tilepack-internal/token"
 
 # pgstac DB connection - reuses the eoapi-managed secret.
 # The worker never touches this; only the API pod reads it.

@@ -69,6 +69,9 @@ with rate limiting to reduce DDoS risk.
   eoAPI, so the worker uses pgstac PL/pgSQL functions to update STAC
   metadata records.
 - **Single replica** -- the per-IP rate limiter is in-memory.
+- **Internal auth token source** -- the API validates worker bearer tokens
+  from a mounted Kubernetes Secret file at request time (`INTERNAL_TOKEN_FILE`),
+  with `INTERNAL_TOKEN` as rollout-safe fallback.
 
 ## Limits
 

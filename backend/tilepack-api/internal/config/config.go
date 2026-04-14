@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config is loaded from environment variables at startup.
@@ -48,9 +49,12 @@ type Config struct {
 	// endpoint, not by the public tilepack endpoint.
 	PGStacDSN string
 	// InternalToken is a shared secret that the worker presents on
-	// the internal asset-patch endpoint. Compared with
-	// subtle.ConstantTimeCompare on the server side.
+	// the internal asset-patch endpoint. Used as a compatibility
+	// fallback when the mounted token file is unavailable.
 	InternalToken string
+	// InternalTokenFile is the mounted secret file read at request
+	// time for internal bearer token validation.
+	InternalTokenFile string
 	// InternalBaseURL is what the worker is told to POST back to.
 	// Injected into worker pods as env so they don't have to guess
 	// the in-cluster service DNS.
@@ -92,6 +96,7 @@ func Load() (*Config, error) {
 		WorkerServiceAccount: getenv("WORKER_SERVICE_ACCOUNT", "oam-tilepack-worker"),
 		PGStacDSN:            os.Getenv("PGSTAC_DSN"),
 		InternalToken:        os.Getenv("INTERNAL_TOKEN"),
+		InternalTokenFile:    getenv("INTERNAL_TOKEN_FILE", "/var/run/secrets/oam-tilepack-internal/token"),
 		InternalBaseURL:      os.Getenv("INTERNAL_BASE_URL"),
 		InternalTokenSecret:  getenv("INTERNAL_TOKEN_SECRET", "oam-tilepack-api-internal"),
 		S3CredsSecret:        getenv("S3_CREDS_SECRET", "oam-s3-creds"),
@@ -106,8 +111,8 @@ func Load() (*Config, error) {
 	if c.PGStacDSN == "" {
 		return nil, fmt.Errorf("PGSTAC_DSN is required")
 	}
-	if c.InternalToken == "" {
-		return nil, fmt.Errorf("INTERNAL_TOKEN is required")
+	if c.InternalToken == "" && strings.TrimSpace(c.InternalTokenFile) == "" {
+		return nil, fmt.Errorf("either INTERNAL_TOKEN or INTERNAL_TOKEN_FILE is required")
 	}
 	if c.InternalBaseURL == "" {
 		return nil, fmt.Errorf("INTERNAL_BASE_URL is required")

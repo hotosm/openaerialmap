@@ -24,14 +24,76 @@ docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo foun
 default:
   just --justfile {{justfile()}} --list test
 
+# Ensure local services needed by test recipes are running.
+[private]
+[no-cd]
+_ensure-local-test-services:
+  #!/usr/bin/env python3
+
+  import os, subprocess, sys, time, urllib.request
+
+  docker_bin = "{{docker}}"
+  compose_cwd = "{{justfile_directory()}}"
+  stac_health_url = os.environ.get("STAC_HEALTH_URL")
+
+  print("Ensuring required services are running (database, stac-api, rustfs, rustfs-init)...")
+  subprocess.check_call([
+      docker_bin, "compose", "up", "-d", "--build",
+      "database", "stac-api", "rustfs", "rustfs-init",
+  ], cwd=compose_cwd)
+
+  # Expose STAC on host via nginx (/stac). nginx depends on raster/frontend,
+  # so start it with dependencies.
+  subprocess.check_call([
+      docker_bin, "compose", "up", "-d", "--build", "nginx",
+  ], cwd=compose_cwd)
+
+  def stac_reachable():
+      if stac_health_url:
+          try:
+              with urllib.request.urlopen(stac_health_url) as r:
+                  return r.status < 500
+          except urllib.error.HTTPError as e:
+              return e.code < 500
+          except Exception:
+              return False
+
+      # Default: probe from inside the stac-api container so we don't depend
+      # on host port mappings or nginx being started.
+      r = subprocess.run([
+          docker_bin, "compose", "exec", "-T", "stac-api",
+          "python", "-c",
+          "import urllib.request, urllib.error, sys\n"
+          "url='http://localhost:8082/'\n"
+          "try:\n"
+          "  urllib.request.urlopen(url)\n"
+          "  sys.exit(0)\n"
+          "except urllib.error.HTTPError as e:\n"
+          "  sys.exit(0 if e.code < 500 else 1)\n",
+      ], cwd=compose_cwd, capture_output=True, text=True)
+      return r.returncode == 0
+
+  deadline = time.time() + 90
+  while True:
+      if stac_reachable():
+          break
+
+      if time.time() > deadline:
+          if stac_health_url:
+              print(f"Error: local STAC is not reachable at {stac_health_url}", file=sys.stderr)
+          else:
+              print("Error: local STAC is not reachable in stac-api container at http://localhost:8082/collections/openaerialmap", file=sys.stderr)
+          sys.exit(1)
+      time.sleep(2)
+
 # Load a sample of production data into the local STAC API
 [no-cd]
-populate-prod:
+populate-prod: _ensure-local-test-services
   #!/usr/bin/env python3
 
   import json, os, sys, urllib.request, urllib.error
 
-  local = os.environ.get("STAC_API_URL", "http://imagery.localhost:8080/stac")
+  local = os.environ.get("STAC_API_URL", "http://localhost:8080/stac")
   prod = os.environ.get("PROD_STAC_URL", "https://api.imagery.hotosm.org/stac")
   n = int(os.environ.get("POPULATE_ITEMS", "20"))
 
@@ -77,30 +139,37 @@ populate-prod:
 
 # Generate mbtiles/pmtiles from a random local STAC item's COG.
 # Uploads to local S3, then patches the STAC item via pgstac.update_item
-# (same DB write path as production — no transactions API).
+# (same DB write path as production - no transactions API).
 [no-cd]
-tilepack format="mbtiles":
+tilepack format="mbtiles": _ensure-local-test-services
   #!/usr/bin/env python3
 
-  import json, os, random, subprocess, sys, urllib.request
+  import json, os, random, subprocess, sys, urllib.error, urllib.request
 
-  stac_url = os.environ.get("STAC_API_URL", "http://imagery.localhost:8080/stac")
+  docker_bin = "{{docker}}"
+  stac_url = os.environ.get("STAC_API_URL", "http://localhost:8080/stac")
   fmt = "{{ format }}"
   collection = "openaerialmap"
-  s3_public = "http://s3.imagery.localhost:8080/oam"
+  s3_public = "http://localhost:9000/oam"
 
   if fmt not in ("mbtiles", "pmtiles"):
       print(f"Error: format must be 'mbtiles' or 'pmtiles', got '{fmt}'", file=sys.stderr)
       sys.exit(1)
 
   def fetch(url):
-      with urllib.request.urlopen(url) as r:
-          return json.loads(r.read())
+      try:
+          with urllib.request.urlopen(url) as r:
+              return json.loads(r.read())
+      except urllib.error.URLError as e:
+          print(f"Error: could not reach STAC at {stac_url}", file=sys.stderr)
+          print("Is production data loaded? Run `just test populate-prod`", file=sys.stderr)
+          print(f"Details: {e}", file=sys.stderr)
+          sys.exit(1)
 
   def psql(sql):
       """Run SQL via psql in the database container and return stdout."""
       r = subprocess.run(
-          ["docker", "compose", "exec", "-T", "database",
+          [docker_bin, "compose", "exec", "-T", "database",
            "psql", "-U", "oam", "-d", "postgis", "-tAX", "-c", sql],
           capture_output=True, text=True,
       )
@@ -110,7 +179,7 @@ tilepack format="mbtiles":
       return r.stdout.strip()
 
   def pgstac_add_asset(item_id, collection, asset_key, asset):
-      """Add an asset to a STAC item via pgstac — same path as production.
+      """Add an asset to a STAC item via pgstac - same path as production.
 
       The Go API does exactly this: read item via pgstac.get_item,
       merge the asset, write back via pgstac.update_item, all inside
@@ -172,8 +241,9 @@ tilepack format="mbtiles":
   # 3. Run the worker container on the compose network (local S3 only).
   #    CANONICAL=false because the worker can't reach the Go API locally;
   #    we do the pgstac write ourselves below (same SQL, same result).
+  # NOTE we hardcode the max zoom to 20 to save time
   rc = subprocess.call([
-      "docker", "compose", "--profile", "tilepack", "run", "--rm", "--build",
+      docker_bin, "compose", "--profile", "tilepack", "run", "--rm", "--build",
       "-e", f"STAC_ITEM_ID={item_id}",
       "-e", f"FORMAT={fmt}",
       "-e", f"COG_URL={cog_url}",
@@ -181,7 +251,7 @@ tilepack format="mbtiles":
       "-e", f"LOCK_KEY={lock_key}",
       "-e", f"GSD={gsd}",
       "-e", "MIN_ZOOM=0",
-      "-e", "MAX_ZOOM=0",
+      "-e", "MAX_ZOOM=20",
       "-e", "CANONICAL=false",
       "tilepack-worker",
   ])
@@ -191,7 +261,7 @@ tilepack format="mbtiles":
   # 4. Patch STAC via pgstac (same DB path as production)
   content_types = {"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}
 
-  # For pmtiles, the worker uploads both formats — register both assets.
+  # For pmtiles, the worker uploads both formats - register both assets.
   formats_to_patch = [fmt]
   if fmt == "pmtiles":
       formats_to_patch.append("mbtiles")

@@ -51,11 +51,21 @@ spec:
                   key: token
             - name: INTERNAL_BASE_URL
               value: {{ .Values.config.internalBaseURL | default (printf "http://%s.%s.svc.cluster.local:%v" (include "chart.fullname" .) .Release.Namespace .Values.service.port) | quote }}
+            - name: INTERNAL_TOKEN_FILE
+              value: {{ .Values.config.internalTokenFile | quote }}
             - name: INTERNAL_TOKEN_SECRET
               value: {{ .Values.internalTokenSecret.name | quote }}
+          volumeMounts:
+            - name: internal-token
+              mountPath: /var/run/secrets/oam-tilepack-internal
+              readOnly: true
           livenessProbe: {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe: {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: internal-token
+          secret:
+            secretName: {{ .Values.internalTokenSecret.name }}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}

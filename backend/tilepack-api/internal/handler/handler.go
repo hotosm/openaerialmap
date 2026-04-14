@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -70,8 +71,13 @@ type internalAssetRequest struct {
 // via the ClusterIP Service. See chart/templates/ingress.yaml which
 // only routes /tilepacks and /healthz.
 func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
-	got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if subtle.ConstantTimeCompare([]byte(got), []byte(h.cfg.InternalToken)) != 1 {
+	got, ok := bearerToken(r.Header.Get("Authorization"))
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
+		return
+	}
+	expected := h.internalToken()
+	if expected == "" || subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
 		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
 		return
 	}
@@ -276,6 +282,28 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+func bearerToken(authHeader string) (string, bool) {
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return "", false
+	}
+	tok := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	if tok == "" {
+		return "", false
+	}
+	return tok, true
+}
+
+func (h *Handler) internalToken() string {
+	if strings.TrimSpace(h.cfg.InternalTokenFile) != "" {
+		if b, err := os.ReadFile(h.cfg.InternalTokenFile); err == nil {
+			if tok := strings.TrimSpace(string(b)); tok != "" {
+				return tok
+			}
+		}
+	}
+	return h.cfg.InternalToken
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
