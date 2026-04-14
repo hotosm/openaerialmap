@@ -159,9 +159,10 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 					RestartPolicy:      corev1.RestartPolicyNever,
 					ServiceAccountName: c.workerServiceAccount,
 					Containers: []corev1.Container{{
-						Name:      "worker",
-						Image:     c.workerImage,
-						Resources: c.workerResources,
+						Name:            "worker",
+						Image:           c.workerImage,
+						ImagePullPolicy: corev1.PullAlways,
+						Resources:       c.workerResources,
 						Env: []corev1.EnvVar{
 							{Name: "STAC_ITEM_ID", Value: spec.StacID},
 							{Name: "FORMAT", Value: spec.Format},
