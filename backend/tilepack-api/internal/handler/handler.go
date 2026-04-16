@@ -71,39 +71,50 @@ type internalAssetRequest struct {
 // via the ClusterIP Service. See chart/templates/ingress.yaml which
 // only routes /tilepacks and /healthz.
 func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	got, ok := bearerToken(r.Header.Get("Authorization"))
 	if !ok {
+		log.Printf("internal asset auth failed: stac_id=%s reason=missing_or_malformed_bearer", id)
 		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
 		return
 	}
 	expected := h.internalToken()
-	if expected == "" || subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+	if expected == "" {
+		log.Printf("internal asset auth failed: stac_id=%s reason=internal_token_not_configured", id)
 		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
 		return
 	}
-	id := r.PathValue("id")
+	if subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+		log.Printf("internal asset auth failed: stac_id=%s reason=token_mismatch", id)
+		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
+		return
+	}
 	if !stacIDPattern.MatchString(id) {
+		log.Printf("internal asset rejected: stac_id=%s reason=invalid_stac_id", id)
 		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid stac id"})
 		return
 	}
 	var req internalAssetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("internal asset rejected: stac_id=%s reason=invalid_body err=%v", id, err)
 		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid body"})
 		return
 	}
 	// The only asset keys the worker is ever allowed to set, to
 	// prevent a compromised worker from overwriting arbitrary assets.
 	if req.Key != "pmtiles" && req.Key != "mbtiles" {
+		log.Printf("internal asset rejected: stac_id=%s reason=asset_key_not_allowed key=%q", id, req.Key)
 		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "asset key not allowed"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, req.Key, req.Asset); err != nil {
+		log.Printf("internal asset patch failed: stac_id=%s asset=%s err=%v", id, req.Key, err)
 		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: err.Error()})
 		return
 	}
-	log.Printf("worker finished: stac_id=%s asset=%s", id, req.Key)
+	log.Printf("internal asset patch succeeded: stac_id=%s asset=%s", id, req.Key)
 	writeJSON(w, http.StatusOK, response{Status: "ok"})
 }
 
@@ -115,30 +126,51 @@ type response struct {
 }
 
 func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
 	id := r.PathValue("id")
-	if !stacIDPattern.MatchString(id) {
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid stac id"})
-		return
-	}
-
 	format := strings.ToLower(r.URL.Query().Get("format"))
+	minZoomQ := r.URL.Query().Get("min_zoom")
+	maxZoomQ := r.URL.Query().Get("max_zoom")
+	ip := clientIP(r)
+	zoomMode := "custom"
+	if minZoomQ == "" && maxZoomQ == "" {
+		zoomMode = "auto"
+	}
+	log.Printf("tilepack request start: stac_id=%s format=%s zoom_mode=%s client_ip=%s", id, format, zoomMode, ip)
+
+	statusCode := http.StatusInternalServerError
+	outcome := "error"
+	defer func() {
+		log.Printf("tilepack request end: stac_id=%s format=%s outcome=%s status=%d duration_ms=%d", id, format, outcome, statusCode, time.Since(started).Milliseconds())
+	}()
+	respond := func(status int, resp response, respOutcome string) {
+		statusCode = status
+		outcome = respOutcome
+		writeJSON(w, status, resp)
+	}
+
+	if !stacIDPattern.MatchString(id) {
+		respond(http.StatusBadRequest, response{Status: "error", Message: "invalid stac id"}, "invalid_input")
+		return
+	}
 	if format != "pmtiles" && format != "mbtiles" {
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "format must be pmtiles or mbtiles"})
+		respond(http.StatusBadRequest, response{Status: "error", Message: "format must be pmtiles or mbtiles"}, "invalid_input")
 		return
 	}
 
-	minZoom, maxZoom, err := parseZooms(r.URL.Query().Get("min_zoom"), r.URL.Query().Get("max_zoom"))
+	minZoom, maxZoom, err := parseZooms(minZoomQ, maxZoomQ)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: err.Error()})
+		respond(http.StatusBadRequest, response{Status: "error", Message: err.Error()}, "invalid_input")
 		return
 	}
 	canonical := minZoom == 0 && maxZoom == 0
 
 	// Per-IP rate limit happens before any expensive work so abusive
 	// clients are cheap to reject.
-	if !h.limiter.Allow(clientIP(r)) {
+	if !h.limiter.Allow(ip) {
 		w.Header().Set("Retry-After", "30")
-		writeJSON(w, http.StatusTooManyRequests, response{Status: "rate_limited", RetryAfter: 30})
+		log.Printf("tilepack request rate-limited: stac_id=%s format=%s client_ip=%s", id, format, ip)
+		respond(http.StatusTooManyRequests, response{Status: "rate_limited", RetryAfter: 30}, "rate_limited")
 		return
 	}
 
@@ -149,22 +181,25 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var nf *stac.ErrNotFound
 		if errors.As(err, &nf) {
-			writeJSON(w, http.StatusNotFound, response{Status: "error", Message: "stac item not found"})
+			respond(http.StatusNotFound, response{Status: "error", Message: "stac item not found"}, "stac_not_found")
 			return
 		}
-		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "stac lookup failed"})
+		log.Printf("stac lookup failed: stac_id=%s err=%v", id, err)
+		respond(http.StatusBadGateway, response{Status: "error", Message: "stac lookup failed"}, "stac_lookup_failed")
 		return
 	}
 
 	cogURL, ok := stac.PrimaryCOGAsset(item)
 	if !ok {
-		writeJSON(w, http.StatusUnprocessableEntity, response{Status: "error", Message: "stac item has no COG asset"})
+		log.Printf("cog missing: stac_id=%s format=%s", id, format)
+		respond(http.StatusUnprocessableEntity, response{Status: "error", Message: "stac item has no COG asset"}, "missing_cog")
 		return
 	}
 
 	outputKey, err := h.s3.KeyFromCOGURL(cogURL, format, minZoom, maxZoom)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, response{Status: "error", Message: err.Error()})
+		log.Printf("output key derivation failed: stac_id=%s format=%s err=%v", id, format, err)
+		respond(http.StatusUnprocessableEntity, response{Status: "error", Message: err.Error()}, "invalid_cog_url")
 		return
 	}
 	lockKey := h.s3.LockKey(outputKey)
@@ -173,7 +208,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	s3Exists, _, outputSize, err := h.s3.HeadObject(ctx, outputKey)
 	if err != nil {
 		log.Printf("state check failed: stac_id=%s format=%s key=%s err=%v", id, format, outputKey, err)
-		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not check object state"})
+		respond(http.StatusBadGateway, response{Status: "error", Message: "could not check object state"}, "state_check_failed")
 		return
 	}
 
@@ -184,15 +219,15 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 				log.Printf("reconcile: stac_id=%s format=%s state=stac+s3 action=patch_stac", id, format)
 				if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, canonicalAsset); err != nil {
 					log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
-					writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"})
+					respond(http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"}, "reconcile_patch_failed")
 					return
 				}
 				log.Printf("reconcile complete: stac_id=%s format=%s action=patch_stac", id, format)
-				writeJSON(w, http.StatusOK, response{Status: "ready", URL: canonicalAsset.Href})
+				respond(http.StatusOK, response{Status: "ready", URL: canonicalAsset.Href}, "ready")
 				return
 			}
 			log.Printf("ready: stac_id=%s format=%s state=stac+s3", id, format)
-			writeJSON(w, http.StatusOK, response{Status: "ready", URL: assetHref})
+			respond(http.StatusOK, response{Status: "ready", URL: assetHref}, "ready")
 			return
 		}
 		if !hasAsset && s3Exists {
@@ -200,11 +235,11 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 			asset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize)
 			if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, asset); err != nil {
 				log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
-				writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"})
+				respond(http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"}, "reconcile_patch_failed")
 				return
 			}
 			log.Printf("reconcile complete: stac_id=%s format=%s action=patch_stac", id, format)
-			writeJSON(w, http.StatusOK, response{Status: "ready", URL: asset.Href})
+			respond(http.StatusOK, response{Status: "ready", URL: asset.Href}, "ready")
 			return
 		}
 		if hasAsset && !s3Exists {
@@ -216,7 +251,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		// Non-canonical requests are represented by the concrete S3 object,
 		// not by a STAC asset entry.
 		log.Printf("ready: stac_id=%s format=%s mode=non_canonical state=s3", id, format)
-		writeJSON(w, http.StatusOK, response{Status: "ready", URL: h.s3.PublicURL(outputKey)})
+		respond(http.StatusOK, response{Status: "ready", URL: h.s3.PublicURL(outputKey)}, "ready")
 		return
 	}
 
@@ -224,29 +259,37 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	// than the configured TTL) are ignored so a crashed worker
 	// doesn't permanently block regeneration.
 	if exists, modified, _, err := h.s3.HeadObject(ctx, lockKey); err == nil && exists {
-		if time.Since(modified) < time.Duration(h.cfg.LockTTLSeconds)*time.Second {
-			writeJSON(w, http.StatusAccepted, response{Status: "in_progress"})
+		lockAge := time.Since(modified)
+		if lockAge < time.Duration(h.cfg.LockTTLSeconds)*time.Second {
+			log.Printf("in-progress lock hit: stac_id=%s format=%s lock_key=%s lock_age_s=%.0f", id, format, lockKey, lockAge.Seconds())
+			respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
 			return
 		}
+		log.Printf("stale lock ignored: stac_id=%s format=%s lock_key=%s lock_age_s=%.0f", id, format, lockKey, lockAge.Seconds())
+	} else if err != nil {
+		log.Printf("lock state check failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
 	}
 
 	// Global concurrency cap - counted live from the cluster so the
 	// API is stateless across restarts.
 	active, err := h.k8s.CountActiveJobs(ctx)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not check job state"})
+		log.Printf("active job count failed: stac_id=%s format=%s err=%v", id, format, err)
+		respond(http.StatusBadGateway, response{Status: "error", Message: "could not check job state"}, "job_state_check_failed")
 		return
 	}
 	if active >= h.cfg.MaxConcurrentJobs {
 		w.Header().Set("Retry-After", "60")
-		writeJSON(w, http.StatusTooManyRequests, response{Status: "busy", RetryAfter: 60})
+		log.Printf("concurrency cap busy: stac_id=%s format=%s active_jobs=%d limit=%d", id, format, active, h.cfg.MaxConcurrentJobs)
+		respond(http.StatusTooManyRequests, response{Status: "busy", RetryAfter: 60}, "busy")
 		return
 	}
 
 	gsd, _ := stac.GSD(item)
 
 	if err := h.s3.PutLock(ctx, lockKey); err != nil {
-		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not write lock"})
+		log.Printf("lock write failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
+		respond(http.StatusBadGateway, response{Status: "error", Message: "could not write lock"}, "lock_write_failed")
 		return
 	}
 
@@ -266,22 +309,25 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		// it; that's success from the caller's point of view. Leave
 		// the lock in place - the other worker will clean it up.
 		if k8serrors.IsAlreadyExists(err) {
-			writeJSON(w, http.StatusAccepted, response{Status: "in_progress"})
+			log.Printf("job already exists: stac_id=%s format=%s key=%s", id, format, outputKey)
+			respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
 			return
 		}
+		log.Printf("job create failed: stac_id=%s format=%s key=%s err=%v", id, format, outputKey, err)
 		// Any other error means no worker will ever run, so the
 		// lock we just wrote would block retries for LOCK_TTL_SECONDS.
-		// Best-effort delete; log-and-ignore on the delete side.
-		_ = h.s3.DeleteObject(ctx, lockKey)
-		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not create job"})
+		if delErr := h.s3.DeleteObject(ctx, lockKey); delErr != nil {
+			log.Printf("lock cleanup failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, delErr)
+		}
+		respond(http.StatusBadGateway, response{Status: "error", Message: "could not create job"}, "job_create_failed")
 		return
 	}
 	if canonical {
-		log.Printf("worker started: stac_id=%s format=%s zoom=auto (gsd=%.4f)", id, format, gsd)
+		log.Printf("worker started: stac_id=%s format=%s zoom=auto gsd=%.4f", id, format, gsd)
 	} else {
 		log.Printf("worker started: stac_id=%s format=%s zoom=%d-%d", id, format, minZoom, maxZoom)
 	}
-	writeJSON(w, http.StatusAccepted, response{Status: "started"})
+	respond(http.StatusAccepted, response{Status: "started"}, "started")
 }
 
 func canonicalTilepackAsset(format, href string, fileSize int64) pgstac.Asset {

@@ -52,6 +52,14 @@ func main() {
 	sc := stac.New(cfg.STACBaseURL, cfg.STACCollection)
 	lim := ratelimit.NewPerIP(cfg.PerIPRatePerSecond, cfg.PerIPBurst)
 
+	log.Printf(
+		"tilepack-api startup config: listen_addr=%s stac_collection=%s max_concurrent_jobs=%d worker_namespace=%s",
+		cfg.ListenAddr,
+		cfg.STACCollection,
+		cfg.MaxConcurrentJobs,
+		cfg.WorkerNamespace,
+	)
+
 	h := handler.New(cfg, sc, s3c, kc, pc, lim)
 
 	srv := &http.Server{

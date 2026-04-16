@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -67,11 +68,13 @@ func (c *Client) AddAsset(ctx context.Context, itemID, collection, assetKey stri
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "40001" {
 			lastErr = err
+			log.Printf("pgstac serialization retry: item_id=%s collection=%s asset_key=%s attempt=%d/%d", itemID, collection, assetKey, attempt, maxAttempts)
 			time.Sleep(time.Duration(attempt*50) * time.Millisecond)
 			continue
 		}
 		return err
 	}
+	log.Printf("pgstac serialization failure: item_id=%s collection=%s asset_key=%s attempts=%d err=%v", itemID, collection, assetKey, maxAttempts, lastErr)
 	return fmt.Errorf("pgstac.update_item: serialization failure after %d attempts: %w", maxAttempts, lastErr)
 }
 

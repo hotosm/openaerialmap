@@ -172,8 +172,8 @@ def _close_thread_readers(pool: ThreadPoolExecutor, cog_url: str) -> None:
         f.result()
 
 
-def _render_tile(cog_url: str, x: int, y: int, z: int) -> bytes | None:
-    """Fetch a single XYZ tile and return the PNG bytes, or None.
+def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | None]:
+    """Fetch a single XYZ tile and return status + PNG bytes.
 
     Uses a thread-local Reader so each thread reuses its GDAL dataset
     handle across tiles, avoiding repeated open/close overhead.
@@ -182,13 +182,12 @@ def _render_tile(cog_url: str, x: int, y: int, z: int) -> bytes | None:
         cog = _get_thread_reader(cog_url)
         img = cog.tile(x, y, z)
     except TileOutsideBounds:
-        return None
-    except Exception as exc:  # noqa: BLE001
-        print(f"tile {z}/{x}/{y} failed: {exc}", file=sys.stderr)
-        return None
+        return "outside", None
+    except Exception:  # noqa: BLE001
+        return "failed", None
     # OAM imagery is 3-band RGB. Render as RGBA PNG so transparent
     # pixels (padding around the actual footprint) come through.
-    return img.render(img_format="PNG", add_mask=True)
+    return "ok", img.render(img_format="PNG", add_mask=True)
 
 
 def generate_mbtiles(
@@ -253,10 +252,19 @@ def generate_mbtiles(
                         fut = pool.submit(_render_tile, cog_url, x, y, z)
                         futures[fut] = (x, y)
                 written = 0
+                outside = 0
+                failures = 0
+                failure_samples: list[tuple[int, int]] = []
                 for fut in as_completed(futures):
                     x, y = futures[fut]
-                    png = fut.result()
-                    if png is None:
+                    status, png = fut.result()
+                    if status == "outside":
+                        outside += 1
+                        continue
+                    if status == "failed":
+                        failures += 1
+                        if len(failure_samples) < 5:
+                            failure_samples.append((x, y))
                         continue
                     tms_y = (1 << z) - 1 - y
                     cur.execute(
@@ -265,11 +273,17 @@ def generate_mbtiles(
                     )
                     written += 1
                 conn.commit()
-                print(
+                msg = (
                     f"z{z}: {written}/{len(futures)} tiles in "
-                    f"{time.monotonic() - start:.1f}s",
-                    flush=True,
+                    f"{time.monotonic() - start:.1f}s"
                 )
+                if outside > 0:
+                    msg += f", outside={outside}"
+                if failures > 0:
+                    msg += f", failed={failures}"
+                    if failure_samples:
+                        msg += f", sample={failure_samples}"
+                print(msg, flush=True)
             _close_thread_readers(pool, cog_url)
         finally:
             pool.shutdown(wait=True)
@@ -315,7 +329,10 @@ def _patch_asset(
         asset_key=fmt,
         asset=asset,
     )
-    print(f"patched STAC item asset: {fmt}")
+    print(
+        f"callback patch succeeded: item_id={item_id} asset={fmt} key={key}",
+        flush=True,
+    )
 
 
 def _s3_client():
@@ -374,6 +391,14 @@ def main() -> int:
     internal_base = env("INTERNAL_BASE_URL")
     internal_token = env("INTERNAL_TOKEN")
 
+    start = time.monotonic()
+    print(
+        f"worker run start: item_id={item_id} format={fmt} canonical={canonical} "
+        f"min_zoom={min_zoom} max_zoom={max_zoom} output_key={output_key}",
+        flush=True,
+    )
+
+    exit_code = 1
     try:
         if min_zoom == 0 and max_zoom == 0:
             # Default range: from z0 up to whatever the source GSD
@@ -392,15 +417,23 @@ def main() -> int:
                 print(f"uploaded s3://{bucket}/{output_key}")
 
                 if canonical:
-                    _patch_asset(
-                        internal_base,
-                        internal_token,
-                        public_base,
-                        item_id,
-                        output_key,
-                        "mbtiles",
-                        mbtiles_path.stat().st_size,
-                    )
+                    try:
+                        _patch_asset(
+                            internal_base,
+                            internal_token,
+                            public_base,
+                            item_id,
+                            output_key,
+                            "mbtiles",
+                            mbtiles_path.stat().st_size,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print(
+                            f"callback patch failed: item_id={item_id} asset=mbtiles err={exc}",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        raise
             elif fmt == "pmtiles":
                 # If an mbtiles already exists in S3, skip the expensive
                 # COG tile rendering and just download + convert it.
@@ -421,30 +454,46 @@ def main() -> int:
                 print(f"uploaded s3://{bucket}/{output_key}")
 
                 if canonical:
-                    _patch_asset(
-                        internal_base,
-                        internal_token,
-                        public_base,
-                        item_id,
-                        output_key,
-                        "pmtiles",
-                        pmtiles_path.stat().st_size,
-                    )
-                    _patch_asset(
-                        internal_base,
-                        internal_token,
-                        public_base,
-                        item_id,
-                        mbtiles_key,
-                        "mbtiles",
-                        mbtiles_path.stat().st_size,
-                    )
+                    try:
+                        _patch_asset(
+                            internal_base,
+                            internal_token,
+                            public_base,
+                            item_id,
+                            output_key,
+                            "pmtiles",
+                            pmtiles_path.stat().st_size,
+                        )
+                        _patch_asset(
+                            internal_base,
+                            internal_token,
+                            public_base,
+                            item_id,
+                            mbtiles_key,
+                            "mbtiles",
+                            mbtiles_path.stat().st_size,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print(
+                            f"callback patch failed: item_id={item_id} asset=pmtiles_or_mbtiles err={exc}",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        raise
             else:
                 raise SystemExit(f"unknown format: {fmt}")
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
+    except Exception:  # noqa: BLE001
+        exit_code = 1
+        raise
     finally:
         delete_lock(bucket, lock_key)
+        print(
+            f"worker run end: item_id={item_id} format={fmt} exit_code={exit_code} "
+            f"duration_s={time.monotonic() - start:.1f}",
+            flush=True,
+        )
 
     return 0
 

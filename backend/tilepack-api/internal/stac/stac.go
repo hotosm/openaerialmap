@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -44,6 +48,84 @@ type ItemAsset struct {
 	ProjCode int      `json:"proj:code,omitempty"`
 }
 
+func (a *ItemAsset) UnmarshalJSON(data []byte) error {
+	type assetJSON struct {
+		Href     string          `json:"href"`
+		Type     string          `json:"type,omitempty"`
+		Roles    []string        `json:"roles,omitempty"`
+		Title    string          `json:"title,omitempty"`
+		FileSize json.RawMessage `json:"file:size,omitempty"`
+		ProjCode json.RawMessage `json:"proj:code,omitempty"`
+	}
+
+	var raw assetJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	a.Href = raw.Href
+	a.Type = raw.Type
+	a.Roles = raw.Roles
+	a.Title = raw.Title
+	a.FileSize = coerceInt64(raw.FileSize)
+	a.ProjCode = coerceInt(raw.ProjCode)
+	return nil
+}
+
+func coerceInt(raw json.RawMessage) int {
+	v := coerceInt64(raw)
+	maxInt := int64(^uint(0) >> 1)
+	minInt := -maxInt - 1
+	if v < minInt || v > maxInt {
+		return 0
+	}
+	return int(v)
+}
+
+func coerceInt64(raw json.RawMessage) int64 {
+	const maxInt64Float = float64(int64(^uint64(0) >> 1))
+	const minInt64Float = -maxInt64Float - 1
+
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0
+	}
+
+	var asInt int64
+	if err := json.Unmarshal(raw, &asInt); err == nil {
+		return asInt
+	}
+
+	var asFloat float64
+	if err := json.Unmarshal(raw, &asFloat); err == nil {
+		if !math.IsNaN(asFloat) && !math.IsInf(asFloat, 0) && asFloat == math.Trunc(asFloat) {
+			if asFloat >= minInt64Float && asFloat <= maxInt64Float {
+				return int64(asFloat)
+			}
+		}
+		return 0
+	}
+
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		asString = strings.TrimSpace(asString)
+		if asString == "" {
+			return 0
+		}
+		if v, err := strconv.ParseInt(asString, 10, 64); err == nil {
+			return v
+		}
+		if v, err := strconv.ParseFloat(asString, 64); err == nil {
+			if !math.IsNaN(v) && !math.IsInf(v, 0) && v == math.Trunc(v) {
+				if v >= minInt64Float && v <= maxInt64Float {
+					return int64(v)
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
 // ErrNotFound indicates the item does not exist in the configured collection.
 type ErrNotFound struct{ ID string }
 
@@ -58,19 +140,24 @@ func (c *Client) GetItem(ctx context.Context, id string) (*Item, error) {
 	if err != nil {
 		return nil, err
 	}
+	started := time.Now()
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
+		log.Printf("stac get item failed: stac_id=%s err=%v duration_ms=%d", id, err, time.Since(started).Milliseconds())
 		return nil, err
 	}
 	defer resp.Body.Close()
+	log.Printf("stac get item: stac_id=%s status=%d duration_ms=%d", id, resp.StatusCode, time.Since(started).Milliseconds())
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, &ErrNotFound{ID: id}
 	}
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("stac get item non-200: stac_id=%s status=%d", id, resp.StatusCode)
 		return nil, fmt.Errorf("stac get item: status %d", resp.StatusCode)
 	}
 	var item Item
 	if err := json.NewDecoder(resp.Body).Decode(&item); err != nil {
+		log.Printf("stac get item decode failed: stac_id=%s err=%v", id, err)
 		return nil, fmt.Errorf("decode stac item: %w", err)
 	}
 	if item.Collection != "" && item.Collection != c.Collection {

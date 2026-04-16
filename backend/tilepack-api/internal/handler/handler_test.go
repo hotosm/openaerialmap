@@ -136,6 +136,26 @@ func TestTilepackAssetMatchesCanonical(t *testing.T) {
 	}
 }
 
+func TestTilepackAssetMatchesCanonical_MixedDecodedNumericTypes(t *testing.T) {
+	canonical := canonicalTilepackAsset("pmtiles", "https://example.test/item.pmtiles", 4096)
+
+	var existing stac.ItemAsset
+	if err := json.Unmarshal([]byte(`{
+		"href":"https://example.test/item.pmtiles",
+		"type":"application/vnd.pmtiles",
+		"roles":["tiles"],
+		"title":"PMTILES archive",
+		"file:size":"4096",
+		"proj:code":3857.0
+	}`), &existing); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if !tilepackAssetMatchesCanonical(existing, canonical) {
+		t.Fatal("tilepackAssetMatchesCanonical() = false, want true")
+	}
+}
+
 func TestParseZooms(t *testing.T) {
 	tests := []struct {
 		name       string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -100,6 +101,7 @@ func (c *Client) HeadObject(ctx context.Context, key string) (exists bool, lastM
 		if errors.As(err, &ae) && (ae.ErrorCode() == "NotFound" || ae.ErrorCode() == "NoSuchKey") {
 			return false, time.Time{}, 0, nil
 		}
+		log.Printf("s3 head object failed: bucket=%s key=%s err=%v", c.bucket, key, err)
 		return false, time.Time{}, 0, err
 	}
 	if out.LastModified != nil {
@@ -120,6 +122,9 @@ func (c *Client) DeleteObject(ctx context.Context, key string) error {
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(key),
 	})
+	if err != nil {
+		log.Printf("s3 delete object failed: bucket=%s key=%s err=%v", c.bucket, key, err)
+	}
 	return err
 }
 
@@ -134,5 +139,8 @@ func (c *Client) PutLock(ctx context.Context, key string) error {
 		// Body intentionally nil - zero-length object is enough.
 		StorageClass: types.StorageClassStandard,
 	})
+	if err != nil {
+		log.Printf("s3 put lock failed: bucket=%s key=%s err=%v", c.bucket, key, err)
+	}
 	return err
 }

@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"log"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -92,6 +93,7 @@ func (c *Client) CountActiveJobs(ctx context.Context) (int, error) {
 		LabelSelector: fmt.Sprintf("%s=%s", LabelApp, AppName),
 	})
 	if err != nil {
+		log.Printf("k8s count active jobs failed: namespace=%s err=%v", c.namespace, err)
 		return 0, err
 	}
 	n := 0
@@ -100,6 +102,7 @@ func (c *Client) CountActiveJobs(ctx context.Context) (int, error) {
 			n++
 		}
 	}
+	log.Printf("k8s count active jobs: namespace=%s active=%d", c.namespace, n)
 	return n, nil
 }
 
@@ -211,7 +214,11 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 		},
 	}
 	_, err := c.cs.BatchV1().Jobs(c.namespace).Create(ctx, job, metav1.CreateOptions{})
-	return err
+	if err != nil {
+		log.Printf("k8s create job failed: namespace=%s name=%s stac_id=%s format=%s err=%v", c.namespace, name, spec.StacID, spec.Format, err)
+		return err
+	}
+	return nil
 }
 
 func sanitize(s string) string {
