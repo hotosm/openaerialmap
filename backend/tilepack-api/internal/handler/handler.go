@@ -185,16 +185,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		}
 		if !hasAsset && s3Exists {
 			log.Printf("reconcile: stac_id=%s format=%s state=s3_only action=patch_stac", id, format)
-			asset := pgstac.Asset{
-				Href:     h.s3.PublicURL(outputKey),
-				Type:     map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
-				Roles:    []string{"tiles"},
-				Title:    strings.ToUpper(format) + " archive",
-				ProjCode: 3857,
-			}
-			if outputSize > 0 {
-				asset.FileSize = outputSize
-			}
+			asset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize)
 			if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, asset); err != nil {
 				log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
 				writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"})
@@ -279,6 +270,20 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		log.Printf("worker started: stac_id=%s format=%s zoom=%d-%d", id, format, minZoom, maxZoom)
 	}
 	writeJSON(w, http.StatusAccepted, response{Status: "started"})
+}
+
+func canonicalTilepackAsset(format, href string, fileSize int64) pgstac.Asset {
+	asset := pgstac.Asset{
+		Href:     href,
+		Type:     map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
+		Roles:    []string{"tiles"},
+		Title:    strings.ToUpper(format) + " archive",
+		ProjCode: 3857,
+	}
+	if fileSize > 0 {
+		asset.FileSize = fileSize
+	}
+	return asset
 }
 
 func parseZooms(minStr, maxStr string) (int, int, error) {
