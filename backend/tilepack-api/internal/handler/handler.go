@@ -170,7 +170,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	lockKey := h.s3.LockKey(outputKey)
 
 	assetHref, hasAsset := stac.HasTilepackAsset(item, format)
-	s3Exists, _, err := h.s3.HeadObject(ctx, outputKey)
+	s3Exists, _, outputSize, err := h.s3.HeadObject(ctx, outputKey)
 	if err != nil {
 		log.Printf("state check failed: stac_id=%s format=%s key=%s err=%v", id, format, outputKey, err)
 		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not check object state"})
@@ -186,10 +186,14 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		if !hasAsset && s3Exists {
 			log.Printf("reconcile: stac_id=%s format=%s state=s3_only action=patch_stac", id, format)
 			asset := pgstac.Asset{
-				Href:  h.s3.PublicURL(outputKey),
-				Type:  map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
-				Roles: []string{"tiles"},
-				Title: strings.ToUpper(format) + " archive",
+				Href:     h.s3.PublicURL(outputKey),
+				Type:     map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
+				Roles:    []string{"tiles"},
+				Title:    strings.ToUpper(format) + " archive",
+				ProjCode: 3857,
+			}
+			if outputSize > 0 {
+				asset.FileSize = outputSize
 			}
 			if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, asset); err != nil {
 				log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
@@ -216,7 +220,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	// In-progress detection via the lock object. Stale locks (older
 	// than the configured TTL) are ignored so a crashed worker
 	// doesn't permanently block regeneration.
-	if exists, modified, err := h.s3.HeadObject(ctx, lockKey); err == nil && exists {
+	if exists, modified, _, err := h.s3.HeadObject(ctx, lockKey); err == nil && exists {
 		if time.Since(modified) < time.Duration(h.cfg.LockTTLSeconds)*time.Second {
 			writeJSON(w, http.StatusAccepted, response{Status: "in_progress"})
 			return

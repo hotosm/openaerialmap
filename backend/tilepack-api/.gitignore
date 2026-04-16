@@ -4,3 +4,7 @@
 # Output build
 main
 tilepack-api
+
+# Python
+**/**/*.pyc
+**/**/__pycache__

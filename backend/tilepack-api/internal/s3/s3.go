@@ -87,9 +87,10 @@ func (c *Client) PublicURL(key string) string {
 }
 
 // HeadObject reports whether the key exists, and (when it does) the
-// time it was last modified. NotFound is returned as (false, zero, nil)
-// rather than an error to keep call sites simple.
-func (c *Client) HeadObject(ctx context.Context, key string) (exists bool, lastModified time.Time, err error) {
+// time it was last modified and object content length. NotFound is
+// returned as (false, zero, 0, nil) rather than an error to keep call
+// sites simple.
+func (c *Client) HeadObject(ctx context.Context, key string) (exists bool, lastModified time.Time, contentLength int64, err error) {
 	out, err := c.s3.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(key),
@@ -97,14 +98,17 @@ func (c *Client) HeadObject(ctx context.Context, key string) (exists bool, lastM
 	if err != nil {
 		var ae smithy.APIError
 		if errors.As(err, &ae) && (ae.ErrorCode() == "NotFound" || ae.ErrorCode() == "NoSuchKey") {
-			return false, time.Time{}, nil
+			return false, time.Time{}, 0, nil
 		}
-		return false, time.Time{}, err
+		return false, time.Time{}, 0, err
 	}
 	if out.LastModified != nil {
 		lastModified = *out.LastModified
 	}
-	return true, lastModified, nil
+	if out.ContentLength != nil {
+		contentLength = *out.ContentLength
+	}
+	return true, lastModified, contentLength, nil
 }
 
 // DeleteObject removes a key. Used by the handler to clean up a

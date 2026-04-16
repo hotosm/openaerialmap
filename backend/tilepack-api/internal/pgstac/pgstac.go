@@ -39,10 +39,12 @@ func (c *Client) Close() { c.pool.Close() }
 
 // Asset is the subset of STAC asset fields this service writes.
 type Asset struct {
-	Href  string   `json:"href"`
-	Type  string   `json:"type,omitempty"`
-	Roles []string `json:"roles,omitempty"`
-	Title string   `json:"title,omitempty"`
+	Href     string   `json:"href"`
+	Type     string   `json:"type,omitempty"`
+	Roles    []string `json:"roles,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	FileSize int64    `json:"file:size,omitempty"`
+	ProjCode int      `json:"proj:code,omitempty"`
 }
 
 // AddAsset reads the current STAC item via pgstac.get_item, merges

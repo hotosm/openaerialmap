@@ -291,6 +291,7 @@ def _patch_asset(
     item_id: str,
     key: str,
     fmt: str,
+    file_size: int = 0,
 ) -> None:
     """Register a tilepack asset on the STAC item."""
     content_types = {
@@ -298,17 +299,21 @@ def _patch_asset(
         "pmtiles": "application/vnd.pmtiles",
     }
     href = f"{public_base.rstrip('/')}/{key}"
+    asset = {
+        "href": href,
+        "type": content_types[fmt],
+        "roles": ["tiles"],
+        "title": f"{fmt.upper()} archive",
+        "proj:code": 3857,
+    }
+    if file_size > 0:
+        asset["file:size"] = file_size
     patch_item_asset(
         internal_base,
         internal_token,
         item_id,
         asset_key=fmt,
-        asset={
-            "href": href,
-            "type": content_types[fmt],
-            "roles": ["tiles"],
-            "title": f"{fmt.upper()} archive",
-        },
+        asset=asset,
     )
     print(f"patched STAC item asset: {fmt}")
 
@@ -394,6 +399,7 @@ def main() -> int:
                         item_id,
                         output_key,
                         "mbtiles",
+                        mbtiles_path.stat().st_size,
                     )
             elif fmt == "pmtiles":
                 # If an mbtiles already exists in S3, skip the expensive
@@ -422,6 +428,7 @@ def main() -> int:
                         item_id,
                         output_key,
                         "pmtiles",
+                        pmtiles_path.stat().st_size,
                     )
                     _patch_asset(
                         internal_base,
@@ -430,6 +437,7 @@ def main() -> int:
                         item_id,
                         mbtiles_key,
                         "mbtiles",
+                        mbtiles_path.stat().st_size,
                     )
             else:
                 raise SystemExit(f"unknown format: {fmt}")
