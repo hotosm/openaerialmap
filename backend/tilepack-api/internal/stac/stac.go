@@ -36,10 +36,12 @@ type Item struct {
 }
 
 type ItemAsset struct {
-	Href  string   `json:"href"`
-	Type  string   `json:"type,omitempty"`
-	Roles []string `json:"roles,omitempty"`
-	Title string   `json:"title,omitempty"`
+	Href     string   `json:"href"`
+	Type     string   `json:"type,omitempty"`
+	Roles    []string `json:"roles,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	FileSize int64    `json:"file:size,omitempty"`
+	ProjCode int      `json:"proj:code,omitempty"`
 }
 
 // ErrNotFound indicates the item does not exist in the configured collection.

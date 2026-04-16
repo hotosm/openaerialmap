@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/hotosm/openaerialmap/backend/tilepack-api/internal/stac"
 )
 
 func TestCanonicalTilepackAsset(t *testing.T) {
@@ -63,6 +65,72 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 				}
 			} else if asset.FileSize != 0 {
 				t.Fatalf("FileSize = %d, want 0 when size is not positive", asset.FileSize)
+			}
+		})
+	}
+}
+
+func TestTilepackAssetMatchesCanonical(t *testing.T) {
+	canonical := canonicalTilepackAsset("pmtiles", "https://example.test/item.pmtiles", 123)
+
+	tests := []struct {
+		name     string
+		existing stac.ItemAsset
+		want     bool
+	}{
+		{
+			name: "exact match",
+			existing: stac.ItemAsset{
+				Href:     canonical.Href,
+				Type:     canonical.Type,
+				Roles:    []string{"tiles"},
+				Title:    canonical.Title,
+				FileSize: canonical.FileSize,
+				ProjCode: canonical.ProjCode,
+			},
+			want: true,
+		},
+		{
+			name: "missing file size",
+			existing: stac.ItemAsset{
+				Href:     canonical.Href,
+				Type:     canonical.Type,
+				Roles:    []string{"tiles"},
+				Title:    canonical.Title,
+				ProjCode: canonical.ProjCode,
+			},
+			want: false,
+		},
+		{
+			name: "missing proj code",
+			existing: stac.ItemAsset{
+				Href:     canonical.Href,
+				Type:     canonical.Type,
+				Roles:    []string{"tiles"},
+				Title:    canonical.Title,
+				FileSize: canonical.FileSize,
+			},
+			want: false,
+		},
+		{
+			name: "roles mismatch",
+			existing: stac.ItemAsset{
+				Href:     canonical.Href,
+				Type:     canonical.Type,
+				Roles:    []string{"data"},
+				Title:    canonical.Title,
+				FileSize: canonical.FileSize,
+				ProjCode: canonical.ProjCode,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tilepackAssetMatchesCanonical(tt.existing, canonical)
+			if got != tt.want {
+				t.Fatalf("tilepackAssetMatchesCanonical() = %v, want %v", got, tt.want)
 			}
 		})
 	}

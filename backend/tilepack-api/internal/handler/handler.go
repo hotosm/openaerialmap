@@ -179,6 +179,18 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 
 	if canonical {
 		if hasAsset && s3Exists {
+			canonicalAsset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize)
+			if existingAsset, ok := item.Assets[format]; ok && !tilepackAssetMatchesCanonical(existingAsset, canonicalAsset) {
+				log.Printf("reconcile: stac_id=%s format=%s state=stac+s3 action=patch_stac", id, format)
+				if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, canonicalAsset); err != nil {
+					log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
+					writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"})
+					return
+				}
+				log.Printf("reconcile complete: stac_id=%s format=%s action=patch_stac", id, format)
+				writeJSON(w, http.StatusOK, response{Status: "ready", URL: canonicalAsset.Href})
+				return
+			}
 			log.Printf("ready: stac_id=%s format=%s state=stac+s3", id, format)
 			writeJSON(w, http.StatusOK, response{Status: "ready", URL: assetHref})
 			return
@@ -284,6 +296,25 @@ func canonicalTilepackAsset(format, href string, fileSize int64) pgstac.Asset {
 		asset.FileSize = fileSize
 	}
 	return asset
+}
+
+func tilepackAssetMatchesCanonical(existing stac.ItemAsset, canonical pgstac.Asset) bool {
+	if existing.Href != canonical.Href ||
+		existing.Type != canonical.Type ||
+		existing.Title != canonical.Title ||
+		existing.FileSize != canonical.FileSize ||
+		existing.ProjCode != canonical.ProjCode {
+		return false
+	}
+	if len(existing.Roles) != len(canonical.Roles) {
+		return false
+	}
+	for i := range existing.Roles {
+		if existing.Roles[i] != canonical.Roles[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func parseZooms(minStr, maxStr string) (int, int, error) {
