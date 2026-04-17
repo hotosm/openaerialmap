@@ -305,6 +305,8 @@ def _patch_asset(
     item_id: str,
     key: str,
     fmt: str,
+    min_zoom: int,
+    max_zoom: int,
     file_size: int = 0,
 ) -> None:
     """Register a tilepack asset on the STAC item."""
@@ -319,6 +321,8 @@ def _patch_asset(
         "roles": ["tiles"],
         "title": f"{fmt.upper()} archive",
         "proj:code": 3857,
+        "minzoom": min_zoom,
+        "maxzoom": max_zoom,
     }
     if file_size > 0:
         asset["file:size"] = file_size
@@ -425,6 +429,8 @@ def main() -> int:
                             item_id,
                             output_key,
                             "mbtiles",
+                            min_zoom,
+                            max_zoom,
                             mbtiles_path.stat().st_size,
                         )
                     except Exception as exc:  # noqa: BLE001
@@ -462,6 +468,8 @@ def main() -> int:
                             item_id,
                             output_key,
                             "pmtiles",
+                            min_zoom,
+                            max_zoom,
                             pmtiles_path.stat().st_size,
                         )
                         _patch_asset(
@@ -471,6 +479,8 @@ def main() -> int:
                             item_id,
                             mbtiles_key,
                             "mbtiles",
+                            min_zoom,
+                            max_zoom,
                             mbtiles_path.stat().st_size,
                         )
                     except Exception as exc:  # noqa: BLE001

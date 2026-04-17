@@ -16,6 +16,7 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 		format      string
 		href        string
 		fileSize    int64
+		maxZoom     int
 		wantType    string
 		wantTitle   string
 		wantHasSize bool
@@ -25,6 +26,7 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 			format:      "mbtiles",
 			href:        "https://example.test/item.mbtiles",
 			fileSize:    12345,
+			maxZoom:     19,
 			wantType:    "application/vnd.mbtiles",
 			wantTitle:   "MBTILES archive",
 			wantHasSize: true,
@@ -34,6 +36,7 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 			format:      "pmtiles",
 			href:        "https://example.test/item.pmtiles",
 			fileSize:    0,
+			maxZoom:     18,
 			wantType:    "application/vnd.pmtiles",
 			wantTitle:   "PMTILES archive",
 			wantHasSize: false,
@@ -42,7 +45,7 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			asset := canonicalTilepackAsset(tt.format, tt.href, tt.fileSize)
+			asset := canonicalTilepackAsset(tt.format, tt.href, tt.fileSize, tt.maxZoom)
 
 			if asset.Href != tt.href {
 				t.Fatalf("Href = %q, want %q", asset.Href, tt.href)
@@ -56,8 +59,11 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 			if len(asset.Roles) != 1 || asset.Roles[0] != "tiles" {
 				t.Fatalf("Roles = %#v, want [\"tiles\"]", asset.Roles)
 			}
-			if asset.ProjCode != 3857 {
-				t.Fatalf("ProjCode = %d, want 3857", asset.ProjCode)
+			if asset.MinZoom == nil || *asset.MinZoom != 0 {
+				t.Fatalf("MinZoom = %v, want 0", asset.MinZoom)
+			}
+			if asset.MaxZoom == nil || *asset.MaxZoom != tt.maxZoom {
+				t.Fatalf("MaxZoom = %v, want %d", asset.MaxZoom, tt.maxZoom)
 			}
 			if tt.wantHasSize {
 				if asset.FileSize != tt.fileSize {
@@ -71,7 +77,7 @@ func TestCanonicalTilepackAsset(t *testing.T) {
 }
 
 func TestTilepackAssetMatchesCanonical(t *testing.T) {
-	canonical := canonicalTilepackAsset("pmtiles", "https://example.test/item.pmtiles", 123)
+	canonical := canonicalTilepackAsset("pmtiles", "https://example.test/item.pmtiles", 123, 19)
 
 	tests := []struct {
 		name     string
@@ -87,6 +93,8 @@ func TestTilepackAssetMatchesCanonical(t *testing.T) {
 				Title:    canonical.Title,
 				FileSize: canonical.FileSize,
 				ProjCode: canonical.ProjCode,
+				MinZoom:  canonical.MinZoom,
+				MaxZoom:  canonical.MaxZoom,
 			},
 			want: true,
 		},
@@ -98,17 +106,34 @@ func TestTilepackAssetMatchesCanonical(t *testing.T) {
 				Roles:    []string{"tiles"},
 				Title:    canonical.Title,
 				ProjCode: canonical.ProjCode,
+				MinZoom:  canonical.MinZoom,
+				MaxZoom:  canonical.MaxZoom,
 			},
 			want: false,
 		},
 		{
-			name: "missing proj code",
+			name: "missing min zoom",
 			existing: stac.ItemAsset{
 				Href:     canonical.Href,
 				Type:     canonical.Type,
 				Roles:    []string{"tiles"},
 				Title:    canonical.Title,
 				FileSize: canonical.FileSize,
+				ProjCode: canonical.ProjCode,
+				MaxZoom:  canonical.MaxZoom,
+			},
+			want: false,
+		},
+		{
+			name: "missing max zoom",
+			existing: stac.ItemAsset{
+				Href:     canonical.Href,
+				Type:     canonical.Type,
+				Roles:    []string{"tiles"},
+				Title:    canonical.Title,
+				FileSize: canonical.FileSize,
+				ProjCode: canonical.ProjCode,
+				MinZoom:  canonical.MinZoom,
 			},
 			want: false,
 		},
@@ -121,6 +146,8 @@ func TestTilepackAssetMatchesCanonical(t *testing.T) {
 				Title:    canonical.Title,
 				FileSize: canonical.FileSize,
 				ProjCode: canonical.ProjCode,
+				MinZoom:  canonical.MinZoom,
+				MaxZoom:  canonical.MaxZoom,
 			},
 			want: false,
 		},
@@ -137,7 +164,7 @@ func TestTilepackAssetMatchesCanonical(t *testing.T) {
 }
 
 func TestTilepackAssetMatchesCanonical_MixedDecodedNumericTypes(t *testing.T) {
-	canonical := canonicalTilepackAsset("pmtiles", "https://example.test/item.pmtiles", 4096)
+	canonical := canonicalTilepackAsset("pmtiles", "https://example.test/item.pmtiles", 4096, 19)
 
 	var existing stac.ItemAsset
 	if err := json.Unmarshal([]byte(`{
@@ -146,13 +173,40 @@ func TestTilepackAssetMatchesCanonical_MixedDecodedNumericTypes(t *testing.T) {
 		"roles":["tiles"],
 		"title":"PMTILES archive",
 		"file:size":"4096",
-		"proj:code":3857.0
+		"proj:code":3857.0,
+		"minzoom":0,
+		"maxzoom":"19"
 	}`), &existing); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 
 	if !tilepackAssetMatchesCanonical(existing, canonical) {
 		t.Fatal("tilepackAssetMatchesCanonical() = false, want true")
+	}
+}
+
+func TestDeriveAutoMaxZoom(t *testing.T) {
+	tests := []struct {
+		name string
+		gsd  float64
+		want int
+	}{
+		{name: "default for missing gsd", gsd: 0, want: 18},
+		{name: "negative gsd", gsd: -1, want: 18},
+		{name: "10cm gsd", gsd: 0.1, want: 21},
+		{name: "30cm gsd", gsd: 0.3, want: 19},
+		{name: "1m gsd", gsd: 1, want: 17},
+		{name: "very coarse clamps to 0", gsd: 1_000_000, want: 0},
+		{name: "very fine clamps to 22", gsd: 0.000001, want: 22},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := deriveAutoMaxZoom(tt.gsd)
+			if got != tt.want {
+				t.Fatalf("deriveAutoMaxZoom(%v) = %d, want %d", tt.gsd, got, tt.want)
+			}
+		})
 	}
 }
 

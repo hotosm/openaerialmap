@@ -6,6 +6,7 @@ import (
 )
 
 func TestAssetJSONIncludesExtensionFields(t *testing.T) {
+	maxZoom := 19
 	asset := Asset{
 		Href:     "https://example.test/item.pmtiles",
 		Type:     "application/vnd.pmtiles",
@@ -13,6 +14,8 @@ func TestAssetJSONIncludesExtensionFields(t *testing.T) {
 		Title:    "PMTILES archive",
 		FileSize: 987654,
 		ProjCode: 3857,
+		MinZoom:  intPtr(0),
+		MaxZoom:  &maxZoom,
 	}
 
 	b, err := json.Marshal(asset)
@@ -30,6 +33,12 @@ func TestAssetJSONIncludesExtensionFields(t *testing.T) {
 	}
 	if _, ok := got["proj:code"]; !ok {
 		t.Fatalf("JSON missing proj:code: %s", string(b))
+	}
+	if _, ok := got["minzoom"]; !ok {
+		t.Fatalf("JSON missing minzoom: %s", string(b))
+	}
+	if _, ok := got["maxzoom"]; !ok {
+		t.Fatalf("JSON missing maxzoom: %s", string(b))
 	}
 }
 
@@ -52,4 +61,12 @@ func TestAssetJSONOmitsZeroValueExtensionFields(t *testing.T) {
 	if _, ok := got["proj:code"]; ok {
 		t.Fatalf("JSON unexpectedly included proj:code: %s", string(b))
 	}
+	if _, ok := got["minzoom"]; ok {
+		t.Fatalf("JSON unexpectedly included minzoom: %s", string(b))
+	}
+	if _, ok := got["maxzoom"]; ok {
+		t.Fatalf("JSON unexpectedly included maxzoom: %s", string(b))
+	}
 }
+
+func intPtr(v int) *int { return &v }

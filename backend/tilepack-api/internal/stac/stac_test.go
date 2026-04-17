@@ -14,6 +14,8 @@ func TestItemAssetUnmarshalCoercion(t *testing.T) {
 		payload      string
 		wantFileSize int64
 		wantProjCode int
+		wantMinZoom  *int
+		wantMaxZoom  *int
 	}{
 		{
 			name:         "integers",
@@ -64,10 +66,20 @@ func TestItemAssetUnmarshalCoercion(t *testing.T) {
 			wantProjCode: 0,
 		},
 		{
-			name:         "wrong types",
-			payload:      `{"href":"https://example.test/a.pmtiles","file:size":{},"proj:code":[]}`,
+			name:         "zoom values mixed types",
+			payload:      `{"href":"https://example.test/a.pmtiles","minzoom":"0","maxzoom":19.0}`,
 			wantFileSize: 0,
 			wantProjCode: 0,
+			wantMinZoom:  intPtr(0),
+			wantMaxZoom:  intPtr(19),
+		},
+		{
+			name:         "null zoom values",
+			payload:      `{"href":"https://example.test/a.pmtiles","minzoom":null,"maxzoom":null}`,
+			wantFileSize: 0,
+			wantProjCode: 0,
+			wantMinZoom:  nil,
+			wantMaxZoom:  nil,
 		},
 	}
 
@@ -83,8 +95,23 @@ func TestItemAssetUnmarshalCoercion(t *testing.T) {
 			if a.ProjCode != tt.wantProjCode {
 				t.Fatalf("ProjCode = %d, want %d", a.ProjCode, tt.wantProjCode)
 			}
+			if !intPtrEqual(a.MinZoom, tt.wantMinZoom) {
+				t.Fatalf("MinZoom = %v, want %v", a.MinZoom, tt.wantMinZoom)
+			}
+			if !intPtrEqual(a.MaxZoom, tt.wantMaxZoom) {
+				t.Fatalf("MaxZoom = %v, want %v", a.MaxZoom, tt.wantMaxZoom)
+			}
 		})
 	}
+}
+
+func intPtr(v int) *int { return &v }
+
+func intPtrEqual(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 func TestItemAssetUnmarshalStructurallyInvalidObject(t *testing.T) {
@@ -107,7 +134,9 @@ func TestGetItem_MixedAssetValueTypes(t *testing.T) {
 					"roles":["tiles"],
 					"title":"PMTILES archive",
 					"file:size":"2048",
-					"proj:code":3857.0
+					"proj:code":3857.0,
+					"minzoom":0,
+					"maxzoom":"19"
 				}
 			}
 		}`))
@@ -123,7 +152,10 @@ func TestGetItem_MixedAssetValueTypes(t *testing.T) {
 	if asset.FileSize != 2048 {
 		t.Fatalf("FileSize = %d, want 2048", asset.FileSize)
 	}
-	if asset.ProjCode != 3857 {
-		t.Fatalf("ProjCode = %d, want 3857", asset.ProjCode)
+	if asset.MinZoom == nil || *asset.MinZoom != 0 {
+		t.Fatalf("MinZoom = %v, want 0", asset.MinZoom)
+	}
+	if asset.MaxZoom == nil || *asset.MaxZoom != 19 {
+		t.Fatalf("MaxZoom = %v, want 19", asset.MaxZoom)
 	}
 }

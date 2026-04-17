@@ -46,6 +46,8 @@ type ItemAsset struct {
 	Title    string   `json:"title,omitempty"`
 	FileSize int64    `json:"file:size,omitempty"`
 	ProjCode int      `json:"proj:code,omitempty"`
+	MinZoom  *int     `json:"minzoom,omitempty"`
+	MaxZoom  *int     `json:"maxzoom,omitempty"`
 }
 
 func (a *ItemAsset) UnmarshalJSON(data []byte) error {
@@ -56,6 +58,8 @@ func (a *ItemAsset) UnmarshalJSON(data []byte) error {
 		Title    string          `json:"title,omitempty"`
 		FileSize json.RawMessage `json:"file:size,omitempty"`
 		ProjCode json.RawMessage `json:"proj:code,omitempty"`
+		MinZoom  json.RawMessage `json:"minzoom,omitempty"`
+		MaxZoom  json.RawMessage `json:"maxzoom,omitempty"`
 	}
 
 	var raw assetJSON
@@ -69,6 +73,8 @@ func (a *ItemAsset) UnmarshalJSON(data []byte) error {
 	a.Title = raw.Title
 	a.FileSize = coerceInt64(raw.FileSize)
 	a.ProjCode = coerceInt(raw.ProjCode)
+	a.MinZoom = coerceOptionalInt(raw.MinZoom)
+	a.MaxZoom = coerceOptionalInt(raw.MaxZoom)
 	return nil
 }
 
@@ -80,6 +86,15 @@ func coerceInt(raw json.RawMessage) int {
 		return 0
 	}
 	return int(v)
+}
+
+func coerceOptionalInt(raw json.RawMessage) *int {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	v := coerceInt(raw)
+	out := v
+	return &out
 }
 
 func coerceInt64(raw json.RawMessage) int64 {

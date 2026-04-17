@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -196,6 +197,9 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gsd, _ := stac.GSD(item)
+	autoMaxZoom := deriveAutoMaxZoom(gsd)
+
 	outputKey, err := h.s3.KeyFromCOGURL(cogURL, format, minZoom, maxZoom)
 	if err != nil {
 		log.Printf("output key derivation failed: stac_id=%s format=%s err=%v", id, format, err)
@@ -214,7 +218,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 
 	if canonical {
 		if hasAsset && s3Exists {
-			canonicalAsset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize)
+			canonicalAsset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize, autoMaxZoom)
 			if existingAsset, ok := item.Assets[format]; ok && !tilepackAssetMatchesCanonical(existingAsset, canonicalAsset) {
 				log.Printf("reconcile: stac_id=%s format=%s state=stac+s3 action=patch_stac", id, format)
 				if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, canonicalAsset); err != nil {
@@ -232,7 +236,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		}
 		if !hasAsset && s3Exists {
 			log.Printf("reconcile: stac_id=%s format=%s state=s3_only action=patch_stac", id, format)
-			asset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize)
+			asset := canonicalTilepackAsset(format, h.s3.PublicURL(outputKey), outputSize, autoMaxZoom)
 			if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, format, asset); err != nil {
 				log.Printf("reconcile failed: stac_id=%s format=%s action=patch_stac err=%v", id, format, err)
 				respond(http.StatusBadGateway, response{Status: "error", Message: "could not patch stac asset"}, "reconcile_patch_failed")
@@ -285,8 +289,6 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gsd, _ := stac.GSD(item)
-
 	if err := h.s3.PutLock(ctx, lockKey); err != nil {
 		log.Printf("lock write failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
 		respond(http.StatusBadGateway, response{Status: "error", Message: "could not write lock"}, "lock_write_failed")
@@ -330,7 +332,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	respond(http.StatusAccepted, response{Status: "started"}, "started")
 }
 
-func canonicalTilepackAsset(format, href string, fileSize int64) pgstac.Asset {
+func canonicalTilepackAsset(format, href string, fileSize int64, maxZoom int) pgstac.Asset {
 	asset := pgstac.Asset{
 		Href:     href,
 		Type:     map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
@@ -338,6 +340,9 @@ func canonicalTilepackAsset(format, href string, fileSize int64) pgstac.Asset {
 		Title:    strings.ToUpper(format) + " archive",
 		ProjCode: 3857,
 	}
+	minZoom := 0
+	asset.MinZoom = &minZoom
+	asset.MaxZoom = &maxZoom
 	if fileSize > 0 {
 		asset.FileSize = fileSize
 	}
@@ -349,7 +354,9 @@ func tilepackAssetMatchesCanonical(existing stac.ItemAsset, canonical pgstac.Ass
 		existing.Type != canonical.Type ||
 		existing.Title != canonical.Title ||
 		existing.FileSize != canonical.FileSize ||
-		existing.ProjCode != canonical.ProjCode {
+		existing.ProjCode != canonical.ProjCode ||
+		!intPtrEqual(existing.MinZoom, canonical.MinZoom) ||
+		!intPtrEqual(existing.MaxZoom, canonical.MaxZoom) {
 		return false
 	}
 	if len(existing.Roles) != len(canonical.Roles) {
@@ -361,6 +368,27 @@ func tilepackAssetMatchesCanonical(existing stac.ItemAsset, canonical pgstac.Ass
 		}
 	}
 	return true
+}
+
+func intPtrEqual(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func deriveAutoMaxZoom(gsd float64) int {
+	if gsd <= 0 {
+		return 18
+	}
+	z := int(math.Round(math.Log2(156543.03 / gsd)))
+	if z < 0 {
+		return 0
+	}
+	if z > 22 {
+		return 22
+	}
+	return z
 }
 
 func parseZooms(minStr, maxStr string) (int, int, error) {

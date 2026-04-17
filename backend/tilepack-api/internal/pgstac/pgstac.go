@@ -46,6 +46,8 @@ type Asset struct {
 	Title    string   `json:"title,omitempty"`
 	FileSize int64    `json:"file:size,omitempty"`
 	ProjCode int      `json:"proj:code,omitempty"`
+	MinZoom  *int     `json:"minzoom,omitempty"`
+	MaxZoom  *int     `json:"maxzoom,omitempty"`
 }
 
 // AddAsset reads the current STAC item via pgstac.get_item, merges
