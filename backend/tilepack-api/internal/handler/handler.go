@@ -126,6 +126,26 @@ type response struct {
 	Message    string `json:"message,omitempty"`
 }
 
+// postTilepack starts or polls tilepack generation for one STAC item.
+//
+// Endpoint:
+//
+//	POST /tilepacks/{id}?format=pmtiles|mbtiles[&min_zoom=N&max_zoom=N]
+//
+// The same endpoint is used for trigger + polling. Clients should re-POST
+// the same URL until status becomes "ready".
+//
+// Zoom modes:
+//   - Canonical request: min_zoom and max_zoom omitted.
+//     Worker derives zooms from source GSD; resulting artifact is the
+//     canonical item+format variant and is represented in STAC assets.
+//   - Non-canonical request: min_zoom and max_zoom both provided.
+//     Worker generates exactly that range; artifact is served from S3 via
+//     response URL and is intentionally not written to STAC.
+//
+// Typical statuses:
+//   - 202 {"status":"started"} or {"status":"in_progress"}
+//   - 200 {"status":"ready","url":"https://..."}
 func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
 	id := r.PathValue("id")
@@ -164,6 +184,13 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		respond(http.StatusBadRequest, response{Status: "error", Message: err.Error()}, "invalid_input")
 		return
 	}
+	// "canonical" means the default tilepack variant for an item+format:
+	// the caller did not set min/max zoom, so the worker derives zooms
+	// from source GSD and this artifact is represented in STAC.
+	//
+	// Non-canonical means a caller explicitly requested min/max zoom.
+	// Those are generated and served from S3, but intentionally not
+	// written to STAC so one request cannot overwrite catalogue metadata.
 	canonical := minZoom == 0 && maxZoom == 0
 
 	// Per-IP rate limit happens before any expensive work so abusive
@@ -252,8 +279,13 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		// If STAC says asset exists but S3 object is missing, fall through
 		// and regenerate so both systems converge.
 	} else if s3Exists {
-		// Non-canonical requests are represented by the concrete S3 object,
-		// not by a STAC asset entry.
+		// Non-canonical (custom zoom) requests are not represented in
+		// STAC. The caller gets a direct S3-backed public URL instead.
+		//
+		// Why: STAC should describe the single canonical archive for an
+		// item+format. If we patched STAC for custom zoom requests, one
+		// caller could make STAC metadata (href/minzoom/maxzoom) flip to
+		// an ad-hoc variant that other users did not ask for.
 		log.Printf("ready: stac_id=%s format=%s mode=non_canonical state=s3", id, format)
 		respond(http.StatusOK, response{Status: "ready", URL: h.s3.PublicURL(outputKey)}, "ready")
 		return

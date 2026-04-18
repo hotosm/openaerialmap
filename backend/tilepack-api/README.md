@@ -36,9 +36,18 @@ GET  /healthz
 
 The only user input is a STAC item id (regex-validated, max 128 chars,
 must exist in the configured `openaerialmap` STAC collection) and the
-output format. Optional `min_zoom`/`max_zoom` let callers cap the
-output; when omitted the worker derives the max zoom from the source
-COG's native ground resolution.
+output format.
+
+Zoom behavior has two modes:
+
+- **Canonical request**: omit `min_zoom` and `max_zoom`.
+  - Worker derives zoom range from source GSD.
+  - Result is the default archive for that item+format.
+  - This variant is represented in STAC (asset key `pmtiles` / `mbtiles`).
+- **Non-canonical request**: set both `min_zoom` and `max_zoom`.
+  - Worker generates exactly that zoom range.
+  - Result is stored in S3 under a zoom-suffixed key (`_z<min>-<max>`).
+  - This variant is **not** written to STAC; caller receives direct URL in API response.
 
 | Status | Meaning                            |
 | ------ | ---------------------------------- |
@@ -49,8 +58,52 @@ COG's native ground resolution.
 | 422    | Item has no COG asset              |
 | 429    | Per-IP limit or global cap reached |
 
-The endpoint is **idempotent**: re-POSTing the same id+format returns
+The endpoint is **idempotent**: re-POSTing the same request returns
 `ready` once the artifact lands.
+
+### Response examples (polling flow)
+
+The same endpoint is used to trigger and poll job status.
+
+#### Canonical example (no zoom params)
+
+```http
+POST /tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles
+```
+
+```json
+{ "status": "started" }
+```
+
+```json
+{ "status": "in_progress" }
+```
+
+```json
+{ "status": "ready", "url": "https://.../67ac270a43f18e3e3665bef7.pmtiles" }
+```
+
+Canonical outputs are patched into STAC assets (`pmtiles` / `mbtiles`).
+
+#### Non-canonical example (custom zoom)
+
+```http
+POST /tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles&min_zoom=12&max_zoom=17
+```
+
+```json
+{ "status": "started" }
+```
+
+```json
+{
+  "status": "ready",
+  "url": "https://.../67ac270a43f18e3e3665bef7_z12-17.pmtiles"
+}
+```
+
+Non-canonical outputs are served by URL in the API response and are not
+written to STAC.
 
 ## Design Choices
 

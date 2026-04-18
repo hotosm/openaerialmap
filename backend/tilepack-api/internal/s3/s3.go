@@ -45,8 +45,11 @@ func New(ctx context.Context, bucket, publicBaseURL string) (*Client, error) {
 //
 //	oin-hotosm-temp/<metadata-id>/0/<id>.{mbtiles|pmtiles}
 //
-// For custom-zoom variants we append a suffix so they don't collide
-// with the canonical archive.
+// For non-canonical (custom-zoom) variants we append a suffix so they
+// don't collide with the canonical archive key.
+//
+// canonical:      <key>.{mbtiles|pmtiles}
+// non-canonical:  <key>_z<min>-<max>.{mbtiles|pmtiles}
 //
 // Returns an error if the COG URL doesn't reference the configured
 // bucket - we refuse to write into a bucket we weren't given.
