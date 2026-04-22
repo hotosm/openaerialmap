@@ -122,7 +122,7 @@ services:
       - DB_MIN_CONN_SIZE=1
       - DB_MAX_CONN_SIZE=1
       - USE_API_HYDRATE=${USE_API_HYDRATE:-false}
-      - ENABLE_TRANSACTIONS_EXTENSIONS=true
+      # - ENABLE_TRANSACTIONS_EXTENSIONS=false
       - UVICORN_ROOT_PATH=/stac
     volumes:
       - ./backend/stac-api/app:/app/app

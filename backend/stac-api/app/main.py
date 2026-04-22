@@ -3,6 +3,8 @@
 Enables the extensions specified as a comma-delimited list in
 the ENABLED_EXTENSIONS environment variable (e.g. `transactions,sort,query`).
 If the variable is not set, enables all extensions.
+
+NOTE the API docs can be found here: https://api.imagery.hotosm.org/stac/api.html
 """
 
 import os
@@ -94,6 +96,44 @@ enabled_extensions = {
 }
 
 application_extensions = []
+
+# NOTE
+# Transactions API extension source:
+# https://github.com/stac-utils/stac-fastapi/blob/
+# 3b342d28a1aa71cd077a90cb009d9ed0d25f93ac/stac_fastapi/extensions/stac_fastapi/extensions
+# /core/transaction/transaction.py#L159
+#
+# Transactions API endpoint source:
+# https://github.com/stac-utils/stac-fastapi/blob/
+# 3b342d28a1aa71cd077a90cb009d9ed0d25f93ac/stac_fastapi/extensions/stac_fastapi/extensions
+# /core/transaction/client.py#L16
+#
+# Here we have the option to enable the transactions API, but decided against it,
+# as this would mean we need to integrate with our unified HOT auth and complicate
+# things. It's disabled in the helm values in k8s-infra, as an env var on the
+# deployment. The transactions API simply wraps pgstac database functions anyway:
+#
+# 1. The stac-fastapi-pgstac wrapper
+# https://github.com/stac-utils/stac-fastapi-pgstac/blob/
+# 6824d49cf49d0864a37af86c4a998011a6e465f0/stac_fastapi/pgstac/transactions.py#L147
+#
+# 2. The stac-utils pgstac wrapper (calls pgstac funcs)
+# https://github.com/stac-utils/pgstac/blob/3ddcfceadafb62c4b591ba39f296d3893806e88f
+# /src/pgstac/sql/003a_items.sql#L301
+#
+# 3. The STAC entry input validation:
+# https://github.com/stac-utils/stac-pydantic/blob/
+# d5087b1650cf07ee596e82c9bec183bdf9440941/stac_pydantic/extensions.py#L26
+# (this enables the ID is valid + the extensions all have the required metadata)
+#
+# Instead, to save the hassle of adding auth and exposing these endpoints,
+# we simply use the pgstac db functions directly (same as tilepack-api).
+#
+# When doing this, we need to be very careful to validate the STAC data ourselves:
+# - Implement the same ID check: https://github.com/stac-utils/stac-fastapi-pgstac/blob/
+#   6824d49cf49d0864a37af86c4a998011a6e465f0/stac_fastapi/pgstac/transactions.py#L38
+# - Import `from stac_pydantic.extensions import validate_extensions` and run the
+#   new STAC entry JSON through it for validation.
 
 if os.environ.get("ENABLE_TRANSACTIONS_EXTENSIONS", "").lower() in ["yes", "true", "1"]:
     application_extensions.append(
