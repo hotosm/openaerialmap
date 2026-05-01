@@ -1,87 +1,40 @@
 {
   "name": "openaerialmap",
-  "description": "OpenAerialMap frontend.",
-  "version": "0.0.1",
-  "repository": {
-    "type": "git",
-    "url": ""
-  },
-  "author": {
-    "name": "Development Seed",
-    "url": "https://developmentseed.org"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com"
-  },
-  "homepage": "",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "serve": "pnpm clean && NODE_ENV=development vite",
-    "build": "pnpm clean && NODE_ENV=production tsc -b && vite build",
-    "stage": "pnpm clean && NODE_ENV=staging tsc -b && vite build",
-    "clean": "rm -rf dist node_modules/.vite",
-    "lint": "pnpm lint:scripts",
-    "lint:scripts": "eslint app/",
-    "ts-check": "npx tsc --noEmit --skipLibCheck",
-    "test": "jest"
-  },
-  "engines": {
-    "node": "22.x"
-  },
-  "browserslist": "> 0.5%, last 2 versions, not dead",
-  "devDependencies": {
-    "@eslint/js": "^9.30.1",
-    "@tanstack/eslint-plugin-query": "^5.81.2",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/babel__core": "^7.20.5",
-    "@types/d3-scale-chromatic": "^3.1.0",
-    "@types/geojson": "^7946.0.16",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^24.0.10",
-    "@types/portscanner": "^2.1.4",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.6.0",
-    "babel-jest": "^30.0.2",
-    "eslint": "^9.30.1",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-prettier": "^5.5.1",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
-    "globals": "^16.3.0",
-    "jest": "^30.0.3",
-    "jest-environment-jsdom": "^30.0.2",
-    "portscanner": "^2.2.0",
-    "prettier": "^3.6.2",
-    "ts-jest": "^29.4.0",
-    "ts-node": "^10.9.2",
-    "typescript": "~5.8.3",
-    "typescript-eslint": "^8.35.1",
-    "vite": "^7.0.0"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@awesome.me/webawesome": "3.0.0-beta.1",
-    "@hotosm/ui": "0.3.1-b1",
-    "@tanstack/react-query": "^5.81.5",
-    "d3-scale-chromatic": "^3.1.0",
-    "maplibre-gl": "^5.6.1",
-    "next-themes": "^0.4.6",
-    "pmtiles": "^4.3.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-icons": "^5.5.0",
-    "stac-ts": "^1.0.4"
+    "@awesome.me/webawesome": "3.2.1",
+    "@developmentseed/stac-map": "^2.0.0-alpha.2",
+    "pmtiles": "^4.4.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
-  "alias": {
-    "$components": "~/app/components",
-    "$styles": "~/app/styles",
-    "$utils": "~/app/utils",
-    "$hooks": "~/app/hooks",
-    "$pages": "~/app/pages",
-    "$test": "~/test"
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "rollup": "^4.60.2",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0"
   },
-  "packageManager": "pnpm@10.6.4+sha512.da3d715bfd22a9a105e6e8088cfc7826699332ded60c423b14ec613a185f1602206702ff0fe4c438cb15c979081ce4cb02568e364b15174503a63c7a8e2a5f6c"
+  "peerDependencies": {
+    "maplibre-gl": "^5.24.0"
+  }
 }
