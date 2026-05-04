@@ -1,4 +1,4 @@
-import { StacMap } from "@developmentseed/stac-map";
+import { StacMap, type StacMapProps } from "@developmentseed/stac-map";
 import { useEffect, useRef } from "react";
 import "./App.css";
 
@@ -16,6 +16,10 @@ const TABS = [
     },
   },
 ];
+
+type HotHeaderElement = HTMLElement & {
+  tabs: typeof TABS;
+};
 
 const extraLayers = [
   {
@@ -39,13 +43,13 @@ const extraLayers = [
       },
     },
   },
-];
+] satisfies NonNullable<StacMapProps["extraLayers"]>;
 
 export default function App() {
-  const headerRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HotHeaderElement>(null);
 
   useEffect(() => {
-    if (headerRef.current) (headerRef.current as any).tabs = TABS;
+    if (headerRef.current) headerRef.current.tabs = TABS;
   }, []);
 
   return (
