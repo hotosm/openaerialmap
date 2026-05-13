@@ -1,0 +1,14 @@
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.map-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  /* Constrain StacMap if it uses 100dvh internally */
+  height: calc(100dvh - var(--header-height, 56px));
+}

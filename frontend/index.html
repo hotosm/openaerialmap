@@ -1,64 +1,67 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="hot-theme-light wa-theme-default wa-palette-hotosm">
   <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
-
-    <link
-      rel="icon"
-      href="%BASE_URL%/meta/favicon.png"
-      type="image/png"
-      sizes="32x32"
-    />
-    <link rel="icon" href="%BASE_URL%/meta/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="%BASE_URL%/meta/apple-touch-icon.png" />
-
-    <meta property="og:image" content="%BASE_URL%/meta/meta-image.png" />
-    <meta name="twitter:image" content="%BASE_URL%/meta/meta-image.png" />
-    <meta property="og:url" content="%BASE_URL%/" />
-
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenAerialMap</title>
-    <meta name="title" content="OpenAerialMap" />
-    <meta
-      name="description"
-      content="An open service to provide access to a commons of openly licensed imagery and map layer services."
-    />
 
+    <!-- Header height token - read by the map container -->
     <style>
-      html * {
-        font-family:
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          'Segoe UI',
-          Roboto,
-          Oxygen,
-          Ubuntu,
-          Cantarell,
-          'Open Sans',
-          'Helvetica Neue',
-          sans-serif;
+      :root {
+        --header-height: 56px;
+      }
+      hot-header:not(:defined) {
+        visibility: hidden;
       }
     </style>
 
-    <!-- Web Awesome Styling (CDN) -->
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://early.webawesome.com/webawesome@3.0.0-beta.1/dist/styles/themes/default.css"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700&family=Barlow:wght@400;500;700&display=swap"
     />
-    <link
-      rel="stylesheet"
-      href="https://early.webawesome.com/webawesome@3.0.0-beta.1/dist/styles/webawesome.css"
-    />
-  </head>
 
+    <!-- WebAwesome (required by hot-header) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/native.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/utilities.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/themes/default.css"
+    />
+    <script type="importmap">
+      {
+        "imports": {
+          "@awesome.me/webawesome/dist/components/": "https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/components/"
+        }
+      }
+    </script>
+    <script type="module">
+      import "@awesome.me/webawesome/dist/components/button/button.js";
+      import "@awesome.me/webawesome/dist/components/badge/badge.js";
+      import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
+    </script>
+
+    <!-- HOT UI (hot-header web component) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.9.2/dist/style-core.css"
+    />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.9.2/dist/hotosm-ui.js"
+    ></script>
+  </head>
   <body>
-    <div id="app-container">
-      <!-- Content rendered here via React -->
-    </div>
-    <script src="./app/main.tsx" type="module"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
