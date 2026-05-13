@@ -14,6 +14,9 @@ importers:
       '@developmentseed/stac-map':
         specifier: ^2.0.0-alpha.2
         version: 2.0.0-alpha.2(bf64e2692a91d96baafe4f700475a78a)
+      '@hotosm/ui':
+        specifier: ^0.10.1
+        version: 0.10.1(@awesome.me/webawesome@3.2.1(@floating-ui/utils@0.2.11)(@types/react@19.2.14))
       maplibre-gl:
         specifier: ^5.24.0
         version: 5.24.0
@@ -684,6 +687,12 @@ packages:
       '@loaders.gl/schema': '*'
       '@loaders.gl/wkt': '*'
       apache-arrow: '>=15'
+
+  '@hotosm/ui@0.10.1':
+    resolution: {integrity: sha512-ygoS+Yrg5ktu0GlJfFrds8qQPgYn0F32z5jLWKVcFVN7voHUVBN2OuSO/TjEeYCKWiroJc8vJo1ciBQ3GQwwDA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@awesome.me/webawesome': 3.2.1
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -4720,6 +4729,10 @@ snapshots:
       threads: 1.7.0
     transitivePeerDependencies:
       - supports-color
+
+  '@hotosm/ui@0.10.1(@awesome.me/webawesome@3.2.1(@floating-ui/utils@0.2.11)(@types/react@19.2.14))':
+    dependencies:
+      '@awesome.me/webawesome': 3.2.1(@floating-ui/utils@0.2.11)(@types/react@19.2.14)
 
   '@humanfs/core@0.19.2':
     dependencies:
