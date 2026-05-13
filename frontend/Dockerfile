@@ -14,8 +14,9 @@ WORKDIR /app
 
 FROM base AS build
 COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && corepack install
-RUN pnpm install
+# Keep version in sync with `packageManager` field in package.json
+RUN npm install -g pnpm@10.33.2
+RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build
 
