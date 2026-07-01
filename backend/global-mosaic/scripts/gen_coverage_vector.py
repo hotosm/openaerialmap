@@ -10,6 +10,7 @@ import math
 import os
 import sys
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
@@ -44,14 +45,15 @@ ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
 # Density grid: emitted for map-display zooms 0..DENSITY_MAX_ZOOM.
 # Above this the tileserver hands off to TiTiler for real imagery tiles.
 DENSITY_MAX_ZOOM = 15
-# Bin resolution offset — cell_zoom = display_zoom + this. Bigger offset =
-# finer grid squares. Chosen so the numbered squares stay readable in a
-# 256px rendered tile (z+3 → 8 cells across the tile at low zooms).
-DENSITY_ZOOM_OFFSET = 3
+# Bin resolution offset - cell_zoom = display_zoom + this. Bigger offset =
+# finer grid squares. z+2 gives 4x4 cells across a 256px rendered tile
+# (~64px per cell), keeping 3-digit counts comfortably readable while
+# roughly halving the total density feature count vs z+3.
+DENSITY_ZOOM_OFFSET = 2
 # Cap cell_zoom so the deepest display zooms don't explode in feature count.
 # At high map zooms most images already sit in their own cell, so allowing
 # cell_zoom to keep climbing produces tens of thousands of near-unique cells
-# without visible UX benefit — a coarser grid at z14/z15 actually makes the
+# without visible UX benefit - a coarser grid at z14/z15 actually makes the
 # count numbers more readable in the rendered PNG.
 DENSITY_CELL_ZOOM_CAP = 16
 
@@ -238,8 +240,19 @@ def geojson_to_pmtiles() -> None:
     # Layer inputs use tippecanoe's `-L NAME:FILE` syntax. Per-feature
     # tippecanoe minzoom/maxzoom on density features clamps them to their
     # target display zoom; the coverage layer uses the global range.
+    #
+    # `-P` enables parallel input reading. Both inputs are newline-delimited
+    # GeoJSON (one Feature per line, trailing newline), which is what -P
+    # requires; docs warn about spurious "EOF" errors otherwise.
+    #
+    # We deliberately keep `--drop-densest-as-needed` and the default tile
+    # size limit: at z0 the coverage layer would otherwise pack all ~21k
+    # footprints into ~4 tiles, blowing past the 500K limit and inflating
+    # client load. The drop-densest handling only activates when the limit
+    # is hit, so it's essentially free when tiles fit comfortably.
     args = [
         "tippecanoe",
+        "-P",
         "-o",
         OUTPUT_PMTILES,
         f"--minimum-zoom={ZOOM_MIN}",
@@ -381,8 +394,17 @@ if __name__ == "__main__":
     log.info(f"Starting global coverage PMTiles generation (TEST_MODE={TEST_MODE})")
 
     if not Path(OUTPUT_PMTILES).exists():
-        get_features()
-        get_density_features()
+        # get_features and get_density_features are independent pgstac
+        # scans writing to separate files - safe to run concurrently. Uses
+        # threads (not processes) since both are IO-bound on the DB and
+        # spend most of their time waiting on the network / file writes.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(get_features),
+                pool.submit(get_density_features),
+            ]
+            for fut in futures:
+                fut.result()  # re-raise any exception
         geojson_to_pmtiles()
     else:
         log.info(f"{OUTPUT_PMTILES} already exists, skipping generation.")
