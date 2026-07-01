@@ -1,5 +1,8 @@
 import "@hotosm/ui/dist/style-core.css";
 import "@hotosm/ui/dist/components/header/header.js";
+import "@awesome.me/webawesome/dist/components/button/button.js";
+import "@awesome.me/webawesome/dist/components/card/card.js";
+import "@awesome.me/webawesome/dist/components/icon/icon.js";
 import maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import { StrictMode } from "react";

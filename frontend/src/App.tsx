@@ -1,18 +1,27 @@
 import { StacMap, type StacMapProps } from "@developmentseed/stac-map";
 import { useEffect, useRef } from "react";
+import Landing from "./Landing";
 import "./App.css";
 
 const TABS = [
   {
-    label: "Browse",
+    label: "Home",
+    href: "/",
     clickEvent: () => {
       window.location.href = "/";
     },
   },
   {
+    label: "Browse",
+    href: "/browse",
+    clickEvent: () => {
+      window.location.href = "/browse";
+    },
+  },
+  {
     label: "Upload",
     clickEvent: () => {
-      window.open("https://upload.imagery.hotosm.org", "_blank");
+      window.open("https://map.openaerialmap.org", "_blank");
     },
   },
 ];
@@ -21,31 +30,36 @@ type HotHeaderElement = HTMLElement & {
   tabs: typeof TABS;
 };
 
+// The density heat-grid + TiTiler handoff at z15+ is handled server-side by
+// backend/global-tms (see nginx.conf). Consuming the pre-styled raster
+// tileserver keeps the browse map visually identical to the standalone TMS,
+// and avoids having to duplicate the paint config in two places.
 const extraLayers = [
   {
     source: {
-      id: "oam-global-coverage",
-      type: "vector" as const,
-      url: "pmtiles://https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles",
+      id: "oam-global-tms",
+      type: "raster" as const,
+      tiles: ["https://global.imagery.hotosm.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: 22,
+      attribution:
+        '&copy; <a href="https://openaerialmap.org">OpenAerialMap</a> contributors',
     },
     layer: {
-      id: "oam-global-coverage",
-      type: "fill" as const,
-      source: "oam-global-coverage",
-      "source-layer": "globalcoverage",
+      id: "oam-global-tms",
+      type: "raster" as const,
+      source: "oam-global-tms",
       minzoom: 0,
-      maxzoom: 15,
-      filter: ["==", ["geometry-type"], "Polygon"],
+      maxzoom: 22,
       paint: {
-        "fill-color": "#d43f3f",
-        "fill-opacity": 0.2,
-        "fill-outline-color": "#d43f3f",
+        "raster-opacity": 0.85,
       },
     },
   },
 ] satisfies NonNullable<StacMapProps["extraLayers"]>;
 
-export default function App() {
+function Browse() {
   const headerRef = useRef<HotHeaderElement>(null);
 
   useEffect(() => {
@@ -69,4 +83,12 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+export default function App() {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  if (path === "/browse" || path.startsWith("/browse/")) {
+    return <Browse />;
+  }
+  return <Landing />;
 }

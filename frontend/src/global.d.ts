@@ -10,18 +10,50 @@ type HotHeaderAttributes = DetailedHTMLProps<
   "tabs-center-align"?: boolean | string;
 };
 
+type WaButtonAttributes = DetailedHTMLProps<
+  HTMLAttributes<HTMLElement>,
+  HTMLElement
+> & {
+  variant?: string;
+  appearance?: string;
+  size?: string;
+  href?: string;
+  disabled?: boolean;
+  class?: string;
+};
+
+type WaCardAttributes = DetailedHTMLProps<
+  HTMLAttributes<HTMLElement>,
+  HTMLElement
+> & {
+  class?: string;
+};
+
+type WaIconAttributes = DetailedHTMLProps<
+  HTMLAttributes<HTMLElement>,
+  HTMLElement
+> & {
+  name?: string;
+  variant?: string;
+  library?: string;
+  class?: string;
+};
+
+interface CustomElements {
+  "hot-header": HotHeaderAttributes;
+  "wa-button": WaButtonAttributes;
+  "wa-card": WaCardAttributes;
+  "wa-icon": WaIconAttributes;
+}
+
 declare module "react/jsx-runtime" {
   namespace JSX {
-    interface IntrinsicElements {
-      "hot-header": HotHeaderAttributes;
-    }
+    interface IntrinsicElements extends CustomElements {}
   }
 }
 
 declare module "react/jsx-dev-runtime" {
   namespace JSX {
-    interface IntrinsicElements {
-      "hot-header": HotHeaderAttributes;
-    }
+    interface IntrinsicElements extends CustomElements {}
   }
 }
