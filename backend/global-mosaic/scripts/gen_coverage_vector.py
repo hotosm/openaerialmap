@@ -45,9 +45,15 @@ ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
 # Above this the tileserver hands off to TiTiler for real imagery tiles.
 DENSITY_MAX_ZOOM = 15
 # Bin resolution offset — cell_zoom = display_zoom + this. Bigger offset =
-# finer grid squares. Chosen so that the numbered squares stay readable in
-# a 256px rendered tile (z+3 → 8 cells across the tile).
+# finer grid squares. Chosen so the numbered squares stay readable in a
+# 256px rendered tile (z+3 → 8 cells across the tile at low zooms).
 DENSITY_ZOOM_OFFSET = 3
+# Cap cell_zoom so the deepest display zooms don't explode in feature count.
+# At high map zooms most images already sit in their own cell, so allowing
+# cell_zoom to keep climbing produces tens of thousands of near-unique cells
+# without visible UX benefit — a coarser grid at z14/z15 actually makes the
+# count numbers more readable in the rendered PNG.
+DENSITY_CELL_ZOOM_CAP = 16
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
@@ -184,7 +190,7 @@ def get_density_features() -> None:
     total_cells = 0
     with open(OUTPUT_DENSITY_GEOJSON, "w") as f:
         for display_zoom in range(0, DENSITY_MAX_ZOOM + 1):
-            cell_zoom = display_zoom + DENSITY_ZOOM_OFFSET
+            cell_zoom = min(display_zoom + DENSITY_ZOOM_OFFSET, DENSITY_CELL_ZOOM_CAP)
             cells: dict[tuple[int, int], int] = {}
             for lon, lat in centroids:
                 key = (_lon2tile(lon, cell_zoom), _lat2tile(lat, cell_zoom))
