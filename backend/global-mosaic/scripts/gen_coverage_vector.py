@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
 from psycopg import connect
@@ -32,6 +33,7 @@ if not PG_DSN:
 COLLECTION = os.getenv("COLLECTION", "openaerialmap")
 OUTPUT_GEOJSON = os.getenv("OUTPUT_GEOJSON", "/app/output/global-coverage.geojson")
 OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
+OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
 ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
 
@@ -128,9 +130,71 @@ def geojson_to_pmtiles() -> None:
     log.info(f"PMTiles written to {OUTPUT_PMTILES}")
 
 
+def write_stats() -> None:
+    """
+    Query PgSTAC for catalog stats and write them to a small JSON file.
+
+    Powers the OAM landing page without needing per-pageview STAC API calls.
+    Includes sum-of-areas coverage for the primary collection (this is the
+    total imagery captured, not de-duplicated globe coverage) plus totals
+    across the whole catalog.
+    """
+    log.info("Computing catalog stats...")
+
+    collection_query = """
+        SELECT
+            COUNT(*)::bigint AS items,
+            COALESCE(SUM(ST_Area(geometry::geography)) / 1e6, 0)::double precision
+                AS area_km2,
+            MAX(COALESCE(
+                (content->>'datetime')::timestamptz,
+                (content->>'start_datetime')::timestamptz
+            )) AS latest_capture
+        FROM pgstac.items
+        WHERE collection = %s
+    """
+    catalog_query = """
+        SELECT
+            (SELECT COUNT(*)::bigint FROM pgstac.items) AS total_items,
+            (SELECT COUNT(*)::bigint FROM pgstac.collections) AS total_collections
+    """
+
+    try:
+        with connect(PG_DSN) as conn, conn.cursor() as cur:
+            cur.execute(collection_query, [COLLECTION])
+            col_items, col_area_km2, col_latest = cur.fetchone()
+
+            cur.execute(catalog_query)
+            total_items, total_collections = cur.fetchone()
+    except Exception as e:
+        log.error(f"Stats query failed: {e}")
+        raise
+
+    stats = {
+        "generated_at": datetime.now(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
+        "collection": COLLECTION,
+        "items": int(col_items),
+        "area_km2": round(col_area_km2),
+        "latest_capture": (
+            col_latest.isoformat().replace("+00:00", "Z") if col_latest else None
+        ),
+        "catalog": {
+            "total_items": int(total_items),
+            "collections": int(total_collections),
+        },
+    }
+
+    Path(OUTPUT_STATS).parent.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_STATS, "w") as f:
+        json.dump(stats, f, indent=2)
+    log.info(f"Stats written to {OUTPUT_STATS}: {stats}")
+
+
 def upload_to_s3() -> None:
     """
-    Upload the generated PMTiles to S3 (or S3-compatible) using MinIO client.
+    Upload the generated PMTiles and stats.json to S3 (or S3-compatible).
     Skips upload if required environment variables are not present.
     """
     endpoint = os.getenv("S3_ENDPOINT", "s3.amazonaws.com")
@@ -138,7 +202,6 @@ def upload_to_s3() -> None:
     access_key = os.getenv("S3_ACCESS_KEY")
     secret_key = os.getenv("S3_SECRET_KEY")
     region = os.getenv("S3_REGION", "us-east-1")
-    pmtiles_obj_key = Path(OUTPUT_PMTILES).name
 
     if not (access_key and secret_key):
         log.warning("S3 upload skipped: missing required env vars.")
@@ -160,18 +223,27 @@ def upload_to_s3() -> None:
         log.error(f"Error checking bucket: {e}")
         return
 
-    log.info(f"Uploading {OUTPUT_PMTILES} to s3://{bucket}/{pmtiles_obj_key}")
-    try:
-        client.fput_object(
-            bucket,
-            pmtiles_obj_key,
-            OUTPUT_PMTILES,
-            content_type="application/vnd.pmtiles",
-            metadata={"x-amz-acl": "public-read"},
-        )
-        log.info(f"Upload complete: s3://{bucket}/{pmtiles_obj_key}")
-    except S3Error as e:
-        log.error(f"S3 upload failed: {e}")
+    artifacts = [
+        (OUTPUT_PMTILES, "application/vnd.pmtiles"),
+        (OUTPUT_STATS, "application/json"),
+    ]
+    for path, content_type in artifacts:
+        if not Path(path).exists():
+            log.warning(f"Skipping upload of {path}: file not found")
+            continue
+        obj_key = Path(path).name
+        log.info(f"Uploading {path} to s3://{bucket}/{obj_key}")
+        try:
+            client.fput_object(
+                bucket,
+                obj_key,
+                path,
+                content_type=content_type,
+                metadata={"x-amz-acl": "public-read"},
+            )
+            log.info(f"Upload complete: s3://{bucket}/{obj_key}")
+        except S3Error as e:
+            log.error(f"S3 upload failed for {path}: {e}")
 
 
 if __name__ == "__main__":
@@ -183,4 +255,5 @@ if __name__ == "__main__":
     else:
         log.info(f"{OUTPUT_PMTILES} already exists, skipping generation.")
 
+    write_stats()
     upload_to_s3()
