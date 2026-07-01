@@ -6,6 +6,7 @@ from pgSTAC catalogue.
 
 import json
 import logging
+import math
 import os
 import sys
 import subprocess
@@ -32,10 +33,21 @@ if not PG_DSN:
 
 COLLECTION = os.getenv("COLLECTION", "openaerialmap")
 OUTPUT_GEOJSON = os.getenv("OUTPUT_GEOJSON", "/app/output/global-coverage.geojson")
+OUTPUT_DENSITY_GEOJSON = os.getenv(
+    "OUTPUT_DENSITY_GEOJSON", "/app/output/global-density.geojson"
+)
 OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
 OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
 ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
+
+# Density grid: emitted for map-display zooms 0..DENSITY_MAX_ZOOM.
+# Above this the tileserver hands off to TiTiler for real imagery tiles.
+DENSITY_MAX_ZOOM = 15
+# Bin resolution offset — cell_zoom = display_zoom + this. Bigger offset =
+# finer grid squares. Chosen so that the numbered squares stay readable in
+# a 256px rendered tile (z+3 → 8 cells across the tile).
+DENSITY_ZOOM_OFFSET = 3
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
@@ -106,24 +118,137 @@ def get_features() -> None:
     log.info(f"Wrote {row_count} features to {OUTPUT_GEOJSON}")
 
 
+# --- Web Mercator tile math (matches oam-vibe client-side helpers) ---
+def _lon2tile(lon: float, zoom: int) -> int:
+    return int(math.floor((lon + 180.0) / 360.0 * (1 << zoom)))
+
+
+def _lat2tile(lat: float, zoom: int) -> int:
+    rad = math.radians(lat)
+    return int(
+        math.floor(
+            (1.0 - math.log(math.tan(rad) + 1.0 / math.cos(rad)) / math.pi)
+            / 2.0
+            * (1 << zoom)
+        )
+    )
+
+
+def _tile2lon(x: int, zoom: int) -> float:
+    return x / (1 << zoom) * 360.0 - 180.0
+
+
+def _tile2lat(y: int, zoom: int) -> float:
+    n = math.pi - 2.0 * math.pi * y / (1 << zoom)
+    return math.degrees(math.atan(math.sinh(n)))
+
+
+def get_density_features() -> None:
+    """
+    Query PgSTAC for OAM image centroids and pre-bin them into
+    Web-Mercator tile-cell grids at multiple zoom levels. Each grid cell
+    carries a `count` property (number of image centroids inside it) and
+    is tagged with tippecanoe `minzoom`/`maxzoom` so it only appears at
+    its target display zoom.
+
+    Produces a newline-delimited GeoJSON that tippecanoe will pack into
+    the `density` layer of the coverage PMTiles.
+    """
+    centroid_query = """
+        SELECT ST_X(ST_Centroid(geometry)) AS lon,
+               ST_Y(ST_Centroid(geometry)) AS lat
+        FROM pgstac.items
+        WHERE collection = %s
+          AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
+    """
+    params = [COLLECTION] + list(BBOX)
+
+    log.info(f"Fetching OAM centroids for density grid (bbox={BBOX})...")
+    centroids: list[tuple[float, float]] = []
+    try:
+        with connect(PG_DSN) as conn, conn.cursor() as cur:
+            cur.execute(centroid_query, params)
+            for lon, lat in cur:
+                if lon is None or lat is None:
+                    continue
+                # Clamp latitude to Web Mercator's valid range
+                if lat > 85.05112878 or lat < -85.05112878:
+                    continue
+                centroids.append((float(lon), float(lat)))
+    except Exception as e:
+        log.error(f"Density centroid query failed: {e}")
+        raise
+
+    log.info(f"Binning {len(centroids)} centroids into per-zoom grids...")
+    Path(OUTPUT_DENSITY_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
+    total_cells = 0
+    with open(OUTPUT_DENSITY_GEOJSON, "w") as f:
+        for display_zoom in range(0, DENSITY_MAX_ZOOM + 1):
+            cell_zoom = display_zoom + DENSITY_ZOOM_OFFSET
+            cells: dict[tuple[int, int], int] = {}
+            for lon, lat in centroids:
+                key = (_lon2tile(lon, cell_zoom), _lat2tile(lat, cell_zoom))
+                cells[key] = cells.get(key, 0) + 1
+
+            for (x, y), count in cells.items():
+                w = _tile2lon(x, cell_zoom)
+                e = _tile2lon(x + 1, cell_zoom)
+                n = _tile2lat(y, cell_zoom)
+                s = _tile2lat(y + 1, cell_zoom)
+                feature = {
+                    "type": "Feature",
+                    "properties": {
+                        "count": count,
+                        # Per-feature tippecanoe zoom control: this cell
+                        # only exists at its display zoom.
+                        "tippecanoe": {
+                            "minzoom": display_zoom,
+                            "maxzoom": display_zoom,
+                        },
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[w, n], [e, n], [e, s], [w, s], [w, n]]],
+                    },
+                }
+                f.write(json.dumps(feature))
+                f.write("\n")
+                total_cells += 1
+
+    log.info(
+        f"Wrote {total_cells} density cells across zooms "
+        f"0..{DENSITY_MAX_ZOOM} to {OUTPUT_DENSITY_GEOJSON}"
+    )
+
+
 def geojson_to_pmtiles() -> None:
     """
-    Use Tippecanoe to generate PMTiles from GeoJSON.
+    Use Tippecanoe to generate PMTiles with two named layers:
+      - `globalcoverage`: per-image polygon footprints (all zooms)
+      - `density`: pre-binned heat-grid cells with counts (zooms 0..14)
     """
-    log.info("Generating vector tiles with tippecanoe...")
+    log.info("Generating vector tiles with tippecanoe (multi-layer)...")
+
+    # Layer inputs use tippecanoe's `-L NAME:FILE` syntax. Per-feature
+    # tippecanoe minzoom/maxzoom on density features clamps them to their
+    # target display zoom; the coverage layer uses the global range.
+    args = [
+        "tippecanoe",
+        "-o",
+        OUTPUT_PMTILES,
+        f"--minimum-zoom={ZOOM_MIN}",
+        f"--maximum-zoom={ZOOM_MAX}",
+        "--drop-densest-as-needed",
+        "-L",
+        f"globalcoverage:{OUTPUT_GEOJSON}",
+    ]
+    if Path(OUTPUT_DENSITY_GEOJSON).exists():
+        args += ["-L", f"density:{OUTPUT_DENSITY_GEOJSON}"]
+    else:
+        log.warning(f"{OUTPUT_DENSITY_GEOJSON} not found; skipping density layer")
+
     try:
-        subprocess.run(
-            [
-                "tippecanoe",
-                "-o",
-                OUTPUT_PMTILES,
-                f"--minimum-zoom={ZOOM_MIN}",
-                f"--maximum-zoom={ZOOM_MAX}",
-                "--drop-densest-as-needed",
-                OUTPUT_GEOJSON,
-            ],
-            check=True,
-        )
+        subprocess.run(args, check=True)
     except subprocess.CalledProcessError as e:
         log.error(f"Tippecanoe failed with exit code {e.returncode}")
         raise
@@ -132,16 +257,16 @@ def geojson_to_pmtiles() -> None:
 
 def write_stats() -> None:
     """
-    Query PgSTAC for catalog stats and write them to a small JSON file.
+    Query PgSTAC and write catalog stats to a small JSON file. Powers
+    the OAM landing page without needing per-pageview STAC API calls.
 
-    Powers the OAM landing page without needing per-pageview STAC API calls.
-    Includes sum-of-areas coverage for the primary collection (this is the
-    total imagery captured, not de-duplicated globe coverage) plus totals
-    across the whole catalog.
+    Reports items and sum-of-areas coverage for the OAM collection (the
+    total imagery captured, not de-duplicated globe coverage), alongside
+    the total number of collections in the wider catalog.
     """
     log.info("Computing catalog stats...")
 
-    collection_query = """
+    oam_query = """
         SELECT
             COUNT(*)::bigint AS items,
             COALESCE(SUM(ST_Area(geometry::geography)) / 1e6, 0)::double precision
@@ -156,13 +281,13 @@ def write_stats() -> None:
     catalog_query = """
         SELECT
             (SELECT COUNT(*)::bigint FROM pgstac.items) AS total_items,
-            (SELECT COUNT(*)::bigint FROM pgstac.collections) AS total_collections
+            (SELECT COUNT(*)::bigint FROM pgstac.collections) AS collections
     """
 
     try:
         with connect(PG_DSN) as conn, conn.cursor() as cur:
-            cur.execute(collection_query, [COLLECTION])
-            col_items, col_area_km2, col_latest = cur.fetchone()
+            cur.execute(oam_query, [COLLECTION])
+            items, area_km2, latest = cur.fetchone()
 
             cur.execute(catalog_query)
             total_items, total_collections = cur.fetchone()
@@ -175,10 +300,10 @@ def write_stats() -> None:
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
         "collection": COLLECTION,
-        "items": int(col_items),
-        "area_km2": round(col_area_km2),
+        "items": int(items),
+        "area_km2": round(area_km2),
         "latest_capture": (
-            col_latest.isoformat().replace("+00:00", "Z") if col_latest else None
+            latest.isoformat().replace("+00:00", "Z") if latest else None
         ),
         "catalog": {
             "total_items": int(total_items),
@@ -251,6 +376,7 @@ if __name__ == "__main__":
 
     if not Path(OUTPUT_PMTILES).exists():
         get_features()
+        get_density_features()
         geojson_to_pmtiles()
     else:
         log.info(f"{OUTPUT_PMTILES} already exists, skipping generation.")
