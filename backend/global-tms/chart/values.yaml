@@ -7,58 +7,33 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# The vector PMTiles chiitiler renders. Referenced by the style JSON in the
-# configmap; chiitiler reads it via HTTP range requests, no local disk needed.
-# maxzoom MUST match the tippecanoe --maximum-zoom used by
-# backend/global-mosaic/scripts/gen_coverage_vector.py (ZOOM_MAX). MapLibre
-# overzooms above this to satisfy the layer maxzoom (16).
+# PMTiles rendered by chiitiler. maxzoom must match the mosaic generator.
 pmtiles:
   url: "https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles"
-  maxzoom: 15
+  maxzoom: 13
 
-# Glyphs URL for the density-count symbol layer. The default points at a
-# public MapLibre-served font endpoint (no SLA, no rate-limit guarantee).
-# TODO: self-host fonts alongside the pmtiles - see NOTES.txt.
+# Font PBFs for density labels. Self-host later if demotiles uptime matters.
 glyphs:
   url: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf"
-  # Font stack referenced by symbol layers. Must be available under the URL
-  # above. demotiles.maplibre.org currently serves only "Noto Sans Regular"
-  # and "Noto Sans Bold" - other fontstacks (Open Sans, Roboto, Metropolis)
-  # 404. Verify with:
-  #   curl -sI "https://demotiles.maplibre.org/font/<stack>/0-255.pbf"
+  # Must exist under glyphs.url; demotiles currently serves Noto Sans.
   fontstack: "Noto Sans Bold"
 
-# chiitiler's source-asset cache (pmtiles ranges, glyphs, sprites).
-# emptyDir keeps things simple - cleared on pod restart, warms back up
-# alongside the nginx rendered-tile cache.
-#
-# TTL is 1h intentionally, NOT 24h. Cache invalidation reality:
-# - Nginx PNG cache and chiitiler file cache are TTL-bounded, so they self-
-#   expire within 1h of a pmtiles refresh.
-# - chiitiler holds an in-memory PMTiles directory index that only clears on
-#   PROCESS RESTART. If S3 content changes under the same key, the cached
-#   offsets no longer match the file and byte-range reads return garbage.
-#
-# Therefore a daily pod restart is REQUIRED for correctness (see NOTES.txt).
-# The 1h TTL just narrows the window where non-restart-triggered content
-# updates would serve stale output.
+# Source-asset cache (PMTiles ranges, glyphs, sprites). New mosaics may take
+# up to this TTL to show when the S3 key is overwritten.
 chiitilerCache:
   method: file
   dir: /cache/chiitiler
   ttlSeconds: 3600
   sizeLimit: 500Mi
 
-# nginx caches the final rendered PNGs. Biggest perf lever after chiitiler
-# renders each tile once. 1h TTL bounds staleness between the mosaic upload
-# and the daily rollout restart (see NOTES.txt).
+# Rendered PNG cache; TTL bounds stale coverage after mosaic upload.
 nginxCache:
   sizeLimit: 1Gi
   keyZoneSize: 10m
   maxSize: 1g
   validSeconds: 3600
 
-# The Service in service.yaml is hardcoded to nginx port 80.
-# `type` is the only knob that flows through from here.
+# service.yaml always targets nginx on port 80.
 service:
   type: ClusterIP
 

@@ -51,15 +51,18 @@ data:
           "type": "symbol",
           "minzoom": 2,
           "maxzoom": 10,
-          "filter": [">", ["get", "count"], 0],
+          "filter": ["all",
+            [">", ["get", "count"], 0],
+            ["==", ["geometry-type"], "Point"]
+          ],
           "layout": {
             "text-field": ["to-string", ["get", "count"]],
             "text-font": [{{ .Values.glyphs.fontstack | quote }}],
             "text-size": [
               "interpolate", ["linear"], ["zoom"],
-              2, 13,
-              5, 15,
-              9, 17
+              2, 15,
+              5, 18,
+              9, 22
             ],
             "text-allow-overlap": false
           },
@@ -75,7 +78,7 @@ data:
           "source-layer": "globalcoverage",
           "type": "fill",
           "minzoom": 10,
-          "maxzoom": 16,
+          "maxzoom": 14,
           "paint": {
             "fill-color": "#00E5FF",
             "fill-opacity": 0.15,
@@ -112,8 +115,8 @@ data:
             alias /styles/style.json;
         }
 
-        # Zoom 0-15 → chiitiler (cached rendered PNGs)
-        location ~ ^/([0-9]|1[0-5])/([0-9]+)/([0-9]+)\.png$ {
+        # z0-13 coverage via chiitiler; z14+ redirects below.
+        location ~ ^/([0-9]|1[0-3])/([0-9]+)/([0-9]+)\.png$ {
             set $zoom_level $1;
             set $x $2;
             set $y $3;
@@ -152,8 +155,8 @@ data:
             proxy_read_timeout 15s;
         }
 
-        # Zoom >=16 → redirect to TiTiler (eoAPI). The 302 needs CORS too.
-        location ~ ^/(1[6-9]|[2-9][0-9])/([0-9]+)/([0-9]+)\.png$ {
+        # z14+ real imagery via TiTiler. The 302 needs CORS too.
+        location ~ ^/(1[4-9]|[2-9][0-9])/([0-9]+)/([0-9]+)\.png$ {
             set $zoom_level $1;
             set $x $2;
             set $y $3;

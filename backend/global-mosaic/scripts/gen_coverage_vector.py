@@ -40,9 +40,8 @@ OUTPUT_DENSITY_GEOJSON = os.getenv(
 OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
 OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
-# Footprint tiles cover the full TMS range so nothing has to be overzoomed
-# before TiTiler takes over at z16+ (see global-tms nginx config).
-ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
+# Footprints cover z0-13; z14+ goes straight to TiTiler.
+ZOOM_MAX = int(os.getenv("ZOOM_MAX", "13"))
 
 # Density counts run through z9; footprint coverage takes over above that.
 DENSITY_MAX_ZOOM = 9
@@ -197,24 +196,37 @@ def get_density_features() -> None:
                 e = _tile2lon(x + 1, cell_zoom)
                 n = _tile2lat(y, cell_zoom)
                 s = _tile2lat(y + 1, cell_zoom)
-                feature = {
+                clamp = {"minzoom": display_zoom, "maxzoom": display_zoom}
+
+                # Polygon drives density-fill. Labels use the point below so
+                # tile clipping does not move anchors onto cell edges.
+                polygon_feature = {
                     "type": "Feature",
                     # Tippecanoe only reads zoom clamps at feature top level.
-                    "tippecanoe": {
-                        "minzoom": display_zoom,
-                        "maxzoom": display_zoom,
-                    },
-                    "properties": {
-                        "count": count,
-                    },
+                    "tippecanoe": clamp,
+                    "properties": {"count": count},
                     "geometry": {
                         "type": "Polygon",
                         "coordinates": [[[w, n], [e, n], [e, s], [w, s], [w, n]]],
                     },
                 }
-                f.write(json.dumps(feature))
+                f.write(json.dumps(polygon_feature))
                 f.write("\n")
-                total_cells += 1
+
+                # Point drives density-count labels; style filters to Point
+                # to avoid duplicate labels from the polygon.
+                cx = (w + e) / 2
+                cy = (n + s) / 2
+                point_feature = {
+                    "type": "Feature",
+                    "tippecanoe": clamp,
+                    "properties": {"count": count},
+                    "geometry": {"type": "Point", "coordinates": [cx, cy]},
+                }
+                f.write(json.dumps(point_feature))
+                f.write("\n")
+
+                total_cells += 2
 
     log.info(
         f"Wrote {total_cells} density cells across zooms "
