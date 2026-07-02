@@ -40,7 +40,11 @@ OUTPUT_DENSITY_GEOJSON = os.getenv(
 OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
 OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
-ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
+# Base tippecanoe zoom for the coverage layer. Client-side (MapLibre) and
+# tileserver-gl overzoom these tiles up to the style's display maxzoom, so
+# capping physical tiles low saves the bulk of tippecanoe wall time
+# (~4x work per zoom step above 11).
+ZOOM_MAX = int(os.getenv("ZOOM_MAX", "11"))
 
 # Density grid: emitted for map-display zooms 0..DENSITY_MAX_ZOOM.
 # Above this, the coverage-fill layer takes over (see tileserver.style.config)
