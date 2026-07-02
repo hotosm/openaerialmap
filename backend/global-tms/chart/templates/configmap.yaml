@@ -35,13 +35,13 @@ data:
               "interpolate",
               ["linear"],
               ["get", "count"],
-              1, "#cceeff",
-              5, "#66b3ff",
-              20, "#0066cc",
-              50, "#003366"
+              1, "#a8d8ff",
+              10, "#66b3ff",
+              50, "#0066cc",
+              200, "#003366"
             ],
-            "fill-opacity": 0.7,
-            "fill-outline-color": "rgba(255,255,255,0.6)"
+            "fill-opacity": 0.65,
+            "fill-outline-color": "rgba(255,255,255,0.35)"
           }
         },
         {
@@ -55,13 +55,18 @@ data:
           "layout": {
             "text-field": ["to-string", ["get", "count"]],
             "text-font": [{{ .Values.glyphs.fontstack | quote }}],
-            "text-size": 12,
+            "text-size": [
+              "interpolate", ["linear"], ["zoom"],
+              2, 13,
+              5, 15,
+              9, 17
+            ],
             "text-allow-overlap": false
           },
           "paint": {
             "text-color": "#0b2545",
             "text-halo-color": "#ffffff",
-            "text-halo-width": 1.5
+            "text-halo-width": 2
           }
         },
         {
@@ -88,9 +93,7 @@ metadata:
     {{- include "chart.labels" . | nindent 4 }}
 data:
   nginx.conf: |
-      # Rendered-tile cache. Sized generously so z0-10 (small, always-hit)
-      # never gets evicted by z11-15 churn. inactive covers the case where a
-      # tile is unused for a while but still valid - LRU-ish.
+      # Cache rendered PNGs; low-zoom tiles should stay hot.
       proxy_cache_path /var/cache/nginx/tms
                        levels=1:2
                        keys_zone=tms_cache:{{ .Values.nginxCache.keyZoneSize }}
@@ -103,9 +106,7 @@ data:
         listen [::]:80;
         server_name _;
 
-        # Serve the MapLibre style JSON to chiitiler over loopback.
-        # chiitiler requires a URL for --style; file:// would also work but
-        # HTTP over localhost is what the docs assume and matches upstream examples.
+        # Local style URL passed to chiitiler on each tile request.
         location = /style.json {
             default_type application/json;
             alias /styles/style.json;
@@ -125,10 +126,7 @@ data:
             proxy_cache_lock_timeout 30s;
             add_header X-Cache-Status $upstream_cache_status;
 
-            # CORS - MapLibre uses crossOrigin=anonymous for raster tiles by
-            # default; without ACAO the browser fetches the tile but silently
-            # discards it (network 200, nothing rendered). Wildcard is fine
-            # here: the pmtiles is public, no auth, no cookies.
+            # MapLibre requests raster tiles with crossOrigin=anonymous.
             add_header Access-Control-Allow-Origin "*" always;
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
@@ -142,8 +140,7 @@ data:
                 return 204;
             }
 
-            # chiitiler accepts ?url=<style-url> per request.
-            # http%3A%2F%2F127.0.0.1%2Fstyle.json = http://127.0.0.1/style.json
+            # url=http%3A%2F%2F127.0.0.1%2Fstyle.json
             proxy_pass http://127.0.0.1:3000/tiles/$zoom_level/$x/$y.png?url=http%3A%2F%2F127.0.0.1%2Fstyle.json;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -155,11 +152,23 @@ data:
             proxy_read_timeout 15s;
         }
 
-        # Zoom >=16 → redirect to TiTiler (eoAPI) for real imagery
+        # Zoom >=16 → redirect to TiTiler (eoAPI). The 302 needs CORS too.
         location ~ ^/(1[6-9]|[2-9][0-9])/([0-9]+)/([0-9]+)\.png$ {
             set $zoom_level $1;
             set $x $2;
             set $y $3;
+
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Range" always;
+
+            if ($request_method = OPTIONS) {
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "Range" always;
+                add_header Access-Control-Max-Age 86400 always;
+                return 204;
+            }
 
             return 302 https://api.imagery.hotosm.org/raster/collections/openaerialmap/tiles/WebMercatorQuad/$zoom_level/$x/$y.png?assets=visual;
         }

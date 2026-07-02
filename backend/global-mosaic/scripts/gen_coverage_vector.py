@@ -40,8 +40,9 @@ OUTPUT_DENSITY_GEOJSON = os.getenv(
 OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
 OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
-# Footprint tiles stop at z13; renderers overzoom the last two display zooms.
-ZOOM_MAX = int(os.getenv("ZOOM_MAX", "13"))
+# Footprint tiles cover the full TMS range so nothing has to be overzoomed
+# before TiTiler takes over at z16+ (see global-tms nginx config).
+ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
 
 # Density counts run through z9; footprint coverage takes over above that.
 DENSITY_MAX_ZOOM = 9

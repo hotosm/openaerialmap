@@ -14,7 +14,7 @@ fullnameOverride: ""
 # overzooms above this to satisfy the layer maxzoom (16).
 pmtiles:
   url: "https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles"
-  maxzoom: 11
+  maxzoom: 15
 
 # Glyphs URL for the density-count symbol layer. The default points at a
 # public MapLibre-served font endpoint (no SLA, no rate-limit guarantee).
