@@ -29,7 +29,7 @@ data:
           "source-layer": "density",
           "type": "fill",
           "minzoom": 0,
-          "maxzoom": 10,
+          "maxzoom": 14,
           "paint": {
             "fill-color": [
               "interpolate",
@@ -50,7 +50,7 @@ data:
           "source-layer": "density",
           "type": "symbol",
           "minzoom": 2,
-          "maxzoom": 10,
+          "maxzoom": 14,
           "filter": ["all",
             [">", ["get", "count"], 0],
             ["==", ["geometry-type"], "Point"]
@@ -60,9 +60,10 @@ data:
             "text-font": [{{ .Values.glyphs.fontstack | quote }}],
             "text-size": [
               "interpolate", ["linear"], ["zoom"],
-              2, 15,
-              5, 18,
-              9, 22
+              2, 20,
+              5, 22,
+              9, 24,
+              13, 24
             ],
             "text-allow-overlap": false
           },
@@ -70,19 +71,6 @@ data:
             "text-color": "#0b2545",
             "text-halo-color": "#ffffff",
             "text-halo-width": 2
-          }
-        },
-        {
-          "id": "coverage-fill",
-          "source": "global-coverage",
-          "source-layer": "globalcoverage",
-          "type": "fill",
-          "minzoom": 10,
-          "maxzoom": 14,
-          "paint": {
-            "fill-color": "#00E5FF",
-            "fill-opacity": 0.15,
-            "fill-outline-color": "#00B0FF"
           }
         }
       ]

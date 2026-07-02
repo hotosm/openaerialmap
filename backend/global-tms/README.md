@@ -1,11 +1,12 @@
 # Global TMS Service
 
-- For clients that can use the PMTiles global coverage generated from
+- For clients that can use the PMTiles global density grid generated from
   the `global-mosaic` directory, this is the most efficient.
 - For clients that can't, e.g. QGIS etc, we run a raster TMS that:
-  - z0-13: renders vector tiles from the PMTiles to raster PNGs (with
-    density + coverage styling) via [chiitiler](https://github.com/kanahiro/chiitiler),
-    fronted by nginx for CORS and PNG caching.
+  - z0-13: renders the density grid (styled squares with per-cell image
+    counts) from PMTiles to raster PNGs via
+    [chiitiler](https://github.com/kanahiro/chiitiler), fronted by nginx
+    for CORS and PNG caching.
   - z14+: 302-redirects to TiTiler for real imagery.
   - Also offers a Martin tile server as a raw vector-tile XYZ/TMS
     endpoint (e.g. for QGIS).

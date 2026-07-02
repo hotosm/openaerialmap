@@ -50,7 +50,7 @@ const COMPONENTS = [
     title: "Global TMS",
     tag: "Basemap",
     description:
-      "A single global tile service: a density heat-grid at low zooms and image footprints at mid zooms show where imagery is available, then real OAM imagery from zoom 14+. Drop into QGIS, Leaflet, or MapLibre.",
+      "A single global tile service: a density heat-grid at zooms 0–13 shows where imagery is available, then real OAM imagery from zoom 14+. Drop into QGIS, Leaflet, or MapLibre.",
     href: "https://global.imagery.hotosm.org/",
     icon: "layer-group",
   },
@@ -128,8 +128,8 @@ const RESOURCES = [
 ];
 
 // Snapshot values used for first paint. Refined by a single fetch of
-// stats.json (published daily by the global-mosaic cron alongside the
-// coverage PMTiles). See backend/global-mosaic/scripts/gen_coverage_vector.py.
+// stats.json (published every 12h by the global-mosaic cron alongside
+// the density PMTiles). See backend/global-mosaic/scripts/gen_density_vector.py.
 const STATIC_STATS = {
   items: 21000,
   areaKm2: 800000,

@@ -1,6 +1,6 @@
 # OpenAerialMap Global Mosaic
 
-On a 24hr schedule:
+On a 12hr schedule:
 
 - Generates global mosaic in PMTiles format, serving via S3.
 - Also server TMS via a lightweight Martin server, for clients that
@@ -19,32 +19,15 @@ uv sync --all-groups
 
 ## Note On Various Scripts
 
-The following `scripts` share a lot of code, and were developed iteratively:
+The `scripts/` directory has five generators developed iteratively. Only
+`gen_density_vector.py` is currently in use - see
+[`scripts/README.md`](scripts/README.md) for the full iteration history
+(what each attempt did and why it was retired).
 
-- Attempt 1: `gen_mosaic_manual.py` - manually generate mosaics from COGs.
-- Attempt 2: `gen_mosaic_hybrid.py` - hybrid coverage for zooms 0-10 + mosaic
-  for zooms 11-14 (from TiTiler instance). This is similar to the approach from
-  the original <https://github.com/konturio/oam-mosaic-map>, but uses our eoAPI
-  pgstac and TiTiler instead.
-- Attempt 3: `gen_coverage_raster.py` - simple grey coverage pixels indicating
-  where we have imagery.
-- Attempt 4: `gen_coverage_vector.py` - just use Tippecanoe for vector tiles 🤦‍♂️
-  All the approaches above need significant memory optimisation to run on
-  limited system resources / will require a bit more work. This approach
-  is much more efficient and simple.
-
-> [!NOTE]
-> For coverage tiles there are two approaches:
->
-> 1. Colour all pixels in the tile grey, meaning we massively reduce the
->    PMTiles size, due to internal tile deduplication.
-> 2. Partially colour pixels where appropriate, giving a more accurate
->    representation of coverage (more space, but looks nicer).
->    The gen_mosaic_raster.py script currently does approach 2.
-
-As of 2025-08-12 we are using `gen_coverage_vector.py` as the
-simplest approach, and is well optimised C++ code
-(low memory footprint). **It generates tiles for zooms 0-15**.
+The Dockerfile bundles and runs `gen_density_vector.py`. It emits a
+single `density` layer of grid squares with per-cell image counts at
+zooms 0-13. Above z13 the global-tms hands off to TiTiler for real
+imagery (see `backend/global-tms`).
 
 ## Note On S3 Permissions
 
