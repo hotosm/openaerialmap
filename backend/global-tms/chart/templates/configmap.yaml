@@ -125,6 +125,23 @@ data:
             proxy_cache_lock_timeout 30s;
             add_header X-Cache-Status $upstream_cache_status;
 
+            # CORS - MapLibre uses crossOrigin=anonymous for raster tiles by
+            # default; without ACAO the browser fetches the tile but silently
+            # discards it (network 200, nothing rendered). Wildcard is fine
+            # here: the pmtiles is public, no auth, no cookies.
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Range" always;
+            add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
+
+            if ($request_method = OPTIONS) {
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "Range" always;
+                add_header Access-Control-Max-Age 86400 always;
+                return 204;
+            }
+
             # chiitiler accepts ?url=<style-url> per request.
             # http%3A%2F%2F127.0.0.1%2Fstyle.json = http://127.0.0.1/style.json
             proxy_pass http://127.0.0.1:3000/tiles/$zoom_level/$x/$y.png?url=http%3A%2F%2F127.0.0.1%2Fstyle.json;

@@ -22,8 +22,11 @@ pmtiles:
 glyphs:
   url: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf"
   # Font stack referenced by symbol layers. Must be available under the URL
-  # above. demotiles.maplibre.org serves "Open Sans Bold" and a few others.
-  fontstack: "Open Sans Bold"
+  # above. demotiles.maplibre.org currently serves only "Noto Sans Regular"
+  # and "Noto Sans Bold" - other fontstacks (Open Sans, Roboto, Metropolis)
+  # 404. Verify with:
+  #   curl -sI "https://demotiles.maplibre.org/font/<stack>/0-255.pbf"
+  fontstack: "Noto Sans Bold"
 
 # chiitiler's source-asset cache (pmtiles ranges, glyphs, sprites).
 # emptyDir keeps things simple - cleared on pod restart, warms back up
