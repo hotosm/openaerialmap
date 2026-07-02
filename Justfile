@@ -183,7 +183,7 @@ deploy-frontend:
         --output text)
 
       echo \"Found cloudfront distribution \$cf_dist_id\"
-      aws cloudfront create-invalidation --distribution-id \$cf_dist_id --paths \"/${GIT_BRANCH}/*\"
+      aws cloudfront create-invalidation --distribution-id \$cf_dist_id --paths '/*'
     "
   echo "Cloudfront config done."
 
