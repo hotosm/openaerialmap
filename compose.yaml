@@ -2,6 +2,8 @@ volumes:
   pgstac_data:
   rustfs_data:
   pmtiles:
+  chiitiler_cache:
+  tms_nginx_cache:
 
 services:
   # ── Core infrastructure ───────────────────────────────────────────
@@ -242,21 +244,20 @@ services:
       get-tiles:
         condition: service_completed_successfully
 
-  tileserver:
+  chiitiler:
     extends:
       file: backend/global-tms/compose.yaml
-      service: tileserver
+      service: chiitiler
     profiles: [tms]
-    ports: !override []
 
   tms-nginx:
     extends:
       file: backend/global-tms/compose.yaml
-      service: nginx
+      service: tms-nginx
     profiles: [tms]
     ports: !override []
     depends_on:
       martin:
         condition: service_healthy
-      tileserver:
-        condition: service_healthy
+      get-tiles:
+        condition: service_completed_successfully

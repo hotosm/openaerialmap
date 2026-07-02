@@ -1,5 +1,7 @@
 volumes:
   pmtiles:
+  chiitiler_cache:
+  tms_nginx_cache:
 
 services:
   # Get the latest global coverage tiles
@@ -17,18 +19,30 @@ services:
         fi
       "
 
-  # Route between martin / tileserver / TiTiler eoAPI
-  nginx:
+  # Route between martin / chiitiler / TiTiler. Mirrors the k8s pod topology
+  # in chart/templates/deployment.yaml: nginx sidecar with a proxy cache in
+  # front of chiitiler, chiitiler shares the pod's network namespace so it
+  # answers on 127.0.0.1:3000 and can fetch style.json + PMTiles on 127.0.0.1:80.
+  tms-nginx:
     image: docker.io/nginx:1.29-alpine
     ports:
       - "8084:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./style.json:/styles/style.json:ro
+      - pmtiles:/pmtiles:ro
+      - tms_nginx_cache:/var/cache/nginx/tms
     depends_on:
+      get-tiles:
+        condition: service_completed_successfully
       martin:
         condition: service_healthy
-      tileserver:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   # Martin serves .pbf vector tiles as a XYZ/TMS server (e.g. for QGIS)
@@ -46,15 +60,22 @@ services:
     command: /tiles/global-coverage.pmtiles
     restart: unless-stopped
 
-  # Tileserver renders the vector tiles --> raster tiles, plus styling (legacy clients)
-  # As above, this will ideally be replaced by martin in future
-  tileserver:
-    image: maptiler/tileserver-gl:v5.3.1
-    ports:
-      - "8080:8080"
+  # chiitiler renders vector tiles --> raster PNGs, using the style at /style.json.
+  # Same image + env vars as the prod chart. Shares tms-nginx's network namespace
+  # so the loopback wiring (chiitiler ↔ nginx) matches the production pod.
+  chiitiler:
+    image: ghcr.io/kanahiro/chiitiler:v1.21.1
+    network_mode: "service:tms-nginx"
+    depends_on:
+      tms-nginx:
+        condition: service_started
+      get-tiles:
+        condition: service_completed_successfully
+    environment:
+      - CHIITILER_PORT=3000
+      - CHIITILER_CACHE_METHOD=file
+      - CHIITILER_CACHE_TTL_SEC=3600
+      - CHIITILER_FILECACHE_DIR=/cache/chiitiler
     volumes:
-      - pmtiles:/tiles
-      # Config picked up automatically as /data/config.json
-      - ./tileserver.config:/data/config.json:ro
-      - ./tileserver.style.config:/data/style.json:ro
+      - chiitiler_cache:/cache/chiitiler
     restart: unless-stopped

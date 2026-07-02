@@ -1,10 +1,14 @@
 {
   "version": 8,
-  "glyphs": "{fontstack}/{range}.pbf",
+  "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
   "sources": {
     "global-coverage": {
       "type": "vector",
-      "url": "pmtiles:///tiles/global-coverage.pmtiles"
+      "tiles": [
+        "pmtiles://http://127.0.0.1/global-coverage.pmtiles/{z}/{x}/{y}"
+      ],
+      "minzoom": 0,
+      "maxzoom": 13
     }
   },
   "layers": [
@@ -25,13 +29,17 @@
           "interpolate",
           ["linear"],
           ["get", "count"],
-          1, "#cceeff",
-          5, "#66b3ff",
-          20, "#0066cc",
-          50, "#003366"
+          1,
+          "#a8d8ff",
+          10,
+          "#66b3ff",
+          50,
+          "#0066cc",
+          200,
+          "#003366"
         ],
-        "fill-opacity": 0.7,
-        "fill-outline-color": "rgba(255,255,255,0.6)"
+        "fill-opacity": 0.65,
+        "fill-outline-color": "rgba(255,255,255,0.35)"
       }
     },
     {
@@ -41,17 +49,21 @@
       "type": "symbol",
       "minzoom": 2,
       "maxzoom": 10,
-      "filter": [">", ["get", "count"], 0],
+      "filter": [
+        "all",
+        [">", ["get", "count"], 0],
+        ["==", ["geometry-type"], "Point"]
+      ],
       "layout": {
         "text-field": ["to-string", ["get", "count"]],
-        "text-font": ["Open Sans Bold"],
-        "text-size": 12,
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 2, 15, 5, 18, 9, 22],
         "text-allow-overlap": false
       },
       "paint": {
         "text-color": "#0b2545",
         "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5
+        "text-halo-width": 2
       }
     },
     {
