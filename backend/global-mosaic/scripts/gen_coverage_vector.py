@@ -40,26 +40,15 @@ OUTPUT_DENSITY_GEOJSON = os.getenv(
 OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
 OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
-# Base tippecanoe zoom for the coverage layer. Client-side (MapLibre) and
-# tileserver-gl overzoom these tiles up to the style's display maxzoom, so
-# capping physical tiles low saves the bulk of tippecanoe wall time
-# (~4x work per zoom step above 11).
-ZOOM_MAX = int(os.getenv("ZOOM_MAX", "11"))
+# Footprint tiles stop at z13; renderers overzoom the last two display zooms.
+ZOOM_MAX = int(os.getenv("ZOOM_MAX", "13"))
 
-# Density grid: emitted for map-display zooms 0..DENSITY_MAX_ZOOM.
-# Above this, the coverage-fill layer takes over (see tileserver.style.config)
-# and individual footprints are visible enough that per-cell counts add no
-# information. Matches the client-side transition zoom in oam-vibe (Map.jsx).
+# Density counts run through z9; footprint coverage takes over above that.
 DENSITY_MAX_ZOOM = 9
-# Bin resolution offset - cell_zoom = display_zoom + this. Bigger offset =
-# finer grid squares. z+2 gives 4x4 cells across a 256px rendered tile
-# (~64px per cell), keeping 3-digit counts comfortably readable while
-# roughly halving the total density feature count vs z+3.
+# z+2 gives about 4x4 cells per rendered tile without a large feature count.
 DENSITY_ZOOM_OFFSET = 2
-# Cap cell_zoom so the deepest density zoom doesn't approach one-cell-per-image
-# (which would ~duplicate the coverage layer's feature count with no UX benefit
-# and blow past the memory/time budget on the 2c/2GB cron pod).
-DENSITY_CELL_ZOOM_CAP = 11
+# Keep deep density cells aggregated; z11 looked too fragmented.
+DENSITY_CELL_ZOOM_CAP = 9
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
@@ -209,14 +198,13 @@ def get_density_features() -> None:
                 s = _tile2lat(y + 1, cell_zoom)
                 feature = {
                     "type": "Feature",
+                    # Tippecanoe only reads zoom clamps at feature top level.
+                    "tippecanoe": {
+                        "minzoom": display_zoom,
+                        "maxzoom": display_zoom,
+                    },
                     "properties": {
                         "count": count,
-                        # Per-feature tippecanoe zoom control: this cell
-                        # only exists at its display zoom.
-                        "tippecanoe": {
-                            "minzoom": display_zoom,
-                            "maxzoom": display_zoom,
-                        },
                     },
                     "geometry": {
                         "type": "Polygon",
