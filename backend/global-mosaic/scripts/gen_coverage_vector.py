@@ -43,19 +43,19 @@ ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
 ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
 
 # Density grid: emitted for map-display zooms 0..DENSITY_MAX_ZOOM.
-# Above this the tileserver hands off to TiTiler for real imagery tiles.
-DENSITY_MAX_ZOOM = 15
+# Above this, the coverage-fill layer takes over (see tileserver.style.config)
+# and individual footprints are visible enough that per-cell counts add no
+# information. Matches the client-side transition zoom in oam-vibe (Map.jsx).
+DENSITY_MAX_ZOOM = 9
 # Bin resolution offset - cell_zoom = display_zoom + this. Bigger offset =
 # finer grid squares. z+2 gives 4x4 cells across a 256px rendered tile
 # (~64px per cell), keeping 3-digit counts comfortably readable while
 # roughly halving the total density feature count vs z+3.
 DENSITY_ZOOM_OFFSET = 2
-# Cap cell_zoom so the deepest display zooms don't explode in feature count.
-# At high map zooms most images already sit in their own cell, so allowing
-# cell_zoom to keep climbing produces tens of thousands of near-unique cells
-# without visible UX benefit - a coarser grid at z14/z15 actually makes the
-# count numbers more readable in the rendered PNG.
-DENSITY_CELL_ZOOM_CAP = 16
+# Cap cell_zoom so the deepest density zoom doesn't approach one-cell-per-image
+# (which would ~duplicate the coverage layer's feature count with no UX benefit
+# and blow past the memory/time budget on the 2c/2GB cron pod).
+DENSITY_CELL_ZOOM_CAP = 11
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
@@ -255,6 +255,8 @@ def geojson_to_pmtiles() -> None:
         "-P",
         "-o",
         OUTPUT_PMTILES,
+        "--name=openaerialmap-global-coverage",
+        f"--description=OAM footprints (z{ZOOM_MIN}-{ZOOM_MAX}) + density grid (z0-{DENSITY_MAX_ZOOM})",
         f"--minimum-zoom={ZOOM_MIN}",
         f"--maximum-zoom={ZOOM_MAX}",
         "--drop-densest-as-needed",
