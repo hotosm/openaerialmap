@@ -1,4 +1,4 @@
-1. Tileserver and NGINX sidecar have been deployed.
+1. chiitiler and NGINX sidecar have been deployed.
 2. You can access raster tiles (zoom 0–15) via your Ingress:
 
    http://{{ .Values.ingress.host }}/<z>/<x>/<y>.png
@@ -8,5 +8,27 @@
 
    Zoom levels >=16 will automatically redirect to the external TiTiler service.
 
-3. Health check endpoint is available at:
+3. Cache status is reported in the X-Cache-Status response header
+   (HIT/MISS/EXPIRED/STALE). To sanity-check caching after deploy:
+     curl -sI http://{{ .Values.ingress.host }}/5/16/12.png | grep X-Cache
+
+4. Health check endpoint is available at:
    http://{{ .Values.ingress.host }}/health
+
+5. IMPORTANT — daily rollout restart required.
+   chiitiler holds an in-memory PMTiles directory index. When the mosaic
+   cron overwrites the same S3 key with new content, the cached offsets
+   become invalid until the process restarts. A standalone CronJob in
+   the k8s cluster should run once daily (shortly after the mosaic cron
+   finishes) with:
+
+     kubectl rollout restart deployment/{{ include "chart.fullname" . }}
+
+   Cache TTLs (1h) bound the stale window if a restart is missed, but
+   restart is required for correctness after every pmtiles refresh.
+
+6. Follow-up: self-host glyphs.
+   .Values.glyphs.url currently points at demotiles.maplibre.org, which
+   has no uptime SLA. For prod robustness the fonts should be uploaded to
+   S3 (alongside the pmtiles) and served from the same host. Requires ~20MB
+   of PBF files per fontstack.

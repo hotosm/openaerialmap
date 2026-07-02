@@ -50,7 +50,7 @@ const COMPONENTS = [
     title: "Global TMS",
     tag: "Basemap",
     description:
-      "A single global tile service: coverage heat-grid at zooms 0–15 showing where imagery is available, then real OAM imagery from zoom 16+. Drop into QGIS, Leaflet, or MapLibre.",
+      "A single global tile service: a density heat-grid at low zooms and image footprints at mid zooms show where imagery is available, then real OAM imagery from zoom 16+. Drop into QGIS, Leaflet, or MapLibre.",
     href: "https://global.imagery.hotosm.org/",
     icon: "layer-group",
   },

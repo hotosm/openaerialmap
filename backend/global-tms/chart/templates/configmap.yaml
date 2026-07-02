@@ -1,30 +1,6 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "chart.fullname" . }}-config
-  labels:
-    {{- include "chart.labels" . | nindent 4 }}
-data:
-  config.json: |
-    {
-      "options": { "paths": { "root": "." } },
-      "data": {
-        "global-coverage": {
-          "pmtiles": "/tiles/{{ .Values.initContainer.filename }}"
-        }
-      },
-      "styles": {
-        "global-coverage": {
-          "style": "style.json",
-          "serve_rendered": true,
-          "tilejson": { "bounds": [-180, -85, 180, 85] }
-        }
-      }
-    }
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
   name: {{ include "chart.fullname" . }}-style
   labels:
     {{- include "chart.labels" . | nindent 4 }}
@@ -32,11 +8,13 @@ data:
   style.json: |
     {
       "version": 8,
-      "glyphs": "{fontstack}/{range}.pbf",
+      "glyphs": {{ .Values.glyphs.url | quote }},
       "sources": {
         "global-coverage": {
           "type": "vector",
-          "url": "pmtiles:///tiles/{{ .Values.initContainer.filename }}"
+          "tiles": ["pmtiles://{{ .Values.pmtiles.url }}/{z}/{x}/{y}"],
+          "minzoom": 0,
+          "maxzoom": {{ .Values.pmtiles.maxzoom }}
         }
       },
       "layers": [
@@ -51,7 +29,7 @@ data:
           "source-layer": "density",
           "type": "fill",
           "minzoom": 0,
-          "maxzoom": 16,
+          "maxzoom": 10,
           "paint": {
             "fill-color": [
               "interpolate",
@@ -72,11 +50,11 @@ data:
           "source-layer": "density",
           "type": "symbol",
           "minzoom": 2,
-          "maxzoom": 16,
+          "maxzoom": 10,
           "filter": [">", ["get", "count"], 0],
           "layout": {
             "text-field": ["to-string", ["get", "count"]],
-            "text-font": ["Open Sans Bold"],
+            "text-font": [{{ .Values.glyphs.fontstack | quote }}],
             "text-size": 12,
             "text-allow-overlap": false
           },
@@ -84,6 +62,19 @@ data:
             "text-color": "#0b2545",
             "text-halo-color": "#ffffff",
             "text-halo-width": 1.5
+          }
+        },
+        {
+          "id": "coverage-fill",
+          "source": "global-coverage",
+          "source-layer": "globalcoverage",
+          "type": "fill",
+          "minzoom": 10,
+          "maxzoom": 16,
+          "paint": {
+            "fill-color": "#00E5FF",
+            "fill-opacity": 0.15,
+            "fill-outline-color": "#00B0FF"
           }
         }
       ]
@@ -97,27 +88,54 @@ metadata:
     {{- include "chart.labels" . | nindent 4 }}
 data:
   nginx.conf: |
+      # Rendered-tile cache. Sized generously so z0-10 (small, always-hit)
+      # never gets evicted by z11-15 churn. inactive covers the case where a
+      # tile is unused for a while but still valid - LRU-ish.
+      proxy_cache_path /var/cache/nginx/tms
+                       levels=1:2
+                       keys_zone=tms_cache:{{ .Values.nginxCache.keyZoneSize }}
+                       max_size={{ .Values.nginxCache.maxSize }}
+                       inactive=7d
+                       use_temp_path=off;
+
       server {
         listen 80;
         listen [::]:80;
         server_name _;
 
-        # Zoom 0-15 → proxy to tileserver (density heat-grid)
+        # Serve the MapLibre style JSON to chiitiler over loopback.
+        # chiitiler requires a URL for --style; file:// would also work but
+        # HTTP over localhost is what the docs assume and matches upstream examples.
+        location = /style.json {
+            default_type application/json;
+            alias /styles/style.json;
+        }
+
+        # Zoom 0-15 → chiitiler (cached rendered PNGs)
         location ~ ^/([0-9]|1[0-5])/([0-9]+)/([0-9]+)\.png$ {
             set $zoom_level $1;
             set $x $2;
             set $y $3;
 
-            proxy_pass http://127.0.0.1:8080/styles/global-coverage/256/$zoom_level/$x/$y.png;
+            proxy_cache tms_cache;
+            proxy_cache_valid 200 {{ .Values.nginxCache.validSeconds }}s;
+            proxy_cache_valid 404 5m;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+            proxy_cache_lock on;
+            proxy_cache_lock_timeout 30s;
+            add_header X-Cache-Status $upstream_cache_status;
+
+            # chiitiler accepts ?url=<style-url> per request.
+            # http%3A%2F%2F127.0.0.1%2Fstyle.json = http://127.0.0.1/style.json
+            proxy_pass http://127.0.0.1:3000/tiles/$zoom_level/$x/$y.png?url=http%3A%2F%2F127.0.0.1%2Fstyle.json;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-Host $host:$server_port;
             proxy_redirect off;
             proxy_connect_timeout 5s;
-            proxy_send_timeout 10s;
-            proxy_read_timeout 10s;
+            proxy_send_timeout 15s;
+            proxy_read_timeout 15s;
         }
 
         # Zoom >=16 → redirect to TiTiler (eoAPI) for real imagery

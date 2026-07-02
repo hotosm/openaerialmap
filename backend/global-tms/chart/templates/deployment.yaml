@@ -23,43 +23,31 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        - name: get-tiles
-          image: {{ .Values.initContainer.image }}
-          command: [ "sh", "-c" ]
-          args:
-            - |
-              if [ ! -f /tiles/{{ .Values.initContainer.filename }} ]; then
-                echo "Downloading tiles..."
-                curl -fSL {{ .Values.initContainer.url }} -o /tiles/{{ .Values.initContainer.filename }}
-              else
-                echo "File exists, skipping"
-              fi
-          volumeMounts:
-            - name: global-coverage-pmtiles
-              mountPath: /tiles
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # chiitiler is configured via env vars; no config file.
+          # Style JSON is fetched per-request from the nginx sidecar over loopback.
+          env:
+            - name: CHIITILER_PORT
+              value: "3000"
+            - name: CHIITILER_CACHE_METHOD
+              value: {{ .Values.chiitilerCache.method | quote }}
+            - name: CHIITILER_CACHE_TTL_SEC
+              value: {{ .Values.chiitilerCache.ttlSeconds | quote }}
+            - name: CHIITILER_FILECACHE_DIR
+              value: {{ .Values.chiitilerCache.dir | quote }}
           ports:
-            - name: http
-              containerPort: {{ .Values.service.port }}
+            - name: chiitiler
+              containerPort: 3000
               protocol: TCP
-          livenessProbe: {{- toYaml .Values.livenessProbe | nindent 12 }}
-          readinessProbe: {{- toYaml .Values.readinessProbe | nindent 12 }}
           {{- with .Values.resources }}
           resources: {{ toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: global-coverage-pmtiles
-              mountPath: /tiles
-            - name: config
-              mountPath: /data/config.json
-              subPath: config.json
-            - name: style
-              mountPath: /data/style.json
-              subPath: style.json
+            - name: chiitiler-cache
+              mountPath: {{ .Values.chiitilerCache.dir }}
             {{- with .Values.volumeMounts }}
             {{ toYaml . | nindent 12 }}
             {{- end }}
@@ -68,23 +56,30 @@ spec:
           ports:
             - containerPort: 80
               name: http
+          livenessProbe: {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe: {{- toYaml .Values.readinessProbe | nindent 12 }}
           volumeMounts:
             - name: nginx-conf
               mountPath: /etc/nginx/conf.d/default.conf
               subPath: nginx.conf
+            - name: style
+              mountPath: /styles/style.json
+              subPath: style.json
+            - name: nginx-cache
+              mountPath: /var/cache/nginx/tms
       volumes:
-        - name: global-coverage-pmtiles
-          persistentVolumeClaim:
-            claimName: {{ include "chart.fullname" . }}-pvc
-        - name: config
-          configMap:
-            name: {{ include "chart.fullname" . }}-config
         - name: style
           configMap:
             name: {{ include "chart.fullname" . }}-style
         - name: nginx-conf
           configMap:
             name: {{ include "chart.fullname" . }}-nginx
+        - name: chiitiler-cache
+          emptyDir:
+            sizeLimit: {{ .Values.chiitilerCache.sizeLimit }}
+        - name: nginx-cache
+          emptyDir:
+            sizeLimit: {{ .Values.nginxCache.sizeLimit }}
         {{- with .Values.volumes }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
