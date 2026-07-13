@@ -107,10 +107,10 @@ build-frontend branch="main":
 
   GIT_BRANCH="{{ branch }}"
   docker build ./frontend --tag "ghcr.io/hotosm/openaerialmap/frontend:${GIT_BRANCH}" \
-    --build-arg VITE_STAC_API_URL=${VITE_STAC_API_URL} \
-    --build-arg VITE_STAC_API_PATHNAME=${VITE_STAC_API_PATHNAME} \
-    --build-arg VITE_STAC_TILER_PATHNAME=${VITE_STAC_TILER_PATHNAME} \
-    --build-arg VITE_STAC_ITEMS_LIMIT=${VITE_STAC_ITEMS_LIMIT}
+    --build-arg VITE_PMTILES_URL=${VITE_PMTILES_URL} \
+    --build-arg VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL} \
+    --build-arg VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL} \
+    --build-arg VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
 
 # Get temp AWS credentials using CI/CD OIDC
 get-aws-creds:

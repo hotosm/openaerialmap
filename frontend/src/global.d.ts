@@ -1,5 +1,7 @@
 import type { DetailedHTMLProps, HTMLAttributes } from "react";
 
+declare module "virtual:uno.css";
+
 type HotHeaderAttributes = DetailedHTMLProps<
   HTMLAttributes<HTMLElement>,
   HTMLElement
@@ -46,14 +48,22 @@ interface CustomElements {
   "wa-icon": WaIconAttributes;
 }
 
+// Declaration merging into React's JSX namespace requires an interface
+// with a matching name - a `type` alias would shadow the built-in
+// IntrinsicElements and strip out every standard HTML tag. The empty
+// body is intentional; @typescript-eslint's no-empty-object-type rule
+// doesn't understand that context.
+
 declare module "react/jsx-runtime" {
   namespace JSX {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface IntrinsicElements extends CustomElements {}
   }
 }
 
 declare module "react/jsx-dev-runtime" {
   namespace JSX {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface IntrinsicElements extends CustomElements {}
   }
 }

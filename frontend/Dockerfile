@@ -1,12 +1,12 @@
 FROM docker.io/node:22-slim AS base
-ARG VITE_STAC_API_URL
-ARG VITE_STAC_API_PATHNAME
-ARG VITE_STAC_TILER_PATHNAME
-ARG VITE_STAC_ITEMS_LIMIT
-ENV VITE_STAC_API_URL=${VITE_STAC_API_URL} \
-    VITE_STAC_API_PATHNAME=${VITE_STAC_API_PATHNAME} \
-    VITE_STAC_TILER_PATHNAME=${VITE_STAC_TILER_PATHNAME} \
-    VITE_STAC_ITEMS_LIMIT=${VITE_STAC_ITEMS_LIMIT} \
+ARG VITE_PMTILES_URL
+ARG VITE_DENSITY_PMTILES_URL
+ARG VITE_STAC_TITILER_URL
+ARG VITE_MAPBOX_TOKEN
+ENV VITE_PMTILES_URL=${VITE_PMTILES_URL} \
+    VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL} \
+    VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL} \
+    VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN} \
     PNPM_HOME="/pnpm" \
     PATH="$PATH:/pnpm"
 WORKDIR /app
@@ -24,17 +24,15 @@ RUN pnpm run build
 FROM docker.io/rclone/rclone:1 AS prod
 ARG APP_VERSION
 ARG COMMIT_REF
-ARG VITE_STAC_API_URL
-ARG VITE_STAC_API_PATHNAME
-ARG VITE_STAC_TILER_PATHNAME
-ARG VITE_STAC_ITEMS_LIMIT
+ARG VITE_PMTILES_URL
+ARG VITE_DENSITY_PMTILES_URL
+ARG VITE_STAC_TITILER_URL
 LABEL org.hotosm.openaerialmap.app-name="frontend" \
       org.hotosm.openaerialmap.app-version="${APP_VERSION}" \
       org.hotosm.openaerialmap.git-commit-ref="${COMMIT_REF:-none}" \
       org.hotosm.openaerialmap.maintainer="sysadmin@hotosm.org" \
-      org.hotosm.openaerialmap.stac-api-url="${VITE_STAC_API_URL}" \
-      org.hotosm.openaerialmap.stac-api-pathname="${VITE_STAC_API_PATHNAME}" \
-      org.hotosm.openaerialmap.stac-tiler-pathname="${VITE_STAC_TILER_PATHNAME}" \
-      org.hotosm.openaerialmap.stac-items-limit="${VITE_STAC_ITEMS_LIMIT}"
+      org.hotosm.openaerialmap.pmtiles-url="${VITE_PMTILES_URL}" \
+      org.hotosm.openaerialmap.density-pmtiles-url="${VITE_DENSITY_PMTILES_URL}" \
+      org.hotosm.openaerialmap.stac-titiler-url="${VITE_STAC_TITILER_URL}"
 WORKDIR /app
 COPY --from=build /app/dist .
