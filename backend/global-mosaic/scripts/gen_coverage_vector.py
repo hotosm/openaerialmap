@@ -137,62 +137,111 @@ def _tile2lat(y: int, zoom: int) -> float:
 
 def get_density_features() -> None:
     """
-    Query PgSTAC for OAM image centroids and pre-bin them into
+    Query PgSTAC for OAM image centroids + bboxes and pre-bin them into
     Web-Mercator tile-cell grids at multiple zoom levels. Each grid cell
-    carries a `count` property (number of image centroids inside it) and
-    is tagged with tippecanoe `minzoom`/`maxzoom` so it only appears at
-    its target display zoom.
+    carries:
+
+    - `count`: number of image centroids inside the cell
+    - `bboxW/S/E/N`: union of contained-image bboxes, so clicking the
+      cell in the frontend can `fitBounds` to where the imagery actually
+      is (rather than to the whole cell, which is mostly empty for
+      clusters in a corner).
+
+    Each cell is tagged with tippecanoe `minzoom`/`maxzoom` so it only
+    appears at its target display zoom.
     """
+    # ST_XMin/XMax/YMin/YMax return the polygon extent; we aggregate
+    # those per cell instead of just centroids so click-to-zoom lands
+    # on the imagery rather than the cell corner.
     centroid_query = """
         SELECT ST_X(ST_Centroid(geometry)) AS lon,
-               ST_Y(ST_Centroid(geometry)) AS lat
+               ST_Y(ST_Centroid(geometry)) AS lat,
+               ST_XMin(geometry) AS xmin,
+               ST_YMin(geometry) AS ymin,
+               ST_XMax(geometry) AS xmax,
+               ST_YMax(geometry) AS ymax
         FROM pgstac.items
         WHERE collection = %s
           AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
     """
     params = [COLLECTION] + list(BBOX)
 
-    log.info(f"Fetching OAM centroids for density grid (bbox={BBOX})...")
-    centroids: list[tuple[float, float]] = []
+    log.info(f"Fetching OAM centroids + bboxes for density grid (bbox={BBOX})...")
+    records: list[tuple[float, float, float, float, float, float]] = []
     try:
         with connect(PG_DSN) as conn, conn.cursor() as cur:
             cur.execute(centroid_query, params)
-            for lon, lat in cur:
+            for lon, lat, xmin, ymin, xmax, ymax in cur:
                 if lon is None or lat is None:
                     continue
                 # Clamp latitude to Web Mercator's valid range
                 if lat > 85.05112878 or lat < -85.05112878:
                     continue
-                centroids.append((float(lon), float(lat)))
+                records.append(
+                    (
+                        float(lon),
+                        float(lat),
+                        float(xmin),
+                        float(ymin),
+                        float(xmax),
+                        float(ymax),
+                    )
+                )
     except Exception as e:
         log.error(f"Density centroid query failed: {e}")
         raise
 
-    log.info(f"Binning {len(centroids)} centroids into per-zoom grids...")
+    log.info(f"Binning {len(records)} images into per-zoom grids...")
     Path(OUTPUT_DENSITY_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
     total_cells = 0
     with open(OUTPUT_DENSITY_GEOJSON, "w") as f:
         for display_zoom in range(0, DENSITY_MAX_ZOOM + 1):
             cell_zoom = min(display_zoom + DENSITY_ZOOM_OFFSET, DENSITY_CELL_ZOOM_CAP)
-            cells: dict[tuple[int, int], int] = {}
-            for lon, lat in centroids:
+            # cell key -> [count, xmin, ymin, xmax, ymax]. Mutating a
+            # list in the dict is cheaper than allocating tuples each
+            # update - this loop runs ~21k × 14 zooms = ~300k times.
+            cells: dict[tuple[int, int], list[float]] = {}
+            for lon, lat, xmin, ymin, xmax, ymax in records:
                 key = (_lon2tile(lon, cell_zoom), _lat2tile(lat, cell_zoom))
-                cells[key] = cells.get(key, 0) + 1
+                acc = cells.get(key)
+                if acc is None:
+                    cells[key] = [1.0, xmin, ymin, xmax, ymax]
+                else:
+                    acc[0] += 1
+                    if xmin < acc[1]:
+                        acc[1] = xmin
+                    if ymin < acc[2]:
+                        acc[2] = ymin
+                    if xmax > acc[3]:
+                        acc[3] = xmax
+                    if ymax > acc[4]:
+                        acc[4] = ymax
 
-            for (x, y), count in cells.items():
+            for (x, y), (count, bw, bs, be, bn) in cells.items():
                 w = _tile2lon(x, cell_zoom)
                 e = _tile2lon(x + 1, cell_zoom)
                 n = _tile2lat(y, cell_zoom)
                 s = _tile2lat(y + 1, cell_zoom)
                 clamp = {"minzoom": display_zoom, "maxzoom": display_zoom}
 
-                # Polygon drives density-fill. Labels use the point below so
-                # tile clipping does not move anchors onto cell edges.
+                # 4dp ≈ 11m at the equator; plenty for a fitBounds
+                # target, keeps the tile payload lean.
+                props = {
+                    "count": int(count),
+                    "bboxW": round(bw, 4),
+                    "bboxS": round(bs, 4),
+                    "bboxE": round(be, 4),
+                    "bboxN": round(bn, 4),
+                }
+
+                # Polygon drives density-fill and the click target.
+                # Labels use the point below so tile clipping does not
+                # move anchors onto cell edges.
                 polygon_feature = {
                     "type": "Feature",
                     # Tippecanoe only reads zoom clamps at feature top level.
                     "tippecanoe": clamp,
-                    "properties": {"count": count},
+                    "properties": props,
                     "geometry": {
                         "type": "Polygon",
                         "coordinates": [[[w, n], [e, n], [e, s], [w, s], [w, n]]],
@@ -201,14 +250,15 @@ def get_density_features() -> None:
                 f.write(json.dumps(polygon_feature))
                 f.write("\n")
 
-                # Point drives density-count labels; style filters to Point
-                # to avoid duplicate labels from the polygon.
+                # Point drives density-count labels; style filters to
+                # Point to avoid duplicate labels from the polygon.
+                # No bbox needed - labels aren't click targets.
                 cx = (w + e) / 2
                 cy = (n + s) / 2
                 point_feature = {
                     "type": "Feature",
                     "tippecanoe": clamp,
-                    "properties": {"count": count},
+                    "properties": {"count": int(count)},
                     "geometry": {"type": "Point", "coordinates": [cx, cy]},
                 }
                 f.write(json.dumps(point_feature))
