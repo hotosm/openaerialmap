@@ -13,30 +13,29 @@
   },
   "dependencies": {
     "@awesome.me/webawesome": "3.2.1",
-    "@developmentseed/stac-map": "^2.0.0-alpha.2",
     "@hotosm/ui": "^0.10.1",
+    "@turf/bbox": "^7.3.1",
+    "@turf/helpers": "^7.3.2",
+    "maplibre-gl": "^5.24.0",
     "pmtiles": "^4.4.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@unocss/reset": "^66.7.5",
     "@vitejs/plugin-react": "^6.0.1",
-    "esbuild": "^0.28.0",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
-    "rollup": "^4.60.2",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.10",
-    "vite-plugin-wasm": "^3.6.0"
-  },
-  "peerDependencies": {
-    "maplibre-gl": "^5.24.0"
+    "unocss": "^66.7.5",
+    "vite": "^8.0.10"
   }
 }

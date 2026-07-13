@@ -20,13 +20,11 @@ const HEADER_TABS = [
       window.location.href = "/browse";
     },
   },
-  {
-    label: "Upload",
-    clickEvent: () => {
-      window.open("https://map.openaerialmap.org", "_blank");
-    },
-  },
 ];
+
+// Landing point for the (upcoming) imagery uploader. Currently the
+// legacy site; swap this in one place when the new uploader ships.
+const SHARE_IMAGERY_URL = "https://map.openaerialmap.org";
 
 const COMPONENTS = [
   {
@@ -37,14 +35,6 @@ const COMPONENTS = [
     href: "/browse",
     icon: "map",
     primary: true,
-  },
-  {
-    title: "Experimental UI",
-    tag: "Preview",
-    description:
-      "An alternative browsing experience being explored for OAM. Try it and share feedback.",
-    href: "https://cgiovando.github.io/oam-vibe/?lat=20.0000&lon=0.0000&zoom=2.0",
-    icon: "flask",
   },
   {
     title: "Global TMS",
@@ -207,10 +197,21 @@ export default function Landing() {
       <hot-header
         ref={headerRef}
         title="OpenAerialMap"
-        logo="/favicon.ico"
+        logo="/openaerialmap.svg"
         size="small"
         tabs-center-align
-      />
+      >
+        <wa-button
+          slot="auth"
+          variant="brand"
+          class="share-imagery-btn"
+          onClick={() => {
+            window.open(SHARE_IMAGERY_URL, "_blank");
+          }}
+        >
+          Share Imagery
+        </wa-button>
+      </hot-header>
 
       <main className="landing-page">
         <section className="landing-hero">

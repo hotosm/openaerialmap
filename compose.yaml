@@ -178,17 +178,25 @@ services:
       context: ./frontend
       target: build
     environment:
-      - VITE_STAC_API_URL=http://imagery.localhost:8080
-      - VITE_STAC_API_PATHNAME=stac
-      - VITE_STAC_TILER_PATHNAME=raster
-      - VITE_STAC_ITEMS_LIMIT=${VITE_STAC_ITEMS_LIMIT:-40}
+      # Local dev points at the same prod PMTiles bucket since local
+      # pgstac only has a handful of test items - the browse map
+      # wouldn't be useful with an empty tileset. Override in .env if
+      # you're actively iterating on the coverage generator.
+      - VITE_PMTILES_URL=${VITE_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-data.pmtiles}
+      - VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles}
+      - VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL:-https://api.imagery.hotosm.org/raster}
+      - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
     volumes:
-      - ./frontend/app:/app/app
+      - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
-      - ./frontend/vite.config.mts:/app/vite.config.mts
-    command: pnpm serve --host 0.0.0.0
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+    command: pnpm dev --host 0.0.0.0
+    ports:
+      - "3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10

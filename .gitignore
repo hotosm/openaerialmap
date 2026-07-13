@@ -75,3 +75,5 @@ parcel-bundle-reports
 **/*.env
 .python-version
 envsubst
+.codex
+.claude

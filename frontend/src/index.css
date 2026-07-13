@@ -14,3 +14,87 @@ body {
   width: 100%;
   height: 100dvh;
 }
+
+/* Disambiguation popup. Popup contents are built in Map.tsx and
+ * injected via setDOMContent, so these globals are the only way to
+ * style them. */
+.oam-disambig-popup .maplibregl-popup-content {
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.oam-disambig-popup .maplibregl-popup-close-button {
+  font-size: 18px;
+  padding: 4px 8px;
+  color: #64748b;
+  z-index: 1;
+}
+
+.oam-disambig-popup .maplibregl-popup-close-button:hover {
+  color: var(--hot-color-primary-700, #0e7490);
+  background: var(--hot-color-primary-50, #ecfeff);
+}
+
+.oam-popup-header {
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.oam-popup-items {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.oam-popup-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s;
+}
+
+.oam-popup-item:last-child {
+  border-bottom: none;
+}
+
+.oam-popup-item:hover {
+  background: var(--hot-color-primary-50, #ecfeff);
+}
+
+.oam-popup-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.oam-popup-item-meta {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Force the hot-red brand fill on the "Share Imagery" header button.
+ * variant="brand" alone falls back to webawesome's default blue when
+ * the wa-color-variant layer beats the hotosm palette layer, so we
+ * pin the brand tokens directly on this button. */
+.share-imagery-btn {
+  --wa-color-fill-loud: var(--hot-color-primary-600);
+  --wa-color-on-loud: white;
+}
+.share-imagery-btn::part(base):hover {
+  background-color: var(--hot-color-primary-700);
+}
