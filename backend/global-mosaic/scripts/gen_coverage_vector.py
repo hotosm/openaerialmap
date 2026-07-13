@@ -81,11 +81,15 @@ ZOOM_MAX = int(os.getenv("ZOOM_MAX", "13"))
 # Density grid runs the full TMS range: z0-13. Above z13, TiTiler serves
 # real imagery.
 DENSITY_MAX_ZOOM = ZOOM_MAX
-# z+2 gives about 4x4 cells per rendered tile without a large feature count.
-DENSITY_ZOOM_OFFSET = 2
-# Cap follows DENSITY_MAX_ZOOM + offset so cells scale with display zoom at
-# every level (no saturation). At z13, cell_zoom=15 gives ~4x4 cells per
-# tile with counts, matching the frontend's grid density.
+# Offset = 4 produces ~16x16 cells per rendered tile. At display z0
+# that's a 256-cell world grid (each cell ~1250 km wide), fine enough
+# that regions without imagery show as visible gaps instead of being
+# swallowed by a handful of oversized 5000 km squares. At display z9+
+# the cap below clamps cell_zoom to a fixed resolution so cells don't
+# keep shrinking indefinitely.
+DENSITY_ZOOM_OFFSET = 4
+# Cap follows DENSITY_MAX_ZOOM + offset so cells scale with display zoom
+# at every level (no saturation).
 DENSITY_CELL_ZOOM_CAP = DENSITY_MAX_ZOOM + DENSITY_ZOOM_OFFSET
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
