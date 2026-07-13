@@ -1,47 +1,69 @@
 # Global Mosaic Scripts
 
-Shipping: `gen_density_vector.py`. Everything else is kept for reference.
+Deployed: `gen_coverage_vector.py`. Everything else is kept for
+reference under `archive/`.
 
-## `gen_density_vector.py`
+## `gen_coverage_vector.py`
 
-Emits a PMTiles archive with one `density` layer: Web-Mercator grid
-cells at z0-13 with a `count` property per cell (image centroids inside).
-Each cell is emitted twice - a Polygon for fill, and a Point at the
-cell centre for the label (so labels don't drift onto tile boundaries
-when tippecanoe clips the polygon).
+Produces **two independent PMTiles files** in sequence, each carrying
+a single layer:
+
+1. **`global-coverage.pmtiles`** (`density` layer) - Web-Mercator grid
+   cells at z0-13 with a `count` property per cell (image centroids
+   inside). Consumed by chiitiler / the global-tms nginx pipeline for
+   the standalone TMS. Filename preserved from the prior
+   density-only generator so `backend/global-tms` needs no changes.
+
+2. **`global-data.pmtiles`** (`globalcoverage` layer) - per-image
+   polygon footprints (z0-13) with rich metadata (title, provider,
+   platform, gsd, sensor, license, acquisition_end, thumbnail, uuid,
+   tms, file_size). The frontend reads this layer client-side to
+   drive sidebar cards, filters, and TMS handoff without any STAC
+   API calls.
 
 z14+ is served by TiTiler via the global-tms nginx routing.
 
-Runs in ~3 min on 2c/2GB, single-digit MB output.
+Stages run in ascending order of cost so a failure or timeout in a
+later stage never leaves a downstream service without a fresh input:
 
-## Retired
+1. `stats.json` (landing page)
+2. `global-coverage.pmtiles` density grid (global-tms)
+3. `global-data.pmtiles` footprints (frontend browser)
 
-**4. `gen_coverage_vector.py`** - dual `globalcoverage` + `density`
-layers. Retired because image-footprint outlines are illegible at
-z10-13 and the density grid gives clearer aggregate context at every
-zoom. Kept alongside `gen_density_vector.py` so the diff is trivial.
+Each stage uploads to S3 before the next one begins.
 
-Notable bug found here: the per-feature `tippecanoe` clamp lived inside
-`properties`, where tippecanoe silently ignores it. Every density cell
-ended up at every zoom → "squares within squares" and multi-hour gen
-runs. Fix is to put `tippecanoe` at the feature top level.
+## Archived (`archive/`)
+
+**4. `gen_density_vector.py`** - density-only PMTiles (single `density`
+layer). Superseded by `gen_coverage_vector.py`, which produces the
+same density file alongside a footprint archive for the frontend.
 
 **3. `gen_coverage_raster.py`** - rasterises footprints into grey PNG
-tiles. Retired: server-side raster is expensive, no aggregation info,
+tiles. Archived: server-side raster is expensive, no aggregation info,
 and vector-in-pmtiles is more flexible for downstream clients.
 
 **2. `gen_mosaic_hybrid.py`** - grey coverage at z0-10 + real
-TiTiler-baked mosaic z11-14, following konturio/oam-mosaic-map. Retired:
-TiTiler mosaicking at mid zoom OOMed the 2c/2GB pod, and z14+ TiTiler
-handoff on the live TMS covers the "real imagery" case anyway.
+TiTiler-baked mosaic z11-14, following konturio/oam-mosaic-map.
+Archived: TiTiler mosaicking at mid zoom OOMed the 2c/2GB pod, and
+z14+ TiTiler handoff on the live TMS covers the "real imagery"
+case anyway.
 
 **1. `gen_mosaic_manual.py`** - manual COG selection and stitching in
-Python. Retired: reinvents TiTiler, worse per-COG IO.
+Python. Archived: reinvents TiTiler, worse per-COG IO.
+
+Notable bug found in earlier iterations: the per-feature `tippecanoe`
+clamp lived inside `properties`, where tippecanoe silently ignores it.
+Every density cell ended up at every zoom → "squares within squares"
+and multi-hour gen runs. Fix is to put `tippecanoe` at the feature
+top level.
 
 ## Files
 
-- `gen_density_vector.py`: shipping; PMTiles `density` layer, z0-13.
-- `gen_coverage_vector.py`: reference; PMTiles `globalcoverage` + `density`.
-- `gen_coverage_raster.py`: retired; rasterised grey coverage PMTiles.
-- `gen_mosaic_hybrid.py`: retired; coverage z0-10 + mosaic z11-14.
-- `gen_mosaic_manual.py`: retired; manual COG stitching.
+- `gen_coverage_vector.py`: deployed; two PMTiles archives (density +
+  footprints).
+- `archive/gen_density_vector.py`: Archived; density-only PMTiles.
+- `archive/gen_coverage_raster.py`: Archived; rasterised grey coverage
+  PMTiles.
+- `archive/gen_mosaic_hybrid.py`: Archived; coverage z0-10 + mosaic
+  z11-14.
+- `archive/gen_mosaic_manual.py`: Archived; manual COG stitching.

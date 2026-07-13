@@ -1,7 +1,29 @@
 #!/usr/bin/env python3
 """
-Generate simple coverage vector tiles, based on GeoJSON output
-from pgSTAC catalogue.
+Generate the OAM global PMTiles archives from the pgSTAC catalogue.
+
+Produces two independent PMTiles files:
+
+- ``global-coverage.pmtiles`` (``density`` layer): Web-Mercator grid
+  cells at z0-13 with a ``count`` property per cell. Rendered by
+  chiitiler over z0-13 (see ``backend/global-tms``). TiTiler takes
+  over at z14+ for real imagery, so we deliberately do not emit
+  anything past z13 here.
+
+- ``global-data.pmtiles`` (``globalcoverage`` layer): per-image
+  polygon footprints at z0-13 with rich metadata (title, provider,
+  platform, gsd, sensor, license, acquisition_end, thumbnail, uuid,
+  tms, file_size). The frontend reads this layer client-side
+  to drive sidebar cards, filters, and TMS handoff without any STAC
+  API calls.
+
+Artifacts are produced and uploaded in ascending order of cost so
+a failure in a later stage never leaves a downstream service without
+a fresh input:
+
+  1. ``stats.json`` (landing page)
+  2. ``global-coverage.pmtiles`` density grid (global-tms)
+  3. ``global-data.pmtiles`` footprints (frontend browser)
 """
 
 import json
@@ -10,7 +32,6 @@ import math
 import os
 import sys
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
@@ -33,22 +54,39 @@ if not PG_DSN:
     PG_DSN = f"postgresql://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
 
 COLLECTION = os.getenv("COLLECTION", "openaerialmap")
-OUTPUT_GEOJSON = os.getenv("OUTPUT_GEOJSON", "/app/output/global-coverage.geojson")
+
+# Density (grid cells) - filename is preserved for the global-tms
+# pipeline which points at s3://oin-hotosm-temp/global-coverage.pmtiles.
 OUTPUT_DENSITY_GEOJSON = os.getenv(
     "OUTPUT_DENSITY_GEOJSON", "/app/output/global-density.geojson"
 )
-OUTPUT_PMTILES = os.getenv("OUTPUT_PMTILES", "/app/output/global-coverage.pmtiles")
+OUTPUT_DENSITY_PMTILES = os.getenv(
+    "OUTPUT_DENSITY_PMTILES", "/app/output/global-coverage.pmtiles"
+)
+
+# Footprints (per-image polygons with rich metadata) - powers the
+# frontend. Named "data" to distinguish from the density aggregation.
+OUTPUT_FOOTPRINTS_GEOJSON = os.getenv(
+    "OUTPUT_FOOTPRINTS_GEOJSON", "/app/output/global-data.geojson"
+)
+OUTPUT_FOOTPRINTS_PMTILES = os.getenv(
+    "OUTPUT_FOOTPRINTS_PMTILES", "/app/output/global-data.pmtiles"
+)
+
 OUTPUT_STATS = os.getenv("OUTPUT_STATS", "/app/output/stats.json")
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
-# Footprints cover z0-13; z14+ goes straight to TiTiler.
+# Both archives cover z0-13. z14+ is served by TiTiler.
 ZOOM_MAX = int(os.getenv("ZOOM_MAX", "13"))
 
-# Density counts run through z9; footprint coverage takes over above that.
-DENSITY_MAX_ZOOM = 9
+# Density grid runs the full TMS range: z0-13. Above z13, TiTiler serves
+# real imagery.
+DENSITY_MAX_ZOOM = ZOOM_MAX
 # z+2 gives about 4x4 cells per rendered tile without a large feature count.
 DENSITY_ZOOM_OFFSET = 2
-# Keep deep density cells aggregated; z11 looked too fragmented.
-DENSITY_CELL_ZOOM_CAP = 9
+# Cap follows DENSITY_MAX_ZOOM + offset so cells scale with display zoom at
+# every level (no saturation). At z13, cell_zoom=15 gives ~4x4 cells per
+# tile with counts, matching the frontend's grid density.
+DENSITY_CELL_ZOOM_CAP = DENSITY_MAX_ZOOM + DENSITY_ZOOM_OFFSET
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
@@ -67,59 +105,7 @@ logging.basicConfig(
 log = logging.getLogger("gen_mosaic")
 
 
-def get_features() -> None:
-    """
-    Query PgSTAC for imagery features in BBOX and write them as newline-delimited GeoJSON.
-
-    Returns:
-        None. Writes OUTPUT_GEOJSON file for Tippecanoe ingestion.
-    """
-    where_bbox = "AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)"
-    params = [COLLECTION] + list(BBOX)
-
-    query = f"""
-        SELECT
-            id::text AS id,
-            ST_AsGeoJSON(geometry) AS geom
-        FROM pgstac.items
-        WHERE collection = %s
-        {where_bbox}
-        ORDER BY (content->>'datetime')::timestamptz DESC;
-    """
-
-    log.info(f"Querying PgSTAC for features (bbox={BBOX})...")
-    row_count = 0
-    try:
-        with (
-            connect(PG_DSN) as conn,
-            conn.cursor() as cur,
-            open(OUTPUT_GEOJSON, "w") as f,
-        ):
-            cur.execute(query, params)
-            for row in cur:
-                feature_id, geom_json = row
-                if not geom_json:
-                    continue
-                try:
-                    geom = json.loads(geom_json)
-                    feature = {
-                        "type": "Feature",
-                        "geometry": geom,
-                        "properties": {"id": feature_id},
-                    }
-                    f.write(json.dumps(feature))
-                    f.write("\n")
-                    row_count += 1
-                except json.JSONDecodeError:
-                    log.warning(f"Invalid geometry for {feature_id}, skipping.")
-    except Exception as e:
-        log.error(f"PgSTAC query failed: {e}")
-        raise
-
-    log.info(f"Wrote {row_count} features to {OUTPUT_GEOJSON}")
-
-
-# --- Web Mercator tile math (matches oam-vibe client-side helpers) ---
+# --- Web Mercator tile math (matches the client-side helpers) ---
 def _lon2tile(lon: float, zoom: int) -> int:
     return int(math.floor((lon + 180.0) / 360.0 * (1 << zoom)))
 
@@ -144,6 +130,11 @@ def _tile2lat(y: int, zoom: int) -> float:
     return math.degrees(math.atan(math.sinh(n)))
 
 
+# =====================================================================
+# DENSITY (unchanged output - do not touch the global-tms contract)
+# =====================================================================
+
+
 def get_density_features() -> None:
     """
     Query PgSTAC for OAM image centroids and pre-bin them into
@@ -151,9 +142,6 @@ def get_density_features() -> None:
     carries a `count` property (number of image centroids inside it) and
     is tagged with tippecanoe `minzoom`/`maxzoom` so it only appears at
     its target display zoom.
-
-    Produces a newline-delimited GeoJSON that tippecanoe will pack into
-    the `density` layer of the coverage PMTiles.
     """
     centroid_query = """
         SELECT ST_X(ST_Centroid(geometry)) AS lon,
@@ -234,61 +222,205 @@ def get_density_features() -> None:
     )
 
 
-def geojson_to_pmtiles() -> None:
+def density_to_pmtiles() -> None:
     """
-    Use Tippecanoe to generate PMTiles with two named layers:
-      - `globalcoverage`: per-image polygon footprints (all zooms)
-      - `density`: pre-binned heat-grid cells with counts (zooms 0..14)
+    Run tippecanoe to build the density PMTiles archive with a single
+    `density` layer of pre-binned grid cells (polygons for fill + points
+    for labels).
     """
-    log.info("Generating vector tiles with tippecanoe (multi-layer)...")
+    log.info("Generating density PMTiles with tippecanoe...")
 
-    # Layer inputs use tippecanoe's `-L NAME:FILE` syntax. Per-feature
-    # tippecanoe minzoom/maxzoom on density features clamps them to their
-    # target display zoom; the coverage layer uses the global range.
-    #
-    # `-P` enables parallel input reading. Both inputs are newline-delimited
-    # GeoJSON (one Feature per line, trailing newline), which is what -P
-    # requires; docs warn about spurious "EOF" errors otherwise.
-    #
-    # We deliberately keep `--drop-densest-as-needed` and the default tile
-    # size limit: at z0 the coverage layer would otherwise pack all ~21k
-    # footprints into ~4 tiles, blowing past the 500K limit and inflating
-    # client load. The drop-densest handling only activates when the limit
-    # is hit, so it's essentially free when tiles fit comfortably.
+    if not Path(OUTPUT_DENSITY_GEOJSON).exists():
+        raise FileNotFoundError(
+            f"{OUTPUT_DENSITY_GEOJSON} not found - cannot build PMTiles"
+        )
+
     args = [
         "tippecanoe",
-        "-P",
         "-o",
-        OUTPUT_PMTILES,
-        "--name=openaerialmap-global-coverage",
-        f"--description=OAM footprints (z{ZOOM_MIN}-{ZOOM_MAX}) + density grid (z0-{DENSITY_MAX_ZOOM})",
+        OUTPUT_DENSITY_PMTILES,
+        "--force",
+        "--name=openaerialmap-global-density",
+        f"--description=OAM global density grid (z{ZOOM_MIN}-{DENSITY_MAX_ZOOM})",
         f"--minimum-zoom={ZOOM_MIN}",
         f"--maximum-zoom={ZOOM_MAX}",
         "--drop-densest-as-needed",
         "-L",
-        f"globalcoverage:{OUTPUT_GEOJSON}",
+        f"density:{OUTPUT_DENSITY_GEOJSON}",
     ]
-    if Path(OUTPUT_DENSITY_GEOJSON).exists():
-        args += ["-L", f"density:{OUTPUT_DENSITY_GEOJSON}"]
-    else:
-        log.warning(f"{OUTPUT_DENSITY_GEOJSON} not found; skipping density layer")
 
     try:
         subprocess.run(args, check=True)
     except subprocess.CalledProcessError as e:
-        log.error(f"Tippecanoe failed with exit code {e.returncode}")
+        log.error(f"Tippecanoe (density) failed with exit code {e.returncode}")
         raise
-    log.info(f"PMTiles written to {OUTPUT_PMTILES}")
+    log.info(f"Density PMTiles written to {OUTPUT_DENSITY_PMTILES}")
+
+
+# =====================================================================
+# FOOTPRINTS (powers the frontend)
+# =====================================================================
+
+
+def _extract_feature_properties(feature_id: str, content: dict) -> dict:
+    """
+    Flatten STAC Item content into the minimal property set the browser
+    consumes. Missing fields are omitted so tippecanoe doesn't emit
+    null-valued keys into every tile.
+
+    Kept in one place because the same field names are read on the
+    client (see frontend/src/browse/utils/format.ts).
+    """
+    props = content.get("properties") or {}
+    assets = content.get("assets") or {}
+
+    providers = props.get("providers") or content.get("providers") or []
+    provider_name = providers[0].get("name") if providers else None
+
+    instruments = props.get("instruments") or []
+    sensor = instruments[0] if instruments else props.get("sensor")
+
+    visual = assets.get("visual") or assets.get("data") or {}
+    thumbnail = assets.get("thumbnail") or {}
+    tms_asset = assets.get("tms") or assets.get("wmts") or {}
+
+    # file:size is the STAC file extension; fall back to a bare `size`
+    # if the ingester wrote that instead.
+    file_size = visual.get("file:size") or visual.get("size")
+
+    # `_id` (not `id`) is the property key the browser expects - it
+    # uses MapLibre's `promoteId: '_id'` to hoist this into feature.id,
+    # which is required for expression filters like ['==', '_id', ...].
+    # See frontend/src/browse/components/Map.tsx.
+    out = {
+        "_id": feature_id,
+        "title": props.get("title"),
+        "provider": provider_name,
+        "platform": props.get("platform"),
+        "sensor": sensor,
+        "gsd": props.get("gsd"),
+        "license": props.get("license") or content.get("license"),
+        # Frontend reads `acquisition_end` (matches OAM legacy naming);
+        # datetime is the canonical STAC field.
+        "acquisition_end": (
+            props.get("datetime")
+            or props.get("end_datetime")
+            or props.get("start_datetime")
+        ),
+        "thumbnail": thumbnail.get("href"),
+        # `uuid` carries the visual COG's S3 path; used as the fallback
+        # to construct a TMS URL when no `tms` asset is present.
+        "uuid": visual.get("href"),
+        "tms": tms_asset.get("href"),
+        "file_size": file_size,
+    }
+
+    # Strip nulls so tippecanoe doesn't bloat tiles with empty keys.
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def get_footprint_features() -> None:
+    """
+    Query PgSTAC for imagery features and write them as
+    newline-delimited GeoJSON with per-image metadata that the browser
+    can render sidebar cards and filter on without any STAC API calls.
+    """
+    where_bbox = "AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)"
+    params = [COLLECTION] + list(BBOX)
+
+    query = f"""
+        SELECT
+            id::text AS id,
+            ST_AsGeoJSON(geometry) AS geom,
+            content
+        FROM pgstac.items
+        WHERE collection = %s
+        {where_bbox}
+        ORDER BY (content->>'datetime')::timestamptz DESC;
+    """
+
+    log.info(f"Querying PgSTAC for footprints (bbox={BBOX})...")
+    Path(OUTPUT_FOOTPRINTS_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
+    row_count = 0
+    try:
+        with (
+            connect(PG_DSN) as conn,
+            conn.cursor() as cur,
+            open(OUTPUT_FOOTPRINTS_GEOJSON, "w") as f,
+        ):
+            cur.execute(query, params)
+            for row in cur:
+                feature_id, geom_json, content = row
+                if not geom_json:
+                    continue
+                try:
+                    geom = json.loads(geom_json)
+                    properties = _extract_feature_properties(feature_id, content or {})
+                    feature = {
+                        "type": "Feature",
+                        "geometry": geom,
+                        "properties": properties,
+                    }
+                    f.write(json.dumps(feature))
+                    f.write("\n")
+                    row_count += 1
+                except json.JSONDecodeError:
+                    log.warning(f"Invalid geometry for {feature_id}, skipping.")
+    except Exception as e:
+        log.error(f"Footprint query failed: {e}")
+        raise
+
+    log.info(f"Wrote {row_count} footprints to {OUTPUT_FOOTPRINTS_GEOJSON}")
+
+
+def footprints_to_pmtiles() -> None:
+    """
+    Run tippecanoe to build the footprints PMTiles archive with a single
+    `globalcoverage` layer of per-image polygons + metadata.
+
+    `--drop-densest-as-needed` is important: at z0 the coverage layer
+    would otherwise pack all ~21k footprints into ~4 tiles, blowing past
+    the 500K tile-size limit. Drop-densest only activates when the limit
+    is hit, so it's essentially free when tiles fit comfortably.
+    """
+    log.info("Generating footprints PMTiles with tippecanoe...")
+
+    if not Path(OUTPUT_FOOTPRINTS_GEOJSON).exists():
+        raise FileNotFoundError(
+            f"{OUTPUT_FOOTPRINTS_GEOJSON} not found - cannot build PMTiles"
+        )
+
+    args = [
+        "tippecanoe",
+        "-o",
+        OUTPUT_FOOTPRINTS_PMTILES,
+        "--force",
+        "--name=openaerialmap-global-data",
+        f"--description=OAM per-image footprints with metadata (z{ZOOM_MIN}-{ZOOM_MAX})",
+        f"--minimum-zoom={ZOOM_MIN}",
+        f"--maximum-zoom={ZOOM_MAX}",
+        "--drop-densest-as-needed",
+        "-L",
+        f"globalcoverage:{OUTPUT_FOOTPRINTS_GEOJSON}",
+    ]
+
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError as e:
+        log.error(f"Tippecanoe (footprints) failed with exit code {e.returncode}")
+        raise
+    log.info(f"Footprints PMTiles written to {OUTPUT_FOOTPRINTS_PMTILES}")
+
+
+# =====================================================================
+# STATS + S3
+# =====================================================================
 
 
 def write_stats() -> None:
     """
     Query PgSTAC and write catalog stats to a small JSON file. Powers
     the OAM landing page without needing per-pageview STAC API calls.
-
-    Reports items and sum-of-areas coverage for the OAM collection (the
-    total imagery captured, not de-duplicated globe coverage), alongside
-    the total number of collections in the wider catalog.
     """
     log.info("Computing catalog stats...")
 
@@ -343,22 +475,17 @@ def write_stats() -> None:
     log.info(f"Stats written to {OUTPUT_STATS}: {stats}")
 
 
-def upload_to_s3() -> None:
-    """
-    Upload the generated PMTiles and stats.json to S3 (or S3-compatible).
-    Skips upload if required environment variables are not present.
-    """
+def _s3_client() -> Minio | None:
     endpoint = os.getenv("S3_ENDPOINT", "s3.amazonaws.com")
-    bucket = os.getenv("S3_BUCKET", "oin-hotosm-temp")
     access_key = os.getenv("S3_ACCESS_KEY")
     secret_key = os.getenv("S3_SECRET_KEY")
     region = os.getenv("S3_REGION", "us-east-1")
 
     if not (access_key and secret_key):
         log.warning("S3 upload skipped: missing required env vars.")
-        return
+        return None
 
-    client = Minio(
+    return Minio(
         endpoint,
         access_key=access_key,
         secret_key=secret_key,
@@ -366,6 +493,19 @@ def upload_to_s3() -> None:
         secure=True,
     )
 
+
+def upload_artifacts(artifacts: list[tuple[str, str]]) -> None:
+    """
+    Upload a list of (local_path, content_type) pairs to the OAM S3
+    bucket, keying by basename. Silently no-ops if S3 creds are missing
+    (useful for local runs) or if the file doesn't exist (the caller may
+    invoke this after a failed generation step).
+    """
+    client = _s3_client()
+    if client is None:
+        return
+
+    bucket = os.getenv("S3_BUCKET", "oin-hotosm-temp")
     try:
         if not client.bucket_exists(bucket):
             log.error(f"Bucket {bucket} does not exist. Exiting upload.")
@@ -374,10 +514,6 @@ def upload_to_s3() -> None:
         log.error(f"Error checking bucket: {e}")
         return
 
-    artifacts = [
-        (OUTPUT_PMTILES, "application/vnd.pmtiles"),
-        (OUTPUT_STATS, "application/json"),
-    ]
     for path, content_type in artifacts:
         if not Path(path).exists():
             log.warning(f"Skipping upload of {path}: file not found")
@@ -398,23 +534,29 @@ def upload_to_s3() -> None:
 
 
 if __name__ == "__main__":
-    log.info(f"Starting global coverage PMTiles generation (TEST_MODE={TEST_MODE})")
+    log.info(f"Starting global PMTiles generation (TEST_MODE={TEST_MODE})")
 
-    if not Path(OUTPUT_PMTILES).exists():
-        # get_features and get_density_features are independent pgstac
-        # scans writing to separate files - safe to run concurrently. Uses
-        # threads (not processes) since both are IO-bound on the DB and
-        # spend most of their time waiting on the network / file writes.
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [
-                pool.submit(get_features),
-                pool.submit(get_density_features),
-            ]
-            for fut in futures:
-                fut.result()  # re-raise any exception
-        geojson_to_pmtiles()
-    else:
-        log.info(f"{OUTPUT_PMTILES} already exists, skipping generation.")
+    # Stages run in ascending order of cost / descending order of
+    # blast-radius-if-stale: cheap+critical artifacts land on S3 first
+    # so a failure or timeout in a later stage never leaves a downstream
+    # service without a fresh input.
 
+    # --- Stage 1: stats (tiny JSON, powers landing page) --------------
     write_stats()
-    upload_to_s3()
+    upload_artifacts([(OUTPUT_STATS, "application/json")])
+
+    # --- Stage 2: density (small PMTiles, TMS-critical) ---------------
+    if not Path(OUTPUT_DENSITY_PMTILES).exists():
+        get_density_features()
+        density_to_pmtiles()
+    else:
+        log.info(f"{OUTPUT_DENSITY_PMTILES} already exists, skipping density gen.")
+    upload_artifacts([(OUTPUT_DENSITY_PMTILES, "application/vnd.pmtiles")])
+
+    # --- Stage 3: footprints (larger PMTiles, powers frontend) --------
+    if not Path(OUTPUT_FOOTPRINTS_PMTILES).exists():
+        get_footprint_features()
+        footprints_to_pmtiles()
+    else:
+        log.info(f"{OUTPUT_FOOTPRINTS_PMTILES} already exists, skipping footprint gen.")
+    upload_artifacts([(OUTPUT_FOOTPRINTS_PMTILES, "application/vnd.pmtiles")])

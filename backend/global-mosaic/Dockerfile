@@ -68,12 +68,9 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
 COPY --from=tippecanoe /src/tippecanoe/tippecanoe* /usr/local/bin/
 COPY --from=tippecanoe /src/tippecanoe/tile-join /usr/local/bin/
-# gen_density_vector.py is the currently-shipped generator. Prior
-# iterations (gen_mosaic_manual, gen_mosaic_hybrid, gen_coverage_raster,
-# gen_coverage_vector) live in scripts/ for historical reference - see
-# scripts/README.md.
-COPY scripts/gen_density_vector.py /app/gen_density_vector.py
+# See scripts/README.md for details on the script used
+COPY scripts/gen_coverage_vector.py /app/gen_coverage_vector.py
 
 ENV PATH=/app/.venv/bin:$PATH
 
-CMD ["python", "-u", "gen_density_vector.py"]
+CMD ["python", "-u", "gen_coverage_vector.py"]
