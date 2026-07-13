@@ -242,6 +242,12 @@ def get_density_features() -> None:
     # ST_XMin/XMax/YMin/YMax return the polygon extent; we aggregate
     # those per cell instead of just centroids so click-to-zoom lands
     # on the imagery rather than the cell corner.
+    #
+    # NB: the STAC ingester (stactools-hotosm) writes the platform value
+    # under `oam:platform_type`, not the bare `platform` key. Reading the
+    # wrong key returns NULL for every item and lumps everything into
+    # `count_aircraft`, so the frontend's satellite/uav filters match
+    # nothing.
     centroid_query = """
         SELECT ST_X(ST_Centroid(geometry)) AS lon,
                ST_Y(ST_Centroid(geometry)) AS lat,
@@ -249,7 +255,7 @@ def get_density_features() -> None:
                ST_YMin(geometry) AS ymin,
                ST_XMax(geometry) AS xmax,
                ST_YMax(geometry) AS ymax,
-               content->'properties'->>'platform' AS platform,
+               content->'properties'->>'oam:platform_type' AS platform,
                COALESCE(
                    content->'properties'->>'license',
                    content->>'license'
@@ -470,7 +476,7 @@ def _extract_feature_properties(feature_id: str, content: dict) -> dict:
         "_id": feature_id,
         "title": props.get("title"),
         "provider": provider_name,
-        "platform": props.get("platform"),
+        "platform": props.get("oam:platform_type"),
         "sensor": sensor,
         "gsd": props.get("gsd"),
         "license": props.get("license") or content.get("license"),
