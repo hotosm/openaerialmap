@@ -32,7 +32,7 @@ import math
 import os
 import sys
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Tuple
 from psycopg import connect
@@ -135,8 +135,85 @@ def _tile2lat(y: int, zoom: int) -> float:
 
 
 # =====================================================================
-# DENSITY (unchanged output - do not touch the global-tms contract)
+# DENSITY
 # =====================================================================
+
+
+# Bucket keys must match the frontend filter values in
+# frontend/src/browse/utils/filters.ts (densityCountKey). Any change
+# here needs a matching change on the client.
+PLATFORM_BUCKETS = {
+    "uav": "count_uav",
+    "drone": "count_uav",
+    "satellite": "count_satellite",
+}
+# Anything not in PLATFORM_BUCKETS (including null / unknown) rolls up
+# into the "aircraft" bucket, which the frontend surfaces as "Other".
+PLATFORM_DEFAULT_BUCKET = "count_aircraft"
+
+
+def _license_bucket(license_str: str | None) -> str | None:
+    """
+    Map a raw STAC license string onto one of the three buckets the
+    frontend filter offers. Returns None for licenses that don't match
+    any bucket (unknown / non-CC) so those images don't inflate any
+    filtered count.
+    """
+    if not license_str:
+        return None
+    norm = license_str.replace(" ", "").replace("-", "").lower()
+    if "nc" in norm:
+        return "count_lic_by_nc"
+    if "sa" in norm:
+        return "count_lic_by_sa"
+    if "by" in norm:
+        return "count_lic_by"
+    return None
+
+
+def _date_buckets(acq_ts: datetime | None, now: datetime) -> list[str]:
+    """
+    Bucket an image's acquisition timestamp into:
+      - `count_year_YYYY` (always, if a valid date)
+      - `count_last_7d` / `count_last_30d` (moving windows relative to
+        `now` at generation time)
+
+    Moving windows are frozen at generation time - the client's "Past
+    Week" preset really means "past week relative to the last pmtiles
+    build". Small drift (up to a day between builds) is acceptable and
+    documented in the frontend filter tooltip.
+    """
+    if not acq_ts:
+        return []
+    if acq_ts.tzinfo is None:
+        acq_ts = acq_ts.replace(tzinfo=timezone.utc)
+    keys = [f"count_year_{acq_ts.year}"]
+    delta = now - acq_ts
+    if timedelta(0) <= delta <= timedelta(days=7):
+        keys.append("count_last_7d")
+    if timedelta(0) <= delta <= timedelta(days=30):
+        keys.append("count_last_30d")
+    return keys
+
+
+def _image_buckets(
+    platform: str | None,
+    license_str: str | None,
+    acq_ts: datetime | None,
+    now: datetime,
+) -> tuple[str, ...]:
+    """
+    All bucket keys an image increments. Kept as a tuple so the inner
+    binning loop just iterates without allocating a new list per image.
+    """
+    buckets: list[str] = []
+    plat = (platform or "").lower()
+    buckets.append(PLATFORM_BUCKETS.get(plat, PLATFORM_DEFAULT_BUCKET))
+    lb = _license_bucket(license_str)
+    if lb:
+        buckets.append(lb)
+    buckets.extend(_date_buckets(acq_ts, now))
+    return tuple(buckets)
 
 
 def get_density_features() -> None:
@@ -145,11 +222,19 @@ def get_density_features() -> None:
     Web-Mercator tile-cell grids at multiple zoom levels. Each grid cell
     carries:
 
-    - `count`: number of image centroids inside the cell
+    - `count`: total number of image centroids inside the cell
     - `bboxW/S/E/N`: union of contained-image bboxes, so clicking the
       cell in the frontend can `fitBounds` to where the imagery actually
       is (rather than to the whole cell, which is mostly empty for
       clusters in a corner).
+    - Optional per-filter breakdown counts (only emitted when >0):
+        - `count_uav`, `count_satellite`, `count_aircraft`
+        - `count_lic_by`, `count_lic_by_nc`, `count_lic_by_sa`
+        - `count_year_YYYY` (one per year of imagery present)
+        - `count_last_7d`, `count_last_30d`
+      These let the frontend show accurate filtered counts at world
+      zoom by reading e.g. `count_uav` instead of the total `count`.
+      See frontend/src/browse/utils/filters.ts (densityCountKey).
 
     Each cell is tagged with tippecanoe `minzoom`/`maxzoom` so it only
     appears at its target display zoom.
@@ -163,7 +248,17 @@ def get_density_features() -> None:
                ST_XMin(geometry) AS xmin,
                ST_YMin(geometry) AS ymin,
                ST_XMax(geometry) AS xmax,
-               ST_YMax(geometry) AS ymax
+               ST_YMax(geometry) AS ymax,
+               content->'properties'->>'platform' AS platform,
+               COALESCE(
+                   content->'properties'->>'license',
+                   content->>'license'
+               ) AS license,
+               COALESCE(
+                   (content->'properties'->>'datetime')::timestamptz,
+                   (content->'properties'->>'end_datetime')::timestamptz,
+                   (content->'properties'->>'start_datetime')::timestamptz
+               ) AS acq_ts
         FROM pgstac.items
         WHERE collection = %s
           AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
@@ -171,11 +266,13 @@ def get_density_features() -> None:
     params = [COLLECTION] + list(BBOX)
 
     log.info(f"Fetching OAM centroids + bboxes for density grid (bbox={BBOX})...")
-    records: list[tuple[float, float, float, float, float, float]] = []
+    now = datetime.now(timezone.utc)
+    # Each record: (lon, lat, xmin, ymin, xmax, ymax, buckets)
+    records: list[tuple[float, float, float, float, float, float, tuple[str, ...]]] = []
     try:
         with connect(PG_DSN) as conn, conn.cursor() as cur:
             cur.execute(centroid_query, params)
-            for lon, lat, xmin, ymin, xmax, ymax in cur:
+            for lon, lat, xmin, ymin, xmax, ymax, platform, license_str, acq_ts in cur:
                 if lon is None or lat is None:
                     continue
                 # Clamp latitude to Web Mercator's valid range
@@ -189,6 +286,7 @@ def get_density_features() -> None:
                         float(ymin),
                         float(xmax),
                         float(ymax),
+                        _image_buckets(platform, license_str, acq_ts, now),
                     )
                 )
     except Exception as e:
@@ -201,15 +299,16 @@ def get_density_features() -> None:
     with open(OUTPUT_DENSITY_GEOJSON, "w") as f:
         for display_zoom in range(0, DENSITY_MAX_ZOOM + 1):
             cell_zoom = min(display_zoom + DENSITY_ZOOM_OFFSET, DENSITY_CELL_ZOOM_CAP)
-            # cell key -> [count, xmin, ymin, xmax, ymax]. Mutating a
-            # list in the dict is cheaper than allocating tuples each
-            # update - this loop runs ~21k × 14 zooms = ~300k times.
-            cells: dict[tuple[int, int], list[float]] = {}
-            for lon, lat, xmin, ymin, xmax, ymax in records:
+            # cell key -> [count, xmin, ymin, xmax, ymax, buckets_dict].
+            # Mutating a list in the dict is cheaper than allocating
+            # tuples each update - this loop runs ~21k × 14 zooms = ~300k
+            # times.
+            cells: dict[tuple[int, int], list] = {}
+            for lon, lat, xmin, ymin, xmax, ymax, buckets in records:
                 key = (_lon2tile(lon, cell_zoom), _lat2tile(lat, cell_zoom))
                 acc = cells.get(key)
                 if acc is None:
-                    cells[key] = [1.0, xmin, ymin, xmax, ymax]
+                    acc = cells[key] = [1, xmin, ymin, xmax, ymax, {}]
                 else:
                     acc[0] += 1
                     if xmin < acc[1]:
@@ -220,8 +319,11 @@ def get_density_features() -> None:
                         acc[3] = xmax
                     if ymax > acc[4]:
                         acc[4] = ymax
+                bkt = acc[5]
+                for bk in buckets:
+                    bkt[bk] = bkt.get(bk, 0) + 1
 
-            for (x, y), (count, bw, bs, be, bn) in cells.items():
+            for (x, y), (count, bw, bs, be, bn, bkt) in cells.items():
                 w = _tile2lon(x, cell_zoom)
                 e = _tile2lon(x + 1, cell_zoom)
                 n = _tile2lat(y, cell_zoom)
@@ -236,6 +338,9 @@ def get_density_features() -> None:
                     "bboxS": round(bs, 4),
                     "bboxE": round(be, 4),
                     "bboxN": round(bn, 4),
+                    # Breakdown counts. Only non-zero buckets are
+                    # emitted so tippecanoe doesn't pack empty keys.
+                    **bkt,
                 }
 
                 # Polygon drives density-fill and the click target.
@@ -254,15 +359,15 @@ def get_density_features() -> None:
                 f.write(json.dumps(polygon_feature))
                 f.write("\n")
 
-                # Point drives density-count labels; style filters to
-                # Point to avoid duplicate labels from the polygon.
-                # No bbox needed - labels aren't click targets.
+                # Point drives density-count labels. Carries the same
+                # breakdown counts so the label can swap to a filtered
+                # value without a second source lookup.
                 cx = (w + e) / 2
                 cy = (n + s) / 2
                 point_feature = {
                     "type": "Feature",
                     "tippecanoe": clamp,
-                    "properties": {"count": int(count)},
+                    "properties": {"count": int(count), **bkt},
                     "geometry": {"type": "Point", "coordinates": [cx, cy]},
                 }
                 f.write(json.dumps(point_feature))
@@ -299,6 +404,9 @@ def density_to_pmtiles() -> None:
         f"--minimum-zoom={ZOOM_MIN}",
         f"--maximum-zoom={ZOOM_MAX}",
         "--drop-densest-as-needed",
+        # Progress bar uses \r updates that k8s log streams turn into
+        # thousands of separate lines, drowning out real messages.
+        "--no-progress-indicator",
         "-L",
         f"density:{OUTPUT_DENSITY_GEOJSON}",
     ]
@@ -487,6 +595,7 @@ def footprints_to_pmtiles() -> None:
         f"--minimum-zoom={ZOOM_MIN}",
         f"--maximum-zoom={ZOOM_MAX}",
         "--drop-densest-as-needed",
+        "--no-progress-indicator",
         "-L",
         f"globalcoverage:{OUTPUT_FOOTPRINTS_GEOJSON}",
     ]
