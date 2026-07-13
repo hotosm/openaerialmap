@@ -280,7 +280,19 @@ def _extract_feature_properties(feature_id: str, content: dict) -> dict:
     instruments = props.get("instruments") or []
     sensor = instruments[0] if instruments else props.get("sensor")
 
-    visual = assets.get("visual") or assets.get("data") or {}
+    # Prefer `visual` (STAC convention for a display-ready COG); fall
+    # back to `data` (OAM's older naming) so we still produce a URL for
+    # legacy items. The chosen name has to be threaded through to the
+    # frontend so it can call TiTiler-pgstac with the right `?assets=`
+    # query param.
+    if assets.get("visual"):
+        asset_name = "visual"
+    elif assets.get("data"):
+        asset_name = "data"
+    else:
+        asset_name = None
+    visual = assets.get(asset_name) if asset_name else {}
+
     thumbnail = assets.get("thumbnail") or {}
     tms_asset = assets.get("tms") or assets.get("wmts") or {}
 
@@ -308,10 +320,15 @@ def _extract_feature_properties(feature_id: str, content: dict) -> dict:
             or props.get("start_datetime")
         ),
         "thumbnail": thumbnail.get("href"),
-        # `uuid` carries the visual COG's S3 path; used as the fallback
-        # to construct a TMS URL when no `tms` asset is present.
+        # `uuid` carries the visual COG's S3 path. Kept for the
+        # GeoTIFF-download link on each card and as a debug reference;
+        # tile URLs go through TiTiler-pgstac via `_id` + `asset_name`.
         "uuid": visual.get("href"),
         "tms": tms_asset.get("href"),
+        # Which asset name the frontend should pass to TiTiler-pgstac's
+        # `?assets=` query param. Usually `visual`, occasionally `data`
+        # on older items.
+        "asset_name": asset_name,
         "file_size": file_size,
     }
 
@@ -378,10 +395,26 @@ def footprints_to_pmtiles() -> None:
     Run tippecanoe to build the footprints PMTiles archive with a single
     `globalcoverage` layer of per-image polygons + metadata.
 
-    `--drop-densest-as-needed` is important: at z0 the coverage layer
-    would otherwise pack all ~21k footprints into ~4 tiles, blowing past
-    the 500K tile-size limit. Drop-densest only activates when the limit
-    is hit, so it's essentially free when tiles fit comfortably.
+    `--drop-densest-as-needed` is deliberate: at z0-z2 the coverage
+    layer would otherwise pack all ~21k footprints (~17 MB of rich
+    metadata) into a handful of tiles, blowing past the ~500 KB
+    tile-size limit. Drop-densest picks the densest features and skips
+    them until the tile fits, so it only activates at low zooms where
+    tiles are geographically huge.
+
+    Consequence: the archive is NOT a lossless copy of the catalogue
+    at every zoom. Low-zoom tiles carry only a subset. This is a
+    deliberate tradeoff - see `README.md` (`Low-zoom tiles are a
+    simplified representation`) and the block comment on
+    `FOOTPRINT_MIN_ZOOM` in
+    `frontend/src/browse/utils/constants.ts` for the full context.
+    The frontend gates its sidebar / footprint layer on
+    `FOOTPRINT_MIN_ZOOM = 8` to hide the truncation, since above ~z8
+    per-tile density is low enough that drop-densest rarely fires and
+    the tile data is effectively complete for the viewport. Low zooms
+    are handled by the separate `density` layer in
+    `global-coverage.pmtiles`, whose counts are pre-binned from all
+    ~21k centroids and are authoritative.
     """
     log.info("Generating footprints PMTiles with tippecanoe...")
 

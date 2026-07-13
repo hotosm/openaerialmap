@@ -23,6 +23,21 @@ a single layer:
 
 z14+ is served by TiTiler via the global-tms nginx routing.
 
+### Low-zoom tiles are a simplified representation
+
+`--drop-densest-as-needed` makes the `globalcoverage` layer lossy at
+low zoom: at z0-z7 all ~21k footprints can't fit within tippecanoe's
+per-tile byte budget, so some are dropped. The frontend hides this by
+gating footprints and the sidebar on `FOOTPRINT_MIN_ZOOM` (see
+`frontend/src/browse/utils/constants.ts`); at higher zooms tiles are
+small enough geographically that drop-densest rarely fires. Low zooms
+use the pre-binned `density` layer from `global-coverage.pmtiles`,
+whose counts are authoritative.
+
+Do not "fix" this by raising `--maximum-tile-bytes` - packing all 21k
+rich footprints into a z0 tile is a multi-MB download for no
+user-visible benefit (individual footprints are dots at world view).
+
 Stages run in ascending order of cost so a failure or timeout in a
 later stage never leaves a downstream service without a fresh input:
 
