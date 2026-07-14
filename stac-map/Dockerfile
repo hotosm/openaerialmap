@@ -13,9 +13,13 @@ RUN NGINX_VERSION="$(nginx -v 2>&1 | sed 's|^.*/||')" && \
     tar -xzf nginx.tar.gz && \
     mv "nginx-${NGINX_VERSION}" nginx-src && \
     git clone --depth 1 --recursive https://github.com/google/ngx_brotli.git && \
-    cd nginx-src && \
+    cd /src/ngx_brotli/deps/brotli && \
+    mkdir -p out && cd out && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF .. && \
+    cmake --build . --config Release --target brotlienc -j"$(nproc)" && \
+    cd /src/nginx-src && \
     ./configure --with-compat --add-dynamic-module=/src/ngx_brotli && \
-    make modules && \
+    make modules -j"$(nproc)" && \
     mkdir -p /out && \
     cp objs/ngx_http_brotli_filter_module.so objs/ngx_http_brotli_static_module.so /out/
 
