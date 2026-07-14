@@ -69,6 +69,14 @@ const COMPONENTS = [
     icon: "folder-tree",
   },
   {
+    title: "STAC Map",
+    tag: "Map catalog",
+    description:
+      "STAC Browser, but on a map. Explore items spatially, filter by area and time, and preview COGs live from the catalog.",
+    href: "https://api.imagery.hotosm.org/map/",
+    icon: "map-location-dot",
+  },
+  {
     title: "PMTiles Packager",
     tag: "Offline",
     description:

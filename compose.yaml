@@ -21,6 +21,8 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
+      stac-map:
+        condition: service_healthy
     restart: unless-stopped
 
   database:
@@ -201,6 +203,32 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    restart: unless-stopped
+
+  # ── stac-map ──────────────────────────────────────────────────────
+  # Wrapper around https://github.com/developmentseed/stac-map, built
+  # into a tiny nginx image and served at /stac-map/. Mirrors how the
+  # eoapi chart deploys stac-browser (ghcr.io/developmentseed/eoapi-k8s-stac-browser).
+
+  stac-map:
+    build:
+      context: ./stac-map
+      args:
+        # Defaults point at prod so a fresh `docker compose up` gives a
+        # useful map (local pgstac only has a handful of test items).
+        # Override VITE_STAC_MAP_* in .env if you're iterating on local
+        # catalog contents.
+        VITE_BASE_PATH: /map/
+        VITE_DEFAULT_HREF: ${VITE_STAC_MAP_DEFAULT_HREF:-https://api.imagery.hotosm.org/stac}
+        VITE_STAC_BROWSER_URL: ${VITE_STAC_MAP_BROWSER_URL:-https://api.imagery.hotosm.org/browser/#/external/}
+    healthcheck:
+      # BusyBox wget on nginx:alpine sometimes fails to resolve
+      # `localhost` cleanly; using 127.0.0.1 avoids the DNS path.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/map/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     restart: unless-stopped
 
   # ── Tilepack worker (profile: tilepack) ────────────────────────────

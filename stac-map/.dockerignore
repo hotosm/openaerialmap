@@ -1,0 +1,6 @@
+# The Dockerfile clones upstream stac-map from GitHub at a pinned tag,
+# so anything else in this directory (e.g. a local `git clone` for
+# reference) should not be shipped as part of the build context.
+*
+!Dockerfile
+!nginx.conf
