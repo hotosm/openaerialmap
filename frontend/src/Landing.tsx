@@ -288,27 +288,27 @@ export default function Landing() {
             </p>
           </div>
           <aside className="landing-about-highlights">
-            <div className="landing-highlight">
+            <wa-card class="landing-highlight">
               <h3>STAC-native</h3>
               <p>
                 A standards-based catalog that plays nicely with QGIS,
                 stackstac, pystac, and any tool that speaks STAC.
               </p>
-            </div>
-            <div className="landing-highlight">
+            </wa-card>
+            <wa-card class="landing-highlight">
               <h3>Dynamic tiling</h3>
               <p>
                 COGs served through TiTiler. Request custom rescales, band
                 combinations, and formats without pre-baking tiles.
               </p>
-            </div>
-            <div className="landing-highlight">
+            </wa-card>
+            <wa-card class="landing-highlight">
               <h3>Open & community-driven</h3>
               <p>
                 Imagery is contributed by drone pilots, NGOs, and satellite
                 providers. All open-source, all CC-BY compatible.
               </p>
-            </div>
+            </wa-card>
           </aside>
         </section>
 
@@ -322,25 +322,27 @@ export default function Landing() {
             {COMPONENTS.map((c) => (
               <a
                 key={c.title}
-                className={`landing-component-card${c.primary ? " landing-component-card--primary" : ""}`}
+                className={`landing-card-link${c.primary ? " landing-card-link--primary" : ""}`}
                 href={c.href}
                 target={c.href.startsWith("/") ? "_self" : "_blank"}
                 rel={c.href.startsWith("/") ? undefined : "noopener noreferrer"}
               >
-                <div className="landing-component-header">
-                  <wa-icon
-                    name={c.icon}
-                    variant="regular"
-                    class="landing-component-icon"
-                  />
-                  <span className="landing-component-tag">{c.tag}</span>
-                </div>
-                <h3 className="landing-component-title">{c.title}</h3>
-                <p className="landing-component-desc">{c.description}</p>
-                <span className="landing-component-link">
-                  Open
-                  <wa-icon name="arrow-right" variant="regular" />
-                </span>
+                <wa-card class="landing-component-card">
+                  <div slot="header" className="landing-component-header">
+                    <wa-icon
+                      name={c.icon}
+                      variant="regular"
+                      class="landing-component-icon"
+                    />
+                    <span className="landing-component-tag">{c.tag}</span>
+                  </div>
+                  <h3 className="landing-component-title">{c.title}</h3>
+                  <p className="landing-component-desc">{c.description}</p>
+                  <span slot="footer" className="landing-component-link">
+                    Open
+                    <wa-icon name="arrow-right" variant="regular" />
+                  </span>
+                </wa-card>
               </a>
             ))}
           </div>
@@ -350,10 +352,10 @@ export default function Landing() {
           <h2 className="landing-section-title">How OAM is used</h2>
           <div className="landing-cases-grid">
             {CASE_STUDIES.map((cs) => (
-              <article key={cs.title} className="landing-case-card">
+              <wa-card key={cs.title} class="landing-case-card">
                 <h3>{cs.title}</h3>
                 <p>{cs.body}</p>
-              </article>
+              </wa-card>
             ))}
           </div>
         </section>
@@ -364,14 +366,16 @@ export default function Landing() {
             {RESOURCES.map((r) => (
               <a
                 key={r.title}
-                className="landing-resource-card"
+                className="landing-card-link"
                 href={r.href}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <p className="landing-resource-type">{r.type}</p>
-                <p className="landing-resource-title">{r.title}</p>
-                <p className="landing-resource-desc">{r.description}</p>
+                <wa-card class="landing-resource-card">
+                  <p className="landing-resource-type">{r.type}</p>
+                  <p className="landing-resource-title">{r.title}</p>
+                  <p className="landing-resource-desc">{r.description}</p>
+                </wa-card>
               </a>
             ))}
           </div>

@@ -167,7 +167,11 @@
 }
 
 .landing-metric-card {
-  border-radius: 16px;
+  --border-radius: 16px;
+  --spacing: 0;
+}
+
+.landing-metric-card::part(base) {
   border: 1px solid var(--hot-color-blue-100);
   box-shadow: 0 14px 30px rgba(16, 39, 67, 0.1);
   background-color: white;
@@ -254,11 +258,17 @@
 }
 
 .landing-highlight {
-  padding: 20px 22px;
-  border-radius: 16px;
+  --border-radius: 16px;
+}
+
+.landing-highlight::part(base) {
   border: 1px solid var(--hot-color-blue-100);
   background: white;
   box-shadow: 0 10px 22px rgba(16, 39, 67, 0.07);
+}
+
+.landing-highlight::part(body) {
+  padding: 20px 22px;
 }
 
 .landing-highlight h3 {
@@ -274,6 +284,22 @@
   font-size: 0.95rem;
 }
 
+/* ---------- Card link wrapper (shared by component + resource grids) ---------- */
+
+.landing-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 16px;
+  transition:
+    transform 170ms ease,
+    box-shadow 170ms ease;
+}
+
+.landing-card-link:hover {
+  transform: translateY(-3px);
+}
+
 /* ---------- Components grid ---------- */
 
 .landing-components-grid {
@@ -283,29 +309,42 @@
 }
 
 .landing-component-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 22px;
-  border-radius: 16px;
+  --border-radius: 16px;
+  --spacing: 22px;
+  height: 100%;
+}
+
+.landing-component-card::part(base) {
+  height: 100%;
   border: 1px solid var(--hot-color-blue-100);
   background: white;
   box-shadow: 0 10px 22px rgba(16, 39, 67, 0.07);
-  text-decoration: none;
-  color: inherit;
   transition:
-    transform 170ms ease,
     box-shadow 170ms ease,
     border-color 170ms ease;
 }
 
-.landing-component-card:hover {
-  transform: translateY(-3px);
+.landing-component-card::part(header),
+.landing-component-card::part(footer) {
+  border: none;
+  padding-inline: 22px;
+  padding-block: 0;
+}
+
+.landing-component-card::part(header) {
+  padding-top: 22px;
+}
+
+.landing-component-card::part(footer) {
+  padding-bottom: 22px;
+}
+
+.landing-card-link:hover .landing-component-card::part(base) {
   box-shadow: 0 18px 32px rgba(16, 39, 67, 0.12);
   border-color: var(--hot-color-primary-200);
 }
 
-.landing-component-card--primary {
+.landing-card-link--primary .landing-component-card::part(base) {
   background: linear-gradient(
     155deg,
     var(--hot-color-primary-50) 0%,
@@ -337,7 +376,7 @@
   color: var(--hot-color-blue-700);
 }
 
-.landing-component-card--primary .landing-component-tag {
+.landing-card-link--primary .landing-component-tag {
   background: var(--hot-color-primary-100);
   color: var(--hot-color-primary-800);
 }
@@ -349,11 +388,10 @@
 }
 
 .landing-component-desc {
-  margin: 0;
+  margin: 0 0 6px 0;
   color: var(--landing-muted);
   line-height: 1.55;
   font-size: 0.94rem;
-  flex: 1;
 }
 
 .landing-component-link {
@@ -363,10 +401,9 @@
   color: var(--landing-brand-red);
   font-weight: 700;
   font-size: 0.9rem;
-  margin-top: 6px;
 }
 
-.landing-component-card:hover .landing-component-link wa-icon {
+.landing-card-link:hover .landing-component-link wa-icon {
   transform: translateX(3px);
 }
 
@@ -383,8 +420,11 @@
 }
 
 .landing-case-card {
-  padding: 26px;
-  border-radius: 16px;
+  --border-radius: 16px;
+  --spacing: 26px;
+}
+
+.landing-case-card::part(base) {
   border: 1px solid var(--hot-color-blue-100);
   background: linear-gradient(160deg, white 0%, var(--landing-surface) 100%);
   box-shadow: 0 10px 22px rgba(16, 39, 67, 0.07);
@@ -412,20 +452,20 @@
 }
 
 .landing-resource-card {
-  display: block;
-  text-decoration: none;
-  padding: 22px;
-  border-radius: 16px;
+  --border-radius: 16px;
+  --spacing: 22px;
+  height: 100%;
+}
+
+.landing-resource-card::part(base) {
+  height: 100%;
   border: 1px solid var(--hot-color-blue-100);
   background: linear-gradient(145deg, white 0%, var(--landing-surface) 100%);
   box-shadow: 0 12px 24px rgba(16, 39, 67, 0.08);
-  transition:
-    transform 170ms ease,
-    box-shadow 170ms ease;
+  transition: box-shadow 170ms ease;
 }
 
-.landing-resource-card:hover {
-  transform: translateY(-3px);
+.landing-card-link:hover .landing-resource-card::part(base) {
   box-shadow: 0 18px 32px rgba(16, 39, 67, 0.12);
 }
 
@@ -550,9 +590,12 @@
   .landing-components,
   .landing-cases,
   .landing-resources,
-  .landing-component-card,
-  .landing-resource-card {
+  .landing-card-link {
     animation: none;
+    transition: none;
+  }
+  .landing-component-card::part(base),
+  .landing-resource-card::part(base) {
     transition: none;
   }
 }
