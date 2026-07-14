@@ -1,30 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import SiteHeader from "./SiteHeader";
 import "./Landing.css";
-
-type HotHeaderElement = HTMLElement & {
-  tabs: Array<{ label: string; href?: string; clickEvent?: () => void }>;
-};
-
-const HEADER_TABS = [
-  {
-    label: "Home",
-    href: "/",
-    clickEvent: () => {
-      window.location.href = "/";
-    },
-  },
-  {
-    label: "Browse",
-    href: "/browse",
-    clickEvent: () => {
-      window.location.href = "/browse";
-    },
-  },
-];
-
-// Landing point for the (upcoming) imagery uploader. Currently the
-// legacy site; swap this in one place when the new uploader ships.
-const SHARE_IMAGERY_URL = "https://map.openaerialmap.org";
 
 const COMPONENTS = [
   {
@@ -174,16 +150,11 @@ function formatAreaKm2(km2: number): string {
 }
 
 export default function Landing() {
-  const headerRef = useRef<HotHeaderElement>(null);
   const [items, setItems] = useState<number>(STATIC_STATS.items);
   const [areaKm2, setAreaKm2] = useState<number>(STATIC_STATS.areaKm2);
   const [collections, setCollections] = useState<number>(
     STATIC_STATS.collections,
   );
-
-  useEffect(() => {
-    if (headerRef.current) headerRef.current.tabs = HEADER_TABS;
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,24 +173,7 @@ export default function Landing() {
 
   return (
     <div className="landing-root">
-      <hot-header
-        ref={headerRef}
-        title="OpenAerialMap"
-        logo="/openaerialmap.svg"
-        size="small"
-        tabs-center-align
-      >
-        <wa-button
-          slot="auth"
-          variant="brand"
-          class="share-imagery-btn"
-          onClick={() => {
-            window.open(SHARE_IMAGERY_URL, "_blank");
-          }}
-        >
-          Share Imagery
-        </wa-button>
-      </hot-header>
+      <SiteHeader />
 
       <main className="landing-page">
         <section className="landing-hero">

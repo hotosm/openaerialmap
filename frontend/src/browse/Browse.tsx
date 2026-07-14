@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
+import SiteHeader from "../SiteHeader";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
@@ -15,52 +16,7 @@ import {
   writeSelectedId,
 } from "./utils/url";
 
-// Landing point for the (upcoming) imagery uploader. Currently the
-// legacy site; swap this in one place when the new uploader ships.
-const SHARE_IMAGERY_URL = "https://map.openaerialmap.org";
-
-// Header tabs: primary navigation plus links out to the wider STAC
-// stack. Folded into the hot-header drawer on narrow viewports.
-const HEADER_TABS = [
-  {
-    label: "Home",
-    href: "/",
-    clickEvent: () => {
-      window.location.href = "/";
-    },
-  },
-  {
-    label: "Browse",
-    href: "/browse",
-    clickEvent: () => {
-      window.location.href = "/browse";
-    },
-  },
-  {
-    label: "API",
-    clickEvent: () => {
-      window.open("https://api.imagery.hotosm.org", "_blank");
-    },
-  },
-  {
-    label: "Docs",
-    clickEvent: () => {
-      window.open("https://docs.imagery.hotosm.org/", "_blank");
-    },
-  },
-  {
-    label: "Report a bug",
-    clickEvent: () => {
-      window.open("https://roadmap.hotosm.org/#tech-request", "_blank");
-    },
-  },
-];
-
-type HotHeaderElement = HTMLElement & { tabs: typeof HEADER_TABS };
-
 export default function Browse() {
-  const headerRef = useRef<HotHeaderElement>(null);
-
   const [features, setFeatures] = useState<ImageFeature[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<ImageFeature | null>(
     null,
@@ -81,10 +37,6 @@ export default function Browse() {
     const f = readInitialFilters();
     return { ...EMPTY_FILTERS, ...f };
   });
-
-  useEffect(() => {
-    if (headerRef.current) headerRef.current.tabs = HEADER_TABS;
-  }, []);
 
   const handleSelectFeature = (feature: ImageFeature | null) => {
     setSelectedFeature(feature);
@@ -128,24 +80,7 @@ export default function Browse() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <hot-header
-        ref={headerRef}
-        title="OpenAerialMap"
-        logo="/openaerialmap.svg"
-        size="small"
-        tabs-center-align
-      >
-        <wa-button
-          slot="auth"
-          variant="brand"
-          class="share-imagery-btn"
-          onClick={() => {
-            window.open(SHARE_IMAGERY_URL, "_blank");
-          }}
-        >
-          Share Imagery
-        </wa-button>
-      </hot-header>
+      <SiteHeader />
 
       <div className="flex flex-1 w-full min-h-0 bg-gray-100 font-sans">
         <div className="flex flex-col w-96 h-full bg-white border-r border-gray-200 shadow-xl z-20 relative">

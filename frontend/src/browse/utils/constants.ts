@@ -58,6 +58,25 @@ export const STAC_TITILER_URL =
   import.meta.env.VITE_STAC_TITILER_URL ??
   "https://api.imagery.hotosm.org/raster";
 
+// STAC catalog root. Used to build deep-links into STAC Browser, which
+// consumes /stac item URLs via its #/external/ fragment.
+export const STAC_URL =
+  import.meta.env.VITE_STAC_URL ?? "https://api.imagery.hotosm.org/stac";
+
+// STAC Browser root. Renders a nicer per-item metadata page than the
+// raw JSON at STAC_URL. Item deep-links are built as
+// `${STAC_BROWSER_URL}/#/external/<STAC_URL without protocol>/...`.
+export const STAC_BROWSER_URL =
+  import.meta.env.VITE_STAC_BROWSER_URL ??
+  "https://api.imagery.hotosm.org/browser";
+
+// Tilepack packager service. Generates on-demand PMTiles / MBTiles
+// archives for a single STAC item. The POST endpoint is idempotent:
+// returns 200 + URL if the archive already exists, 202 while the
+// worker is still generating. See backend/tilepack-api.
+export const PACKAGER_URL =
+  import.meta.env.VITE_PACKAGER_URL ?? "https://packager.imagery.hotosm.org";
+
 // Collection id in pgSTAC. Baked into the tile URLs above. Kept as a
 // const so a future re-org can move it in one place.
 export const COLLECTION_ID = "openaerialmap";

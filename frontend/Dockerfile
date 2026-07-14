@@ -2,10 +2,16 @@ FROM docker.io/node:22-slim AS base
 ARG VITE_PMTILES_URL
 ARG VITE_DENSITY_PMTILES_URL
 ARG VITE_STAC_TITILER_URL
+ARG VITE_STAC_URL
+ARG VITE_STAC_BROWSER_URL
+ARG VITE_PACKAGER_URL
 ARG VITE_MAPBOX_TOKEN
 ENV VITE_PMTILES_URL=${VITE_PMTILES_URL} \
     VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL} \
     VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL} \
+    VITE_STAC_URL=${VITE_STAC_URL} \
+    VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL} \
+    VITE_PACKAGER_URL=${VITE_PACKAGER_URL} \
     VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN} \
     PNPM_HOME="/pnpm" \
     PATH="$PATH:/pnpm"
@@ -27,12 +33,18 @@ ARG COMMIT_REF
 ARG VITE_PMTILES_URL
 ARG VITE_DENSITY_PMTILES_URL
 ARG VITE_STAC_TITILER_URL
+ARG VITE_STAC_URL
+ARG VITE_STAC_BROWSER_URL
+ARG VITE_PACKAGER_URL
 LABEL org.hotosm.openaerialmap.app-name="frontend" \
       org.hotosm.openaerialmap.app-version="${APP_VERSION}" \
       org.hotosm.openaerialmap.git-commit-ref="${COMMIT_REF:-none}" \
       org.hotosm.openaerialmap.maintainer="sysadmin@hotosm.org" \
       org.hotosm.openaerialmap.pmtiles-url="${VITE_PMTILES_URL}" \
       org.hotosm.openaerialmap.density-pmtiles-url="${VITE_DENSITY_PMTILES_URL}" \
-      org.hotosm.openaerialmap.stac-titiler-url="${VITE_STAC_TITILER_URL}"
+      org.hotosm.openaerialmap.stac-titiler-url="${VITE_STAC_TITILER_URL}" \
+      org.hotosm.openaerialmap.stac-url="${VITE_STAC_URL}" \
+      org.hotosm.openaerialmap.stac-browser-url="${VITE_STAC_BROWSER_URL}" \
+      org.hotosm.openaerialmap.packager-url="${VITE_PACKAGER_URL}"
 WORKDIR /app
 COPY --from=build /app/dist .

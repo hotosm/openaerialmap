@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import type { ImageFeature } from "../utils/types";
-import { COLLECTION_ID, STAC_TITILER_URL } from "../utils/constants";
+import {
+  COLLECTION_ID,
+  STAC_BROWSER_URL,
+  STAC_TITILER_URL,
+  STAC_URL,
+} from "../utils/constants";
 import { formatDate, formatPlatform, toSentenceCase } from "../utils/format";
+import { triggerTilepack, type TilepackFormat } from "../utils/tilepack";
 
 interface Props {
   feature: ImageFeature;
@@ -22,9 +28,44 @@ function tmsTemplate(p: ImageFeature["properties"]): string {
   );
 }
 
+// STAC Browser (https://github.com/radiantearth/stac-browser) reads a
+// remote catalog via `/external/<url without protocol>` and renders a
+// rich metadata page for the item - useful for anything beyond the
+// compact grid the sidebar can show. The OAM deployment uses history-
+// mode routing (path segment, no `#/`), so the ingress rewrite handles
+// the SPA route.
+function stacBrowserItemUrl(itemId: string): string {
+  const stacHostPath = STAC_URL.replace(/^https?:\/\//, "");
+  return `${STAC_BROWSER_URL}/external/${stacHostPath}/collections/${COLLECTION_ID}/items/${itemId}`;
+}
+
+// One state machine per format. The button always presents as
+// "Download <format>" - user does not need to know whether the
+// archive already exists. Behind the scenes:
+//   idle       -> nothing in flight; click POSTs to the packager
+//   working    -> POST in flight; render spinner + "Generating..."
+//   pending    -> POST returned 202 (worker still running); render
+//                 spinner + "Generating..." and let the user re-click
+//                 to re-check status (no background polling)
+//   ready      -> URL known from a previous "ready" packager response;
+//                 click just downloads without re-POSTing
+//   error      -> last request failed; button offers a retry
+type TilepackState =
+  | { kind: "idle" }
+  | { kind: "working" }
+  | { kind: "pending" }
+  | { kind: "ready"; url: string }
+  | { kind: "error"; message: string };
+
 export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   const [isExpanded, setIsExpanded] = useState(isSelected);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [pmtilesState, setPmtilesState] = useState<TilepackState>({
+    kind: "idle",
+  });
+  const [mbtilesState, setMbtilesState] = useState<TilepackState>({
+    kind: "idle",
+  });
   const cardRef = useRef<HTMLDivElement | null>(null);
   // Track previous selection in state (not a ref - see
   // react-hooks/refs) so we can reset local expansion when the prop
@@ -49,6 +90,39 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   }, [isSelected]);
 
   const p = feature.properties;
+
+  // Fire (or re-check) a canonical tilepack build. When the packager
+  // reports ready we open the archive URL so the user's click behaves
+  // like a real download - no extra "click again to download" step.
+  const runTilepack = async (format: TilepackFormat) => {
+    if (!p.id) return;
+    const setState = format === "pmtiles" ? setPmtilesState : setMbtilesState;
+    setState({ kind: "working" });
+    try {
+      const res = await triggerTilepack(p.id, format);
+      if (res.status === "ready" && res.url) {
+        setState({ kind: "ready", url: res.url });
+        window.open(res.url, "_blank", "noopener,noreferrer");
+      } else if (res.status === "started" || res.status === "in_progress") {
+        setState({ kind: "pending" });
+      } else if (res.status === "rate_limited") {
+        setState({
+          kind: "error",
+          message: `Rate limited. Try again in ${res.retry_after ?? 30}s.`,
+        });
+      } else {
+        setState({
+          kind: "error",
+          message: res.message || `Request failed (${res.httpStatus}).`,
+        });
+      }
+    } catch (err) {
+      setState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Request failed.",
+      });
+    }
+  };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const handleCopy = (
@@ -198,7 +272,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
 
       {isExpanded && (
         <div className="bg-gray-50 px-4 py-4 text-xs border-t border-gray-100 text-gray-600">
-          <div className="mb-4 pb-3 border-b border-gray-200">
+          <div className="mb-4 pb-3 border-b border-gray-200 space-y-2">
             <div className="flex gap-2">
               <button
                 onClick={(e) => handleCopy(e, tmsTemplate(p), "tms")}
@@ -223,6 +297,35 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 Open JOSM
               </button>
             </div>
+            <div className="flex gap-2">
+              <TilepackButton
+                format="pmtiles"
+                state={pmtilesState}
+                onGenerate={() => runTilepack("pmtiles")}
+              />
+              <TilepackButton
+                format="mbtiles"
+                state={mbtilesState}
+                onGenerate={() => runTilepack("mbtiles")}
+              />
+            </div>
+            {(pmtilesState.kind === "pending" ||
+              mbtilesState.kind === "pending") && (
+              <p className="text-[11px] leading-snug text-gray-500">
+                This can take a few minutes for large images. Click the button
+                again to check status; no need to wait on this page.
+              </p>
+            )}
+            {pmtilesState.kind === "error" && (
+              <p className="text-[11px] leading-snug text-red-600">
+                PMTiles: {pmtilesState.message}
+              </p>
+            )}
+            {mbtilesState.kind === "error" && (
+              <p className="text-[11px] leading-snug text-red-600">
+                MBTiles: {mbtilesState.message}
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-y-3 gap-x-4">
             <div>
@@ -275,8 +378,125 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               </span>
             </div>
           </div>
+          {p.id && (
+            <div className="mt-4 pt-3 border-t border-gray-200 text-right">
+              <a
+                href={stacBrowserItemUrl(p.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={stop}
+                className="text-[11px] font-semibold text-cyan-700 hover:text-cyan-800 hover:underline inline-flex items-center gap-1"
+              >
+                Open in STAC Browser
+                <span aria-hidden="true">→</span>
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+interface TilepackButtonProps {
+  format: TilepackFormat;
+  state: TilepackState;
+  onGenerate: () => void;
+}
+
+function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
+  const label = format === "pmtiles" ? "PMTiles" : "MBTiles";
+  const baseClass =
+    "flex-1 py-1.5 rounded transition-all shadow-sm text-center border flex items-center justify-center gap-2";
+
+  // Ready: we already have a URL (either from an earlier "ready"
+  // response in this session, or the packager returned 200 on the
+  // triggering click). Rendered as an anchor so the browser handles
+  // download semantics.
+  if (state.kind === "ready") {
+    return (
+      <a
+        href={state.url}
+        target="_blank"
+        rel="noreferrer"
+        download
+        onClick={(e) => e.stopPropagation()}
+        className={`${baseClass} font-semibold text-cyan-700 bg-cyan-50 border-cyan-200 hover:bg-cyan-100`}
+      >
+        Download {label}
+      </a>
+    );
+  }
+
+  // Working (POST in flight) or pending (server returned 202) both
+  // show the spinner. Pending is still clickable so the user can
+  // re-check without waiting on background polling.
+  if (state.kind === "working" || state.kind === "pending") {
+    const disabled = state.kind === "working";
+    return (
+      <button
+        disabled={disabled}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) onGenerate();
+        }}
+        className={`${baseClass} bg-amber-50 border-amber-200 text-amber-800 ${
+          disabled ? "cursor-wait" : "hover:bg-amber-100"
+        }`}
+        title={
+          state.kind === "pending"
+            ? "Still generating - click to check status"
+            : undefined
+        }
+      >
+        <Spinner />
+        Generating…
+      </button>
+    );
+  }
+
+  // Idle or error. Error surfaces a red border; the accompanying
+  // message is rendered by the parent below the button row.
+  const errored = state.kind === "error";
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onGenerate();
+      }}
+      className={`${baseClass} ${
+        errored
+          ? "bg-white border-red-300 text-red-600 hover:bg-red-50"
+          : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400"
+      }`}
+    >
+      Download {label}
+    </button>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin h-3.5 w-3.5"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+      />
+    </svg>
   );
 }

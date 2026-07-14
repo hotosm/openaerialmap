@@ -187,6 +187,9 @@ services:
       - VITE_PMTILES_URL=${VITE_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-data.pmtiles}
       - VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles}
       - VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL:-https://api.imagery.hotosm.org/raster}
+      - VITE_STAC_URL=${VITE_STAC_URL:-https://api.imagery.hotosm.org/stac}
+      - VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL:-https://api.imagery.hotosm.org/browser}
+      - VITE_PACKAGER_URL=${VITE_PACKAGER_URL:-https://packager.imagery.hotosm.org}
       - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
     volumes:
       - ./frontend/src:/app/src
@@ -207,7 +210,7 @@ services:
 
   # ── stac-map ──────────────────────────────────────────────────────
   # Wrapper around https://github.com/developmentseed/stac-map, built
-  # into a tiny nginx image and served at /stac-map/. Mirrors how the
+  # into a tiny nginx image and served at /map/. Mirrors how the
   # eoapi chart deploys stac-browser (ghcr.io/developmentseed/eoapi-k8s-stac-browser).
 
   stac-map:
