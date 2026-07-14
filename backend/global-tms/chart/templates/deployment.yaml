@@ -52,7 +52,7 @@ spec:
             {{ toYaml . | nindent 12 }}
             {{- end }}
         - name: {{ .Chart.Name }}-nginx
-          image: nginx:1.29-alpine
+          image: nginx:1.31-alpine
           ports:
             - containerPort: 80
               name: http

@@ -18,7 +18,7 @@ RUN yarn install --frozen-lockfile
 RUN yarn build
 
 
-FROM docker.io/nginx:1.29-alpine AS prod
+FROM docker.io/nginx:1.31-alpine AS prod
 ARG APP_VERSION
 ARG COMMIT_REF
 ARG STAC_MAP_REF=v2.1.0

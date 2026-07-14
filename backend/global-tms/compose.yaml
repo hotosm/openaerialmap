@@ -24,7 +24,7 @@ services:
   # front of chiitiler, chiitiler shares the pod's network namespace so it
   # answers on 127.0.0.1:3000 and can fetch style.json + PMTiles on 127.0.0.1:80.
   tms-nginx:
-    image: docker.io/nginx:1.29-alpine
+    image: docker.io/nginx:1.31-alpine
     ports:
       - "8084:80"
     volumes:
