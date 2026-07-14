@@ -57,8 +57,33 @@ func (h *Handler) Routes() http.Handler {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("POST /tilepacks/{id}", h.postTilepack)
+	// Preflight for browser CORS requests to the public trigger
+	// endpoint. Response headers are added by corsMiddleware.
+	mux.HandleFunc("OPTIONS /tilepacks/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("POST /internal/items/{id}/assets", h.postInternalAsset)
-	return mux
+	return corsMiddleware(mux)
+}
+
+// corsMiddleware adds permissive CORS headers to public routes so the
+// browse UI (and any other browser client) can POST /tilepacks/{id}
+// cross-origin. The API is anonymous with per-IP rate limiting, so an
+// open Allow-Origin is safe. The internal write path (/internal/*)
+// takes a bearer token and is deliberately excluded - it is
+// ClusterIP-only via the ingress rules in chart/templates/ingress.yaml,
+// but we defence-in-depth here too so a mis-routed request from a
+// browser cannot reach it with credentials.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/internal/") {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 type internalAssetRequest struct {

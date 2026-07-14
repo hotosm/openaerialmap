@@ -289,6 +289,45 @@ func TestRoutes_Healthz(t *testing.T) {
 	}
 }
 
+func TestCORS_PreflightAndPublic(t *testing.T) {
+	h := &Handler{}
+
+	// OPTIONS preflight on the public trigger endpoint.
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/tilepacks/abc123?format=pmtiles", nil)
+	req.Header.Set("Origin", "https://openaerialmap.hotosm.org")
+	h.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("preflight Allow-Origin = %q, want %q", got, "*")
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, "POST") {
+		t.Fatalf("preflight Allow-Methods = %q, want to contain POST", got)
+	}
+
+	// A POST that hits an early validation path still emits CORS
+	// headers so the browser can read the JSON error body.
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/tilepacks/bad$id?format=pmtiles", nil)
+	h.Routes().ServeHTTP(rr, req)
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("post Allow-Origin = %q, want %q", got, "*")
+	}
+}
+
+func TestCORS_NotAppliedToInternalRoutes(t *testing.T) {
+	h := &Handler{}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/internal/items/abc/assets", strings.NewReader("{}"))
+	h.Routes().ServeHTTP(rr, req)
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("internal Allow-Origin = %q, want empty (internal routes must not enable CORS)", got)
+	}
+}
+
 func TestPostTilepack_EarlyValidationPaths(t *testing.T) {
 	tests := []struct {
 		name       string
