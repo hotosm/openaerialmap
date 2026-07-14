@@ -1,0 +1,21 @@
+name: Build STAC Map UI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "stac-map/**"
+  workflow_dispatch:
+
+jobs:
+  image-build-and-push:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
+    with:
+      context: stac-map/
+      # image_name: ghcr.io/${{ github.repository }}/stac-map
+      build_target: prod
+      dockerfile: Dockerfile
+      # Manually specify to match version in stac-map/Dockerfile
+      image_tags: |
+        "ghcr.io/${{ github.repository }}/stac-map:2.1.0"
