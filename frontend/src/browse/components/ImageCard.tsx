@@ -67,6 +67,16 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     kind: "idle",
   });
   const cardRef = useRef<HTMLDivElement | null>(null);
+  // Guards the tilepack POST callback: cards unmount when the sidebar
+  // pages or the user pans away, so a resolving fetch can otherwise
+  // call setState on a dead component.
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
   // Track previous selection in state (not a ref - see
   // react-hooks/refs) so we can reset local expansion when the prop
   // flips. Users can still toggle "Show/Hide Details" mid-selection.
@@ -100,6 +110,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     setState({ kind: "working" });
     try {
       const res = await triggerTilepack(p.id, format);
+      if (unmountedRef.current) return;
       if (res.status === "ready" && res.url) {
         setState({ kind: "ready", url: res.url });
         window.open(res.url, "_blank", "noopener,noreferrer");
@@ -117,6 +128,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
         });
       }
     } catch (err) {
+      if (unmountedRef.current) return;
       setState({
         kind: "error",
         message: err instanceof Error ? err.message : "Request failed.",
@@ -178,26 +190,23 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
       }`}
     >
       {isSelected && (
+        // Prominent deselect affordance. When an image is selected the
+        // map fades non-selected footprints, so the user needs an
+        // obvious way back to the unfiltered view. Dark circle with a
+        // white glyph reads clearly against both the white card and
+        // the image thumbnail below it. Also see Browse.tsx for the
+        // Escape-key shortcut.
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onSelect(null);
           }}
-          className="absolute top-2 right-2 text-gray-400 hover:text-cyan-600 p-1 hover:bg-gray-100 rounded-full z-10"
-          title="Deselect"
+          className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-gray-900 text-white hover:bg-cyan-600 rounded-full z-10 cursor-pointer shadow-md transition-colors ring-2 ring-white"
+          title="Deselect image (Esc)"
+          aria-label="Deselect image"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
+          <wa-icon name="xmark" variant="solid" auto-width />
         </button>
       )}
 
@@ -239,33 +248,34 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
 
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setIsExpanded((v) => !v);
             }}
-            className="flex-1 text-xs font-semibold text-gray-500 hover:text-cyan-600 flex items-center justify-center gap-1 py-1.5 transition-colors"
+            className="flex-1 text-xs font-semibold text-gray-500 hover:text-cyan-600 flex items-center justify-center gap-1 py-1.5 transition-colors cursor-pointer"
           >
             {isExpanded ? "Hide Details" : "Show Details"}
-            <span
-              className="text-[9px] transform transition-transform duration-200"
-              style={{
-                transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              ▼
-            </span>
+            <wa-icon
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              variant="solid"
+              auto-width
+              class="text-[10px]"
+            />
           </button>
           {p.uuid && (
-            <a
-              href={p.uuid}
-              target="_blank"
-              rel="noreferrer"
-              download
-              onClick={stop}
-              className="flex-1 text-xs font-semibold text-cyan-600 bg-cyan-50 hover:bg-cyan-100 py-1.5 rounded text-center transition-colors"
+            <wa-button
+              size="small"
+              variant="brand"
+              appearance="filled"
+              class="flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(p.uuid!, "_blank", "noopener,noreferrer");
+              }}
             >
               Download GeoTIFF
-            </a>
+            </wa-button>
           )}
         </div>
       </div>
@@ -274,28 +284,30 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
         <div className="bg-gray-50 px-4 py-4 text-xs border-t border-gray-100 text-gray-600">
           <div className="mb-4 pb-3 border-b border-gray-200 space-y-2">
             <div className="flex gap-2">
-              <button
+              <wa-button
+                size="small"
+                appearance="outlined"
+                class="flex-1"
                 onClick={(e) => handleCopy(e, tmsTemplate(p), "tms")}
-                className="flex-1 bg-white border border-gray-300 text-gray-600 py-1.5 rounded hover:bg-gray-100 hover:border-gray-400 transition-all shadow-sm"
               >
-                {copyFeedback === "tms" ? (
-                  <span className="text-green-600 font-bold">Copied!</span>
-                ) : (
-                  "Copy TMS"
-                )}
-              </button>
-              <button
+                {copyFeedback === "tms" ? "Copied!" : "Copy TMS"}
+              </wa-button>
+              <wa-button
+                size="small"
+                appearance="outlined"
+                class="flex-1"
                 onClick={handleOpenId}
-                className="flex-1 bg-white border border-gray-300 text-gray-600 py-1.5 rounded hover:bg-gray-100 hover:border-gray-400 transition-all shadow-sm"
               >
                 Open iD
-              </button>
-              <button
+              </wa-button>
+              <wa-button
+                size="small"
+                appearance="outlined"
+                class="flex-1"
                 onClick={handleOpenJosm}
-                className="flex-1 bg-white border border-gray-300 text-gray-600 py-1.5 rounded hover:bg-gray-100 hover:border-gray-400 transition-all shadow-sm"
               >
                 Open JOSM
-              </button>
+              </wa-button>
             </div>
             <div className="flex gap-2">
               <TilepackButton
@@ -317,14 +329,22 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               </p>
             )}
             {pmtilesState.kind === "error" && (
-              <p className="text-[11px] leading-snug text-red-600">
+              <wa-callout
+                variant="danger"
+                size="small"
+                class="text-[11px] leading-snug"
+              >
                 PMTiles: {pmtilesState.message}
-              </p>
+              </wa-callout>
             )}
             {mbtilesState.kind === "error" && (
-              <p className="text-[11px] leading-snug text-red-600">
+              <wa-callout
+                variant="danger"
+                size="small"
+                class="text-[11px] leading-snug"
+              >
                 MBTiles: {mbtilesState.message}
-              </p>
+              </wa-callout>
             )}
           </div>
           <div className="grid grid-cols-2 gap-y-3 gap-x-4">
@@ -406,25 +426,25 @@ interface TilepackButtonProps {
 
 function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
   const label = format === "pmtiles" ? "PMTiles" : "MBTiles";
-  const baseClass =
-    "flex-1 py-1.5 rounded transition-all shadow-sm text-center border flex items-center justify-center gap-2";
 
   // Ready: we already have a URL (either from an earlier "ready"
   // response in this session, or the packager returned 200 on the
-  // triggering click). Rendered as an anchor so the browser handles
+  // triggering click). Open in a new tab so the browser handles
   // download semantics.
   if (state.kind === "ready") {
     return (
-      <a
-        href={state.url}
-        target="_blank"
-        rel="noreferrer"
-        download
-        onClick={(e) => e.stopPropagation()}
-        className={`${baseClass} font-semibold text-cyan-700 bg-cyan-50 border-cyan-200 hover:bg-cyan-100`}
+      <wa-button
+        size="small"
+        variant="brand"
+        appearance="filled"
+        class="flex-1"
+        onClick={(e) => {
+          e.stopPropagation();
+          window.open(state.url, "_blank", "noopener,noreferrer");
+        }}
       >
         Download {label}
-      </a>
+      </wa-button>
     );
   }
 
@@ -434,69 +454,44 @@ function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
   if (state.kind === "working" || state.kind === "pending") {
     const disabled = state.kind === "working";
     return (
-      <button
+      <wa-button
+        size="small"
+        variant="warning"
+        appearance="outlined"
+        class="flex-1"
         disabled={disabled}
         onClick={(e) => {
           e.stopPropagation();
           if (!disabled) onGenerate();
         }}
-        className={`${baseClass} bg-amber-50 border-amber-200 text-amber-800 ${
-          disabled ? "cursor-wait" : "hover:bg-amber-100"
-        }`}
         title={
           state.kind === "pending"
             ? "Still generating - click to check status"
             : undefined
         }
       >
-        <Spinner />
+        <wa-spinner slot="start" style={{ fontSize: "0.875rem" }} />
         Generating…
-      </button>
+      </wa-button>
     );
   }
 
-  // Idle or error. Error surfaces a red border; the accompanying
-  // message is rendered by the parent below the button row.
+  // Idle or error. Error surfaces a danger-variant button; the
+  // accompanying message is rendered by the parent below the button
+  // row.
   const errored = state.kind === "error";
   return (
-    <button
+    <wa-button
+      size="small"
+      variant={errored ? "danger" : "neutral"}
+      appearance="outlined"
+      class="flex-1"
       onClick={(e) => {
         e.stopPropagation();
         onGenerate();
       }}
-      className={`${baseClass} ${
-        errored
-          ? "bg-white border-red-300 text-red-600 hover:bg-red-50"
-          : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400"
-      }`}
     >
       Download {label}
-    </button>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg
-      className="animate-spin h-3.5 w-3.5"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-      />
-    </svg>
+    </wa-button>
   );
 }

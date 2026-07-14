@@ -20,21 +20,22 @@ body {
  * style them. */
 .oam-disambig-popup .maplibregl-popup-content {
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--hot-border-radius-large, 8px);
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  font-family: var(--hot-font-sans-variant), system-ui, sans-serif;
 }
 
 .oam-disambig-popup .maplibregl-popup-close-button {
   font-size: 18px;
   padding: 4px 8px;
-  color: #64748b;
+  color: var(--hot-color-gray-600);
   z-index: 1;
 }
 
 .oam-disambig-popup .maplibregl-popup-close-button:hover {
-  color: var(--hot-color-primary-700, #0e7490);
-  background: var(--hot-color-primary-50, #ecfeff);
+  color: var(--hot-color-primary-700);
+  background: var(--hot-color-primary-50);
 }
 
 .oam-popup-header {
@@ -43,9 +44,9 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  color: var(--hot-color-gray-600);
+  background: var(--hot-color-gray-50);
+  border-bottom: 1px solid var(--hot-color-gray-100);
 }
 
 .oam-popup-items {
@@ -56,7 +57,7 @@ body {
 .oam-popup-item {
   padding: 8px 12px;
   cursor: pointer;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--hot-color-gray-100);
   transition: background 0.15s;
 }
 
@@ -65,13 +66,13 @@ body {
 }
 
 .oam-popup-item:hover {
-  background: var(--hot-color-primary-50, #ecfeff);
+  background: var(--hot-color-primary-50);
 }
 
 .oam-popup-item-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--hot-color-gray-900);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -80,7 +81,7 @@ body {
 
 .oam-popup-item-meta {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--hot-color-gray-500);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;

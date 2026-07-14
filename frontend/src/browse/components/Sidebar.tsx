@@ -95,16 +95,18 @@ export default function Sidebar({
               />
             ))}
             {visibleCount < features.length && (
-              <button
+              <wa-button
+                appearance="outlined"
+                size="small"
+                class="w-full"
                 onClick={() =>
                   setVisibleCount((prev) =>
                     Math.min(prev + SIDEBAR_PAGE_SIZE, features.length),
                   )
                 }
-                className="w-full py-3 bg-white border border-gray-300 text-gray-600 font-semibold rounded hover:bg-gray-50 hover:text-cyan-600 transition-colors shadow-sm"
               >
                 Load More ({features.length - visibleCount} remaining)
-              </button>
+              </wa-button>
             )}
           </>
         ) : (

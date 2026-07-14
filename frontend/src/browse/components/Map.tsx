@@ -6,9 +6,12 @@ import type {
   RasterTileSource,
 } from "maplibre-gl";
 import bbox from "@turf/bbox";
+import { FetchSource, PMTiles, Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
+  DENSITY_PMTILES_URL,
+  PMTILES_URL,
   PMTILES_SOURCE_URL,
   PMTILES_SOURCE_LAYER,
   DENSITY_SOURCE_URL,
@@ -31,7 +34,12 @@ import {
 } from "../utils/filters";
 import { transformFeature } from "../utils/format";
 import { bboxAreaKm2, getFullBbox, type BBox } from "../utils/geo";
-import { fetchItemBounds, getTmsUrl, thumbUrl } from "../utils/tiles";
+import {
+  ItemBoundsCache,
+  fetchItemBounds,
+  getTmsUrl,
+  thumbUrl,
+} from "../utils/tiles";
 import type { Filters, ImageFeature, RawTileProperties } from "../utils/types";
 import type { Basemap } from "./Toolbar";
 
@@ -82,6 +90,11 @@ export default function OamMap({
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProgrammaticMove = useRef(false);
+  // Set true on cleanup so any inflight fetch resolving after the map
+  // component was torn down (StrictMode remount, tab switch, route
+  // navigation) bails out instead of calling setState on a stale
+  // React tree.
+  const unmountedRef = useRef(false);
 
   // Refs for callbacks accessed from map event handlers (bound once on
   // load). Effects below keep them fresh so we never close over stale
@@ -100,7 +113,7 @@ export default function OamMap({
   // item id, populated lazily when an item first needs a TMS layer.
   // Bounding the raster source cuts 404 floods from tile requests
   // outside the image extent.
-  const itemBoundsRef = useRef<Map<string, number[] | "fetching">>(new Map());
+  const itemBoundsRef = useRef<ItemBoundsCache>(new ItemBoundsCache());
   const [itemBoundsTick, setItemBoundsTick] = useState(0);
 
   useEffect(() => {
@@ -127,33 +140,32 @@ export default function OamMap({
     popupRef.current = null;
   };
 
-  // Query visible PMTiles source features (deduped by id), apply
-  // filters, drop anything outside the viewport, sort by capture date
-  // desc, and hand up to the sidebar.
+  // Query features rendered in the current viewport, dedupe by id,
+  // sort by capture date desc, and hand up to the sidebar.
+  //
+  // queryRenderedFeatures honors both the layer filter and MapLibre's
+  // internal viewport clipping, so we no longer need a manual bbox
+  // rejection pass or a second matchesFilters call - the layer's
+  // buildFilter has already dropped anything that shouldn't show.
   //
   // Gated on FOOTPRINT_MIN_ZOOM: below that zoom the underlying PMTiles
-  // tiles carry only a drop-densest'd subset of the catalogue and
-  // querySourceFeatures returns an unstable, zoom-dependent count
-  // (e.g. 3.8k features at z2, 1.8k at z1 for a 21k-item catalogue).
-  // Surfacing that count in the sidebar would be misleading - see the
-  // block comment on FOOTPRINT_MIN_ZOOM in utils/constants.ts for the
-  // full explanation. Emitting `[]` triggers the Sidebar's built-in
-  // "Zoom in to see images" prompt.
+  // tiles carry only a drop-densest'd subset of the catalogue and any
+  // count sourced from them is unstable and zoom-dependent (e.g. 3.8k
+  // features at z2, 1.8k at z1 for a 21k-item catalogue). Surfacing
+  // that count in the sidebar would be misleading - see the block
+  // comment on FOOTPRINT_MIN_ZOOM in utils/constants.ts. Emitting `[]`
+  // triggers the Sidebar's built-in "Zoom in to see images" prompt.
   const emitVisibleFeatures = () => {
     if (!map.current || !onFeaturesUpdateRef.current) return;
     if (map.current.getZoom() < FOOTPRINT_MIN_ZOOM) {
       onFeaturesUpdateRef.current([]);
       return;
     }
+    if (!map.current.getLayer("footprint-fill")) return;
     try {
-      const raw = map.current.querySourceFeatures("oam-tiles", {
-        sourceLayer: PMTILES_SOURCE_LAYER,
+      const raw = map.current.queryRenderedFeatures(undefined, {
+        layers: ["footprint-fill"],
       });
-      const vb = map.current.getBounds();
-      const vw = vb.getWest();
-      const vs = vb.getSouth();
-      const ve = vb.getEast();
-      const vn = vb.getNorth();
       const seen = new Set<string>();
       const unique: ImageFeature[] = [];
       for (const f of raw) {
@@ -161,13 +173,6 @@ export default function OamMap({
         const id = p._id;
         if (!id || seen.has(id)) continue;
         seen.add(id);
-        if (!matchesFilters(p, filtersRef.current)) continue;
-        try {
-          const fb = bbox(f) as BBox;
-          if (fb[2] < vw || fb[0] > ve || fb[3] < vs || fb[1] > vn) continue;
-        } catch {
-          // include if bbox fails
-        }
         unique.push(transformFeature(f));
       }
       unique.sort((a, b) => {
@@ -177,7 +182,7 @@ export default function OamMap({
       });
       onFeaturesUpdateRef.current(unique);
     } catch (e) {
-      console.error("Error querying source features:", e);
+      console.error("Error querying rendered features:", e);
     }
   };
 
@@ -297,6 +302,22 @@ export default function OamMap({
   // 1. INITIALIZE MAP
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
+    unmountedRef.current = false;
+
+    // Register the pmtiles:// scheme handler. Pre-add both known
+    // archives so we can pin `chromeWindowsNoCache` on their sources -
+    // otherwise when an archive is re-uploaded Chrome revalidates its
+    // cached range chunks with a stale If-Range ETag, S3 returns a full
+    // 200 body, and the pmtiles reader errors out. The library's
+    // no-store fallback only auto-applies on Windows Chrome, so force
+    // it here for every platform.
+    const pmtilesProtocol = new Protocol();
+    for (const url of [PMTILES_URL, DENSITY_PMTILES_URL]) {
+      const source = new FetchSource(url);
+      source.chromeWindowsNoCache = true;
+      pmtilesProtocol.add(new PMTiles(source));
+    }
+    maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
 
     const { center, zoom } = readInitialView({
       center: DEFAULT_CENTER,
@@ -588,6 +609,7 @@ export default function OamMap({
     // open popup all leak on every remount - very visible in dev
     // where React StrictMode mounts, unmounts, and remounts.
     return () => {
+      unmountedRef.current = true;
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = null;
@@ -596,6 +618,7 @@ export default function OamMap({
       popupRef.current = null;
       map.current?.remove();
       map.current = null;
+      maplibregl.removeProtocol("pmtiles");
     };
     // Intentional mount-only effect: the map is built once and event
     // handlers read fresh values via *Ref indirections rather than by
@@ -840,17 +863,21 @@ export default function OamMap({
       const tmsUrl = getTmsUrl(rawProps);
       if (tmsUrl) {
         // Lazy-fetch WGS84 bounds so MapLibre only requests tiles
-        // where the image has data. Cached per item id; subsequent
-        // renders reuse the same entry.
-        let itemBounds = itemBoundsRef.current.get(p.id);
-        if (itemBounds === "fetching") itemBounds = undefined;
-        if (!itemBoundsRef.current.has(p.id)) {
-          fetchItemBounds(itemBoundsRef.current, p.id, p.assetName, () =>
-            setItemBoundsTick((t) => t + 1),
+        // where the image has data. Cache dedupes in-flight requests,
+        // LRU-evicts old entries, and retries failed lookups after
+        // COG_BOUNDS_FAILURE_TTL_MS.
+        const cached = itemBoundsRef.current.get(p.id);
+        if (cached === undefined || !itemBoundsRef.current.isFresh(cached)) {
+          fetchItemBounds(
+            itemBoundsRef.current,
+            p.id,
+            p.assetName,
+            () => setItemBoundsTick((t) => t + 1),
+            () => unmountedRef.current,
           );
         }
 
-        const boundsArr = Array.isArray(itemBounds) ? itemBounds : null;
+        const boundsArr = Array.isArray(cached) ? cached : null;
         const area = boundsArr ? bboxAreaKm2(boundsArr as BBox) : 0;
         desiredTms.set(`${TMS_PREFIX}${selectedId}`, {
           url: tmsUrl,

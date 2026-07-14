@@ -1,173 +1,200 @@
-import { useEffect, useRef, useState } from "react";
-import type { DatePreset, Filters } from "../utils/types";
+import { useEffect, useRef } from "react";
+import type { DatePreset, Filters, ResolutionPreset } from "../utils/types";
 
 interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
 }
 
-const btnBase =
-  "px-4 py-2 bg-white rounded-full shadow-md text-sm font-bold text-gray-600 border border-gray-200 hover:bg-gray-50 flex items-center gap-2 transition-all";
-const activeBtn =
-  "border-cyan-500 text-cyan-700 bg-cyan-50 ring-2 ring-cyan-100";
+// wa-select fires with `event.detail.item.value` — kept as a local
+// alias so we're not sprinkling any-casts through the JSX below.
+type WaSelectEvent = CustomEvent<{ item: HTMLElement & { value: string } }>;
 
-type MenuId = "platform" | "date" | "license" | null;
+interface Option<V extends string> {
+  label: string;
+  value: V;
+}
+
+const PLATFORMS: Option<string>[] = [
+  { label: "All Platforms", value: "" },
+  { label: "Satellite", value: "satellite" },
+  { label: "Drone (UAV)", value: "uav" },
+  { label: "Other / Aircraft", value: "aircraft" },
+];
+
+const DATES: Option<DatePreset>[] = [
+  { label: "Any Date", value: "" },
+  { label: "Past Week", value: "week" },
+  { label: "Past Month", value: "month" },
+  { label: "This Year", value: "year" },
+];
+
+const RESOLUTIONS: Option<ResolutionPreset>[] = [
+  { label: "Any Resolution", value: "" },
+  { label: "< 0.5 m", value: "lt05" },
+  { label: "0.5 - 2 m", value: "05to2" },
+  { label: "2 - 10 m", value: "2to10" },
+  { label: "> 10 m", value: "gt10" },
+];
+
+const LICENSES: Option<string>[] = [
+  { label: "Any License", value: "" },
+  { label: "CC BY 4.0", value: "CC-BY 4.0" },
+  { label: "CC BY-NC 4.0", value: "CC BY-NC 4.0" },
+  { label: "CC BY-SA 4.0", value: "CC BY-SA 4.0" },
+];
+
+// Attach a wa-select listener imperatively. React doesn't recognise
+// custom events (onWaSelect isn't a real prop), and TypeScript would
+// reject it in JSX, so we bind through a ref.
+function useWaSelect(
+  ref: React.RefObject<HTMLElement | null>,
+  onSelect: (value: string) => void,
+) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const value = (e as WaSelectEvent).detail?.item?.value ?? "";
+      onSelect(value);
+    };
+    el.addEventListener("wa-select", handler);
+    return () => el.removeEventListener("wa-select", handler);
+  }, [ref, onSelect]);
+}
+
+interface FilterDropdownProps<V extends string> {
+  label: string;
+  active: boolean;
+  value: V;
+  options: Option<V>[];
+  onChange: (v: V) => void;
+}
+
+function FilterDropdown<V extends string>({
+  label,
+  active,
+  value,
+  options,
+  onChange,
+}: FilterDropdownProps<V>) {
+  const ref = useRef<HTMLElement | null>(null);
+  useWaSelect(ref, (v) => onChange(v as V));
+  return (
+    <wa-dropdown ref={ref} distance="6">
+      {/*
+        wa-button's `with-caret` renders the chevron inside the button's
+        own shadow DOM at ::part(caret), spaced by WA's own tokens - no
+        outer wa-icon means no 1.25em host-box slack that we had to
+        chase manually before. `pill` + `size="small"` gives the chip
+        shape. Variant/appearance toggle sets the HOT brand colours via
+        the wa-color-brand-* theme layer.
+      */}
+      <wa-button
+        slot="trigger"
+        pill
+        with-caret
+        size="small"
+        variant={active ? "brand" : "neutral"}
+        appearance={active ? "filled" : "outlined"}
+      >
+        {label}
+      </wa-button>
+      {options.map((opt) => (
+        <wa-dropdown-item
+          key={opt.value}
+          value={opt.value}
+          type={value === opt.value ? "checkbox" : undefined}
+          checked={value === opt.value}
+        >
+          {opt.label}
+        </wa-dropdown-item>
+      ))}
+    </wa-dropdown>
+  );
+}
 
 export default function MapFilterBar({ filters, onChange }: Props) {
-  const [openMenu, setOpenMenu] = useState<MenuId>(null);
-  const barRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (barRef.current && !barRef.current.contains(event.target as Node)) {
-        setOpenMenu(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const applyChange = (patch: Partial<Filters>) => {
+  const applyChange = (patch: Partial<Filters>) =>
     onChange({ ...filters, ...patch });
-    setOpenMenu(null);
-  };
 
-  const platformLabel = (() => {
-    const m: Record<string, string> = {
-      satellite: "Satellite",
-      uav: "Drone",
-      aircraft: "Other",
-    };
-    return m[filters.platform] || "All Platforms";
-  })();
-
-  const dateLabel = (() => {
-    if (filters.date === "week") return "Past Week";
-    if (filters.date === "month") return "Past Month";
-    if (filters.date === "year") return "This Year";
-    return "Any Date";
-  })();
-
+  const platformLabel =
+    PLATFORMS.find((o) => o.value === filters.platform)?.label ??
+    "All Platforms";
+  const dateLabel =
+    DATES.find((o) => o.value === filters.date)?.label ?? "Any Date";
+  const resolutionLabel =
+    RESOLUTIONS.find((o) => o.value === filters.resolution)?.label ??
+    "Any Resolution";
   const licenseLabel = (() => {
     if (!filters.license) return "Any License";
-    if (filters.license.includes("BY-SA")) return "CC BY-SA 4.0";
-    if (filters.license.includes("BY-NC")) return "CC BY-NC 4.0";
-    if (filters.license.includes("CC-BY")) return "CC BY 4.0";
-    return "License";
+    return (
+      LICENSES.find((o) => o.value === filters.license)?.label ?? "License"
+    );
   })();
 
-  const toggleMenu = (m: MenuId) => setOpenMenu(openMenu === m ? null : m);
-  const anyActive = !!(filters.platform || filters.date || filters.license);
-
-  const datePresets: { label: string; val: DatePreset }[] = [
-    { label: "Any Date", val: "" },
-    { label: "Past Week", val: "week" },
-    { label: "Past Month", val: "month" },
-    { label: "This Year", val: "year" },
-  ];
+  const anyActive = !!(
+    filters.platform ||
+    filters.date ||
+    filters.resolution ||
+    filters.license
+  );
 
   return (
-    <div ref={barRef} className="font-sans">
-      <div className="flex flex-wrap gap-3">
-        <div className="relative">
-          <button
-            onClick={() => toggleMenu("platform")}
-            className={`${btnBase} ${filters.platform ? activeBtn : ""}`}
-          >
-            {platformLabel} <span className="text-[10px] text-gray-400">▼</span>
-          </button>
-          {openMenu === "platform" && (
-            <div className="absolute top-full mt-2 left-0 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-1 overflow-hidden z-50">
-              {(
-                [
-                  { label: "All Platforms", val: "" },
-                  { label: "Satellite", val: "satellite" },
-                  { label: "Drone (UAV)", val: "uav" },
-                  { label: "Other / Aircraft", val: "aircraft" },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => applyChange({ platform: opt.val })}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 ${
-                    filters.platform === opt.val
-                      ? "text-cyan-600 font-bold bg-cyan-50"
-                      : "text-gray-700"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={() => toggleMenu("date")}
-            className={`${btnBase} ${filters.date ? activeBtn : ""}`}
-          >
-            {dateLabel} <span className="text-[10px] text-gray-400">▼</span>
-          </button>
-          {openMenu === "date" && (
-            <div className="absolute top-full mt-2 left-0 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-1 overflow-hidden z-50">
-              {datePresets.map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => applyChange({ date: opt.val })}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 ${
-                    filters.date === opt.val
-                      ? "text-cyan-600 font-bold bg-cyan-50"
-                      : "text-gray-700"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={() => toggleMenu("license")}
-            className={`${btnBase} ${filters.license ? activeBtn : ""}`}
-          >
-            {licenseLabel} <span className="text-[10px] text-gray-400">▼</span>
-          </button>
-          {openMenu === "license" && (
-            <div className="absolute top-full mt-2 left-0 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-1 overflow-hidden z-50">
-              {(
-                [
-                  { label: "Any License", val: "" },
-                  { label: "CC BY 4.0", val: "CC-BY 4.0" },
-                  { label: "CC BY-NC 4.0", val: "CC BY-NC 4.0" },
-                  { label: "CC BY-SA 4.0", val: "CC BY-SA 4.0" },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => applyChange({ license: opt.val })}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 ${
-                    filters.license === opt.val
-                      ? "text-cyan-600 font-bold bg-cyan-50"
-                      : "text-gray-700"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+    <div className="font-sans">
+      <div className="flex flex-wrap gap-3 items-center">
+        <FilterDropdown
+          label={platformLabel}
+          active={!!filters.platform}
+          value={filters.platform}
+          options={PLATFORMS}
+          onChange={(v) => applyChange({ platform: v })}
+        />
+        <FilterDropdown
+          label={dateLabel}
+          active={!!filters.date}
+          value={filters.date}
+          options={DATES}
+          onChange={(v) => applyChange({ date: v as DatePreset })}
+        />
+        <FilterDropdown
+          label={resolutionLabel}
+          active={!!filters.resolution}
+          value={filters.resolution}
+          options={RESOLUTIONS}
+          onChange={(v) => applyChange({ resolution: v as ResolutionPreset })}
+        />
+        <FilterDropdown
+          label={licenseLabel}
+          active={!!filters.license}
+          value={filters.license}
+          options={LICENSES}
+          onChange={(v) => applyChange({ license: v })}
+        />
 
         {anyActive && (
-          <button
-            onClick={() => onChange({ date: "", platform: "", license: "" })}
-            className="px-3 py-2 bg-white/90 rounded-full text-xs font-bold text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 shadow-sm transition-all"
+          // `appearance="filled"` gives it a visible danger-tinted
+          // background so it stands out from the semi-transparent
+          // filter bar behind. No slot="start" icon: WA gives slotted
+          // icons a 0.75em trailing margin (shadow-DOM concern we can't
+          // easily override), which pushes the label off-centre. Label
+          // "Clear" plus the danger colour is enough affordance.
+          <wa-button
+            pill
+            size="small"
+            variant="danger"
+            appearance="filled"
+            onClick={() =>
+              onChange({
+                date: "",
+                platform: "",
+                resolution: "",
+                license: "",
+              })
+            }
           >
-            ✕ Clear
-          </button>
+            Clear
+          </wa-button>
         )}
       </div>
     </div>

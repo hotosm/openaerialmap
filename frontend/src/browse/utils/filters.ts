@@ -1,4 +1,9 @@
-import type { DatePreset, Filters, RawTileProperties } from "./types";
+import type {
+  DatePreset,
+  Filters,
+  RawTileProperties,
+  ResolutionPreset,
+} from "./types";
 
 // Both client-side (matchesFilters) and MapLibre-side (buildFilter)
 // implementations must agree on boundary conditions so the sidebar and
@@ -30,6 +35,31 @@ export function datePresetRange(preset: DatePreset): DateRange | null {
   return { start: start.toISOString().split("T")[0], end: today };
 }
 
+// Resolution buckets: <0.5m | [0.5, 2] | (2, 10] | >10m. Boundary
+// picks match buildFilter's MapLibre expression exactly.
+//
+// Items with an unknown gsd are excluded when a resolution filter is
+// active. Including them would defeat the filter's purpose - a user
+// picking "< 0.5 m" wants imagery they know is sub-metre, not a mix
+// with unknown-resolution items that could be 30 m satellite tiles -
+// and it'd also make the pre-baked density counts disagree with the
+// per-image sidebar (density can't bucket unknowns). If the volume of
+// unknown-gsd imagery turns out to be significant, the fix belongs
+// backend-side in the ingester (backfill from EXIF / provider
+// metadata), not here.
+function matchesResolution(
+  gsd: number | undefined,
+  preset: ResolutionPreset,
+): boolean {
+  if (!preset) return true;
+  if (gsd == null) return false;
+  if (preset === "lt05") return gsd < 0.5;
+  if (preset === "05to2") return gsd >= 0.5 && gsd <= 2;
+  if (preset === "2to10") return gsd > 2 && gsd <= 10;
+  if (preset === "gt10") return gsd > 10;
+  return true;
+}
+
 export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
   if (f.platform) {
     const plat = (p.platform || "").toLowerCase();
@@ -48,6 +78,7 @@ export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
     if (p.acquisition_end < range.start) return false;
     if (p.acquisition_end > range.end + "T23:59:59.999Z") return false;
   }
+  if (!matchesResolution(p.gsd, f.resolution)) return false;
   if (f.license) {
     const target = f.license.replace(/[\s-]/g, "").toLowerCase();
     const actual = (p.license || "").replace(/[\s-]/g, "").toLowerCase();
@@ -90,6 +121,27 @@ export function buildFilter(f: Filters): unknown[] | null {
       ["get", "acquisition_end"],
       range.end + "T23:59:59.999Z",
     ]);
+  }
+  if (f.resolution) {
+    // Boundaries mirror matchesResolution above. Kept identical so
+    // filter-clipped map features and sidebar list can't disagree.
+    //
+    // Unknown-gsd items are excluded when a resolution filter is
+    // active. MapLibre's numeric operators already return false for
+    // missing properties, so a bare `< / >= / <= / >` on `gsd` gives
+    // us the exclusion without an explicit `has` guard. See the
+    // matchesResolution comment for why unknowns are dropped here.
+    if (f.resolution === "lt05") {
+      conditions.push(["<", ["get", "gsd"], 0.5]);
+    } else if (f.resolution === "05to2") {
+      conditions.push([">=", ["get", "gsd"], 0.5]);
+      conditions.push(["<=", ["get", "gsd"], 2]);
+    } else if (f.resolution === "2to10") {
+      conditions.push([">", ["get", "gsd"], 2]);
+      conditions.push(["<=", ["get", "gsd"], 10]);
+    } else if (f.resolution === "gt10") {
+      conditions.push([">", ["get", "gsd"], 10]);
+    }
   }
   if (f.license) {
     const lic = f.license.toLowerCase();
@@ -154,10 +206,23 @@ function dateBucketKey(preset: DatePreset): string | null {
   return null;
 }
 
+function resolutionBucketKey(preset: ResolutionPreset): string | null {
+  if (preset === "lt05") return "count_gsd_lt_05";
+  if (preset === "05to2") return "count_gsd_05_2";
+  if (preset === "2to10") return "count_gsd_2_10";
+  if (preset === "gt10") return "count_gsd_gt_10";
+  return null;
+}
+
 // MapLibre expression that evaluates to the count each cell should
 // display given the active filters. Callers wire this into
 // `fill-color`, `text-field`, and layer `filter` on the density
 // layers - see Map.tsx section 4.
+//
+// Resolution is symmetric with the other buckets: images with an
+// unknown gsd are excluded from a resolution-filtered view on both
+// surfaces (see matchesResolution / buildFilter above), so the
+// world-zoom count and the zoomed-in sidebar count agree.
 export function densityCountExpr(f: Filters): unknown {
   const keys: string[] = [];
   if (f.platform) {
@@ -166,6 +231,10 @@ export function densityCountExpr(f: Filters): unknown {
   }
   if (f.license) {
     const k = licenseBucketKey(f.license);
+    if (k) keys.push(k);
+  }
+  if (f.resolution) {
+    const k = resolutionBucketKey(f.resolution);
     if (k) keys.push(k);
   }
   if (f.date) {

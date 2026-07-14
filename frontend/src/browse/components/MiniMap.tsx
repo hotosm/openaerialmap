@@ -41,17 +41,20 @@ export default function MiniMap({ center, bounds }: MiniMapProps) {
         },
         layers: [
           { id: "osm", type: "raster", source: "osm", minzoom: 0, maxzoom: 22 },
+          // HOT primary red (matches --hot-color-primary-600). Kept as
+          // a literal because MapLibre paint props are evaluated
+          // outside CSS and can't read custom properties.
           {
             id: "box-line",
             type: "line",
             source: "box",
-            paint: { "line-color": "#EF4444", "line-width": 2 },
+            paint: { "line-color": "#D73F3F", "line-width": 2 },
           },
           {
             id: "box-fill",
             type: "fill",
             source: "box",
-            paint: { "fill-color": "#EF4444", "fill-opacity": 0.1 },
+            paint: { "fill-color": "#D73F3F", "fill-opacity": 0.1 },
           },
         ],
       },

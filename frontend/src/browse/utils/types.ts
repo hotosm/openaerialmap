@@ -43,6 +43,12 @@ export interface RawTileProperties {
 
 export type DatePreset = "" | "week" | "month" | "year";
 
+// Resolution buckets align with common GSD tiers users care about. Kept
+// as string enums (not numeric ranges) so URL round-tripping is stable
+// and so a matching pre-baked density bucket can be introduced backend-
+// side without a frontend change.
+export type ResolutionPreset = "" | "lt05" | "05to2" | "2to10" | "gt10";
+
 export interface Filters {
   // Date is a preset picker rather than a free-form range so the
   // density grid can look up a matching pre-baked count bucket at
@@ -50,17 +56,19 @@ export interface Filters {
   // and utils/filters.ts::densityCountExpr).
   date: DatePreset;
   platform: string;
+  resolution: ResolutionPreset;
   license: string;
 }
 
 export const EMPTY_FILTERS: Filters = {
   date: "",
   platform: "",
+  resolution: "",
   license: "",
 };
 
 // True when any filter field is set. Used to swap the density layer
 // paint/layout to a filtered-count expression (see Map.tsx section 4).
 export function hasActiveFilters(f: Filters): boolean {
-  return !!(f.date || f.platform || f.license);
+  return !!(f.date || f.platform || f.resolution || f.license);
 }

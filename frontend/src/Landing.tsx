@@ -331,7 +331,7 @@ export default function Landing() {
                   <div slot="header" className="landing-component-header">
                     <wa-icon
                       name={c.icon}
-                      variant="regular"
+                      variant="solid"
                       class="landing-component-icon"
                     />
                     <span className="landing-component-tag">{c.tag}</span>
@@ -340,7 +340,7 @@ export default function Landing() {
                   <p className="landing-component-desc">{c.description}</p>
                   <span slot="footer" className="landing-component-link">
                     Open
-                    <wa-icon name="arrow-right" variant="regular" />
+                    <wa-icon name="arrow-right" variant="solid" auto-width />
                   </span>
                 </wa-card>
               </a>

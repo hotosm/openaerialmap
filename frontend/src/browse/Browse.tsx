@@ -1,5 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
+// Browse-only WebAwesome elements. Imported for their side effect
+// (custom-element registration) so they land in the lazy Browse chunk
+// rather than the landing bundle. wa-button/card/icon are registered
+// globally in main.tsx because the landing page uses them too.
+import "@awesome.me/webawesome/dist/components/callout/callout.js";
+import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
+import "@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js";
+import "@awesome.me/webawesome/dist/components/input/input.js";
+import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
+import "@awesome.me/webawesome/dist/components/tag/tag.js";
 import SiteHeader from "../SiteHeader";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
@@ -42,6 +52,18 @@ export default function Browse() {
     setSelectedFeature(feature);
     writeSelectedId(feature ? feature.properties.id : null);
   };
+
+  // Escape deselects. The selected footprint fades surrounding
+  // imagery, so users need a keyboard escape hatch as well as the
+  // card X button.
+  useEffect(() => {
+    if (!selectedFeature) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleSelectFeature(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedFeature]);
 
   // Handle features arriving from the map. Also handles the one-shot
   // URL restore: if the incoming URL had ?selected_id and we haven't
