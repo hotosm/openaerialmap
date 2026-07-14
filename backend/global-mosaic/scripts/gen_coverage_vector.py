@@ -152,6 +152,29 @@ PLATFORM_BUCKETS = {
 PLATFORM_DEFAULT_BUCKET = "count_aircraft"
 
 
+def _resolution_bucket(gsd: float | None) -> str | None:
+    """
+    Map a numeric GSD (metres) onto one of four resolution buckets.
+    Boundaries match matchesResolution / buildFilter on the frontend
+    exactly: <0.5 | [0.5, 2] | (2, 10] | >10. Returns None when the
+    ingester didn't record a GSD - those images don't participate in
+    any resolution-filtered count. The frontend's per-image filter
+    keeps unknown-GSD items visible (via a ``!has "gsd"`` fallback in
+    buildFilter), but at world zoom the density grid can only surface
+    counts it has actually pre-baked, and there is no meaningful bucket
+    for "unknown resolution".
+    """
+    if gsd is None:
+        return None
+    if gsd < 0.5:
+        return "count_gsd_lt_05"
+    if gsd <= 2:
+        return "count_gsd_05_2"
+    if gsd <= 10:
+        return "count_gsd_2_10"
+    return "count_gsd_gt_10"
+
+
 def _license_bucket(license_str: str | None) -> str | None:
     """
     Map a raw STAC license string onto one of the three buckets the
@@ -200,6 +223,7 @@ def _image_buckets(
     platform: str | None,
     license_str: str | None,
     acq_ts: datetime | None,
+    gsd: float | None,
     now: datetime,
 ) -> tuple[str, ...]:
     """
@@ -212,6 +236,9 @@ def _image_buckets(
     lb = _license_bucket(license_str)
     if lb:
         buckets.append(lb)
+    rb = _resolution_bucket(gsd)
+    if rb:
+        buckets.append(rb)
     buckets.extend(_date_buckets(acq_ts, now))
     return tuple(buckets)
 
@@ -230,6 +257,8 @@ def get_density_features() -> None:
     - Optional per-filter breakdown counts (only emitted when >0):
         - `count_uav`, `count_satellite`, `count_aircraft`
         - `count_lic_by`, `count_lic_by_nc`, `count_lic_by_sa`
+        - `count_gsd_lt_05`, `count_gsd_05_2`, `count_gsd_2_10`,
+          `count_gsd_gt_10` (resolution / GSD tiers)
         - `count_year_YYYY` (one per year of imagery present)
         - `count_last_7d`, `count_last_30d`
       These let the frontend show accurate filtered counts at world
@@ -264,7 +293,8 @@ def get_density_features() -> None:
                    (content->'properties'->>'datetime')::timestamptz,
                    (content->'properties'->>'end_datetime')::timestamptz,
                    (content->'properties'->>'start_datetime')::timestamptz
-               ) AS acq_ts
+               ) AS acq_ts,
+               NULLIF(content->'properties'->>'gsd', '')::double precision AS gsd
         FROM pgstac.items
         WHERE collection = %s
           AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
@@ -278,7 +308,18 @@ def get_density_features() -> None:
     try:
         with connect(PG_DSN) as conn, conn.cursor() as cur:
             cur.execute(centroid_query, params)
-            for lon, lat, xmin, ymin, xmax, ymax, platform, license_str, acq_ts in cur:
+            for (
+                lon,
+                lat,
+                xmin,
+                ymin,
+                xmax,
+                ymax,
+                platform,
+                license_str,
+                acq_ts,
+                gsd,
+            ) in cur:
                 if lon is None or lat is None:
                     continue
                 # Clamp latitude to Web Mercator's valid range
@@ -292,7 +333,13 @@ def get_density_features() -> None:
                         float(ymin),
                         float(xmax),
                         float(ymax),
-                        _image_buckets(platform, license_str, acq_ts, now),
+                        _image_buckets(
+                            platform,
+                            license_str,
+                            acq_ts,
+                            float(gsd) if gsd is not None else None,
+                            now,
+                        ),
                     )
                 )
     except Exception as e:
