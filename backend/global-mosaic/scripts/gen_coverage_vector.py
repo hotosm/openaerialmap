@@ -158,11 +158,9 @@ def _resolution_bucket(gsd: float | None) -> str | None:
     Boundaries match matchesResolution / buildFilter on the frontend
     exactly: <0.5 | [0.5, 2] | (2, 10] | >10. Returns None when the
     ingester didn't record a GSD - those images don't participate in
-    any resolution-filtered count. The frontend's per-image filter
-    keeps unknown-GSD items visible (via a ``!has "gsd"`` fallback in
-    buildFilter), but at world zoom the density grid can only surface
-    counts it has actually pre-baked, and there is no meaningful bucket
-    for "unknown resolution".
+    any resolution-filtered count, and the frontend's per-image filter
+    likewise drops unknown-GSD items when a resolution filter is
+    active, so the two surfaces stay in agreement.
     """
     if gsd is None:
         return None
@@ -294,7 +292,17 @@ def get_density_features() -> None:
                    (content->'properties'->>'end_datetime')::timestamptz,
                    (content->'properties'->>'start_datetime')::timestamptz
                ) AS acq_ts,
-               NULLIF(content->'properties'->>'gsd', '')::double precision AS gsd
+               -- STAC spec says gsd is a number, but the ingester does
+               -- no schema validation - user-supplied metadata (drone
+               -- flight logs, provider CSVs) has landed here as strings
+               -- like "unknown" before. A single bad row would kill the
+               -- whole density job mid-scan (InvalidTextRepresentation),
+               -- so gate the cast on jsonb_typeof and let non-numbers
+               -- surface as NULL. Frontend already handles missing gsd.
+               CASE
+                   WHEN jsonb_typeof(content->'properties'->'gsd') = 'number'
+                   THEN (content->'properties'->>'gsd')::double precision
+               END AS gsd
         FROM pgstac.items
         WHERE collection = %s
           AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
