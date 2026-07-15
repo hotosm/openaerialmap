@@ -6,8 +6,12 @@
 // (`globalcoverage`) with rich metadata. Rendered at zoom
 // >= FOOTPRINT_MIN_ZOOM. Do not point this at global-coverage.pmtiles
 // - that file is density-only and drives the standalone TMS.
+// Vite replaces `import.meta.env.VITE_X` at build time. A Docker
+// `ARG VITE_X` with no value produces an empty string, not `undefined`,
+// so `??` would let it through. Use `||` so empty strings also fall
+// back to the production defaults below.
 export const PMTILES_URL =
-  import.meta.env.VITE_PMTILES_URL ??
+  import.meta.env.VITE_PMTILES_URL ||
   "https://s3.amazonaws.com/oin-hotosm-temp/global-data.pmtiles";
 
 // MapLibre needs the pmtiles:// scheme so the Protocol handler
@@ -35,7 +39,7 @@ export const PMTILES_SOURCE_LAYER = "globalcoverage";
 // pull the ~60 MB footprint file just to render grid squares at world
 // view, and lets the two producers ship independently.
 export const DENSITY_PMTILES_URL =
-  import.meta.env.VITE_DENSITY_PMTILES_URL ??
+  import.meta.env.VITE_DENSITY_PMTILES_URL ||
   "https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles";
 
 export const DENSITY_SOURCE_URL = `pmtiles://${DENSITY_PMTILES_URL}`;
@@ -55,19 +59,19 @@ export const DENSITY_SOURCE_LAYER = "density";
 //     - WGS84 bounds, drives MapLibre raster source bounds so we don't
 //       request tiles outside the image extent (fetchItemBounds)
 export const STAC_TITILER_URL =
-  import.meta.env.VITE_STAC_TITILER_URL ??
+  import.meta.env.VITE_STAC_TITILER_URL ||
   "https://api.imagery.hotosm.org/raster";
 
 // STAC catalog root. Used to build deep-links into STAC Browser, which
 // consumes /stac item URLs via its #/external/ fragment.
 export const STAC_URL =
-  import.meta.env.VITE_STAC_URL ?? "https://api.imagery.hotosm.org/stac";
+  import.meta.env.VITE_STAC_URL || "https://api.imagery.hotosm.org/stac";
 
 // STAC Browser root. Renders a nicer per-item metadata page than the
 // raw JSON at STAC_URL. Item deep-links are built as
 // `${STAC_BROWSER_URL}/#/external/<STAC_URL without protocol>/...`.
 export const STAC_BROWSER_URL =
-  import.meta.env.VITE_STAC_BROWSER_URL ??
+  import.meta.env.VITE_STAC_BROWSER_URL ||
   "https://api.imagery.hotosm.org/browser";
 
 // Tilepack packager service. Generates on-demand PMTiles / MBTiles
@@ -75,7 +79,7 @@ export const STAC_BROWSER_URL =
 // returns 200 + URL if the archive already exists, 202 while the
 // worker is still generating. See backend/tilepack-api.
 export const PACKAGER_URL =
-  import.meta.env.VITE_PACKAGER_URL ?? "https://packager.imagery.hotosm.org";
+  import.meta.env.VITE_PACKAGER_URL || "https://packager.imagery.hotosm.org";
 
 // Collection id in pgSTAC. Baked into the tile URLs above. Kept as a
 // const so a future re-org can move it in one place.
