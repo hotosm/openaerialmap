@@ -15,24 +15,24 @@ NOTE it would probably be best to use cogeo-mosaic with mosaicJSON
 NOTE so consider updating this script.
 """
 
+import json
 import os
 import time
-import json
 from concurrent.futures import ThreadPoolExecutor
 
-import mercantile
 import affine
+import mercantile
 import numpy as np
+from pmtiles.tile import Compression, TileType, zxy_to_tileid
+from pmtiles.writer import write
 from psycopg import connect
-from shapely.geometry import shape, box
-from shapely.strtree import STRtree
 from rasterio import features
-from rio_tiler.mosaic import mosaic_reader
 from rio_tiler.io import COGReader
 from rio_tiler.models import ImageData
+from rio_tiler.mosaic import mosaic_reader
 from rio_tiler.utils import render
-from pmtiles.writer import write
-from pmtiles.tile import zxy_to_tileid, TileType, Compression
+from shapely.geometry import box, shape
+from shapely.strtree import STRtree
 
 PG_DSN = os.getenv("PG_DSN", "postgresql://user:pass@host:port/pgstac")
 COLLECTION = "openaerialmap"

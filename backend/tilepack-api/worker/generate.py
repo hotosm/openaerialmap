@@ -433,7 +433,7 @@ def main() -> int:
                             max_zoom,
                             mbtiles_path.stat().st_size,
                         )
-                    except Exception as exc:  # noqa: BLE001
+                    except Exception as exc:
                         print(
                             f"callback patch failed: item_id={item_id} asset=mbtiles err={exc}",
                             file=sys.stderr,
@@ -483,7 +483,7 @@ def main() -> int:
                             max_zoom,
                             mbtiles_path.stat().st_size,
                         )
-                    except Exception as exc:  # noqa: BLE001
+                    except Exception as exc:
                         print(
                             f"callback patch failed: item_id={item_id} asset=pmtiles_or_mbtiles err={exc}",
                             file=sys.stderr,
@@ -494,7 +494,7 @@ def main() -> int:
                 raise SystemExit(f"unknown format: {fmt}")
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
-    except Exception:  # noqa: BLE001
+    except Exception:
         exit_code = 1
         raise
     finally:

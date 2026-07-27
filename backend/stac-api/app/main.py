@@ -10,6 +10,7 @@ NOTE the API docs can be found here: https://api.imagery.hotosm.org/stac/api.htm
 import os
 from contextlib import asynccontextmanager
 
+from app.settings import Settings
 from brotli_asgi import BrotliMiddleware
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
@@ -39,16 +40,13 @@ from stac_fastapi.extensions.core.free_text import FreeTextConformanceClasses
 from stac_fastapi.extensions.core.query import QueryConformanceClasses
 from stac_fastapi.extensions.core.sort import SortConformanceClasses
 from stac_fastapi.extensions.third_party import BulkTransactionExtension
-from starlette.middleware import Middleware
-
 from stac_fastapi.pgstac.core import CoreCrudClient
 from stac_fastapi.pgstac.db import close_db_connection, connect_to_db
 from stac_fastapi.pgstac.extensions import QueryExtension
 from stac_fastapi.pgstac.extensions.filter import FiltersClient
 from stac_fastapi.pgstac.transactions import BulkTransactionsClient, TransactionsClient
 from stac_fastapi.pgstac.types.search import PgstacSearch
-
-from app.settings import Settings
+from starlette.middleware import Middleware
 
 settings = Settings()
 

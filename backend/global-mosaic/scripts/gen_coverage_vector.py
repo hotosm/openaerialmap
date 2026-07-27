@@ -30,15 +30,14 @@ import json
 import logging
 import math
 import os
-import sys
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Tuple
-from psycopg import connect
+
 from minio import Minio
 from minio.error import S3Error
-
+from psycopg import connect
 
 PG_DSN = os.getenv("PG_DSN")
 if not PG_DSN:
@@ -94,7 +93,7 @@ DENSITY_CELL_ZOOM_CAP = DENSITY_MAX_ZOOM + DENSITY_ZOOM_OFFSET
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
-BBOX: Tuple[float, float, float, float] = (
+BBOX: tuple[float, float, float, float] = (
     (-20.0, 0.0, 10.0, 30.0)  # large test bbox
     if TEST_MODE
     else (-180.0, -85.05112878, 180.0, 85.05112878)
@@ -358,7 +357,7 @@ def get_density_features() -> None:
     Path(OUTPUT_DENSITY_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
     total_cells = 0
     with open(OUTPUT_DENSITY_GEOJSON, "w") as f:
-        for display_zoom in range(0, DENSITY_MAX_ZOOM + 1):
+        for display_zoom in range(DENSITY_MAX_ZOOM + 1):
             cell_zoom = min(display_zoom + DENSITY_ZOOM_OFFSET, DENSITY_CELL_ZOOM_CAP)
             # cell key -> [count, xmin, ymin, xmax, ymax, buckets_dict].
             # Mutating a list in the dict is cheaper than allocating
@@ -372,14 +371,10 @@ def get_density_features() -> None:
                     acc = cells[key] = [1, xmin, ymin, xmax, ymax, {}]
                 else:
                     acc[0] += 1
-                    if xmin < acc[1]:
-                        acc[1] = xmin
-                    if ymin < acc[2]:
-                        acc[2] = ymin
-                    if xmax > acc[3]:
-                        acc[3] = xmax
-                    if ymax > acc[4]:
-                        acc[4] = ymax
+                    acc[1] = min(acc[1], xmin)
+                    acc[2] = min(acc[2], ymin)
+                    acc[3] = max(acc[3], xmax)
+                    acc[4] = max(acc[4], ymax)
                 bkt = acc[5]
                 for bk in buckets:
                     bkt[bk] = bkt.get(bk, 0) + 1

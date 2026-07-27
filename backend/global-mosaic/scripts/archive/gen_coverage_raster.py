@@ -35,25 +35,24 @@ import logging
 import os
 import sys
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 from multiprocessing import cpu_count
+from pathlib import Path
 
-import numpy as np
 import affine
 import mercantile
-from psycopg import connect
-from shapely.geometry import shape, box, Polygon
-from shapely.strtree import STRtree
-from shapely.ops import unary_union
-from rasterio import features
-from rio_tiler.utils import render
-from pmtiles.writer import write
-from pmtiles.tile import zxy_to_tileid, TileType, Compression
+import numpy as np
 from minio import Minio
 from minio.error import S3Error
+from pmtiles.tile import Compression, TileType, zxy_to_tileid
+from pmtiles.writer import write
+from psycopg import connect
+from rasterio import features
+from rio_tiler.utils import render
+from shapely.geometry import Polygon, box, shape
+from shapely.ops import unary_union
+from shapely.strtree import STRtree
 
 PG_DSN = os.getenv("PG_DSN")
 if not PG_DSN:
@@ -99,10 +98,10 @@ class TileJob:
 
 # NOTE: this global is intentionally set by the worker initializer to avoid
 # pickling 'geoms' for every single task.
-GEOMS: Optional[List[Polygon]] = None
+GEOMS: list[Polygon] | None = None
 
 
-def _init_worker(geoms: List[Polygon]) -> None:
+def _init_worker(geoms: list[Polygon]) -> None:
     """
     Run in worker process at start. Stores the geoms list in a module-level
     global to avoid re-pickling for each task.
@@ -111,7 +110,7 @@ def _init_worker(geoms: List[Polygon]) -> None:
     GEOMS = geoms
 
 
-def get_features() -> List[dict]:
+def get_features() -> list[dict]:
     """
     Query PgSTAC for imagery features in BBOX.
     Returns list of dicts: {"geometry": shapely.geometry, "url": <asset url or None>, "id": <id>}
@@ -130,7 +129,7 @@ def get_features() -> List[dict]:
     """
 
     log.info(f"Querying PgSTAC for features (bbox={BBOX})...")
-    features_list: List[dict] = []
+    features_list: list[dict] = []
     try:
         with connect(PG_DSN) as conn, conn.cursor() as cur:
             cur.execute(query, params)
@@ -157,7 +156,7 @@ def make_partial_coverage_tile(
     geoms: list[Polygon],
     color: tuple[int, int, int, int] = (128, 128, 128, 102),
     tile_size: int = 256,
-) -> Optional[bytes]:
+) -> bytes | None:
     """
     Create a PNG tile (tile_size x tile_size) with translucent coverage where imagery exists,
     transparent elsewhere. Returns PNG bytes, or None if no coverage.
@@ -198,7 +197,7 @@ def make_partial_coverage_tile(
 
 def process_tile(
     z: int, tile: mercantile.Tile, candidate_indices: list[int], tile_size: int
-) -> Optional[tuple[int, bytes]]:
+) -> tuple[int, bytes] | None:
     """
     Process a single tile: clip + simplify + rasterize.
     Note: this runs in worker processes. It uses global GEOMS which is set via initializer.
@@ -268,7 +267,7 @@ def generate_partial_coverage_pmtiles() -> None:
             log.info(f"Processing zoom {z}: {total_tiles} candidate tiles")
 
             # Find tiles that have any geometry candidate in tree
-            tasks: List[Tuple[mercantile.Tile, List[int]]] = []
+            tasks: list[tuple[mercantile.Tile, list[int]]] = []
             for tile in tiles:
                 tile_geom = box(*mercantile.bounds(tile))
                 candidate_indices = tree.query(tile_geom)
