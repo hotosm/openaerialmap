@@ -12,15 +12,14 @@ import json
 import logging
 import math
 import os
-import sys
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Tuple
-from psycopg import connect
+
 from minio import Minio
 from minio.error import S3Error
-
+from psycopg import connect
 
 PG_DSN = os.getenv("PG_DSN")
 if not PG_DSN:
@@ -60,7 +59,7 @@ DENSITY_CELL_ZOOM_CAP = DENSITY_MAX_ZOOM + DENSITY_ZOOM_OFFSET
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
-BBOX: Tuple[float, float, float, float] = (
+BBOX: tuple[float, float, float, float] = (
     (-20.0, 0.0, 10.0, 30.0)  # large test bbox
     if TEST_MODE
     else (-180.0, -85.05112878, 180.0, 85.05112878)
@@ -140,7 +139,7 @@ def get_density_features() -> None:
     Path(OUTPUT_DENSITY_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
     total_cells = 0
     with open(OUTPUT_DENSITY_GEOJSON, "w") as f:
-        for display_zoom in range(0, DENSITY_MAX_ZOOM + 1):
+        for display_zoom in range(DENSITY_MAX_ZOOM + 1):
             cell_zoom = min(display_zoom + DENSITY_ZOOM_OFFSET, DENSITY_CELL_ZOOM_CAP)
             cells: dict[tuple[int, int], int] = {}
             for lon, lat in centroids:
