@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 FIXME note we don't use this script for now, instead simply creating a
 FIXME coverage map of grey tiles.
@@ -53,7 +52,7 @@ if not PG_DSN:
     PGHOST = os.getenv("PGHOST")
     PGUSER = os.getenv("PGUSER")
     PGPASSWORD = os.getenv("PGPASSWORD")
-    PGPORT = int(os.getenv("PGPORT", 5432))
+    PGPORT = int(os.getenv("PGPORT", "5432"))
     PGDATABASE = os.getenv("PGDATABASE", "eoapi")
 
     if not (PGHOST and PGUSER and PGPASSWORD):
@@ -72,7 +71,7 @@ THREADS = int(os.getenv("THREADS", "16"))
 HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
 RETRIES = int(os.getenv("RETRIES", "2"))
 
-TEST_MODE = bool(os.getenv("TEST_MODE", False))
+TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 BBOX: tuple[float, float, float, float] = (
     (-20.0, 0.0, 10.0, 30.0)
     if TEST_MODE
@@ -150,7 +149,7 @@ def get_features() -> list[dict]:
             geom_json = json.loads(geom)
             geom_obj = shape(geom_json)
             features.append({"geometry": geom_obj, "url": url, "id": id_})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.warning(f"Failed to parse geometry for {id_}: {e}")
 
     log.info(f"Found {len(features)} items in pgSTAC for bbox")
@@ -230,7 +229,7 @@ async def fetch_tile_bytes(
                     return None
         except asyncio.CancelledError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_log.warning(
                 f"Error fetching {url}: {e} (attempt {attempt + 1}/{retries})"
             )
@@ -377,11 +376,9 @@ def generate_mosaic() -> None:
                     for z in download_zoom_range:
                         log.info(f"Queueing download tasks for zoom {z}")
                         tasks: list[asyncio.Task] = []
-                        count = 0
                         for tile in iter_tiles_for_zoom(tree, z):
                             task = asyncio.create_task(process_tile(tile))
                             tasks.append(task)
-                            count += 1
 
                             # keep only a small window of tasks in memory
                             if len(tasks) >= MAX_INFLIGHT:

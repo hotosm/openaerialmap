@@ -40,9 +40,9 @@ ZOOM_MIN, ZOOM_MAX = 0, 13  # Zoom range to mosaic
 OUTPUT_PM = "/app/output/global-mosaic.pmtiles"
 TILE_SIZE = 256
 MAX_COGS_PER_TILE = 5  # Limit number of COGs mosaicked per tile
-THREADS = int(os.getenv("THREADS", 8))
+THREADS = int(os.getenv("THREADS", "8"))
 
-TEST_MODE = bool(os.getenv("TEST_MODE", False))
+TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 BBOX = (-14.00, 4.00, -8.00, 10.00) if TEST_MODE else (-180, -90, 180, 90)
 
 band_count_cache: dict[str, int] = {}
@@ -108,7 +108,7 @@ def validate_cog_bands(url: str) -> tuple[bool, int]:
 
             return True, count
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Failed to open COG {url}: {e}")
         failure_cache.add(url)
         return False, 0
@@ -273,7 +273,7 @@ def cog_reader(url: str, x: int, y: int, z: int):
                 bounds=tile_data.bounds,
             )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         failure_cache.add(url)
         print(f"Failed to read COG {url}: {e}")
         return None
@@ -352,7 +352,7 @@ def safe_mosaic_reader(urls: list[str], reader_func):
 
     try:
         return mosaic_reader(valid_urls, filtered_reader)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # If mosaic fails, try each COG individually to identify the problem
         print(f"Mosaic failed with {len(valid_urls)} COGs: {e}")
 
@@ -362,7 +362,7 @@ def safe_mosaic_reader(urls: list[str], reader_func):
                 result = filtered_reader(url)
                 if result is not None:
                     working_urls.append(url)
-            except Exception as individual_e:
+            except Exception as individual_e:  # noqa: BLE001
                 print(f"Individual COG failed {url}: {individual_e}")
                 failure_cache.add(url)
 
@@ -434,7 +434,7 @@ def process_tile(
             colormap=None,
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Mosaic failed for tile {z}/{x}/{y}: {e}")
         # Fallback to coverage tile
         covered_geoms = [tree.geometries[i] for i in candidate_indices]

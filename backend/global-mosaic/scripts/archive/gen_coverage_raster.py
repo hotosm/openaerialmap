@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Generate a PMTiles archive containing *partial-coverage* translucent grey tiles
 for zooms ZOOM_MIN-ZOOM_MAX by rasterizing PgSTAC footprints into each tile.
@@ -59,7 +58,7 @@ if not PG_DSN:
     PGHOST = os.getenv("PGHOST")
     PGUSER = os.getenv("PGUSER")
     PGPASSWORD = os.getenv("PGPASSWORD")
-    PGPORT = int(os.getenv("PGPORT", 5432))
+    PGPORT = int(os.getenv("PGPORT", "5432"))
     PGDATABASE = os.getenv("PGDATABASE", "eoapi")
 
     if not (PGHOST and PGUSER and PGPASSWORD):
@@ -73,7 +72,7 @@ TILE_SIZE = int(os.getenv("TILE_SIZE", "256"))
 ZOOM_MIN = int(os.getenv("ZOOM_MIN", "0"))
 ZOOM_MAX = int(os.getenv("ZOOM_MAX", "15"))
 
-TEST_MODE = bool(os.getenv("TEST_MODE", False))
+TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 BBOX: tuple[float, float, float, float] = (
     (-20.0, 0.0, 10.0, 30.0)  # large text bbox
     # (-14.00, 4.00, -8.00, 10.00) # small test bbox
@@ -144,7 +143,7 @@ def get_features() -> list[dict]:
         try:
             geom_obj = shape(json.loads(geom))
             features_list.append({"geometry": geom_obj, "url": url, "id": id_})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.warning(f"Failed to parse geometry for {id_}: {e}")
 
     log.info(f"Found {len(features_list)} items in pgSTAC for bbox")
@@ -178,7 +177,7 @@ def make_partial_coverage_tile(
             all_touched=True,
             dtype="uint8",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         log.error(f"Rasterization failed for bounds={tile_bounds}: {e}")
         return None
 
@@ -202,7 +201,7 @@ def process_tile(
     Process a single tile: clip + simplify + rasterize.
     Note: this runs in worker processes. It uses global GEOMS which is set via initializer.
     """
-    global GEOMS
+    assert GEOMS is not None
 
     tile_bounds = mercantile.bounds(tile)
     tile_geom = box(*tile_bounds)
@@ -306,8 +305,8 @@ def generate_partial_coverage_pmtiles() -> None:
 
                     try:
                         result = fut.result()
-                    except Exception as e:
-                        log.exception(f"Tile processing failed (zoom {z}): {e}")
+                    except Exception:
+                        log.exception(f"Tile processing failed (zoom {z})")
                         result = None
 
                     if result:

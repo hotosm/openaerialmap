@@ -92,7 +92,7 @@ def derive_max_zoom_from_gsd(gsd_m: float) -> int:
     """
     if gsd_m <= 0:
         return 18
-    z = int(round(math.log2(156543.03 / gsd_m)))
+    z = round(math.log2(156543.03 / gsd_m))
     return max(0, min(22, z))
 
 
@@ -163,7 +163,7 @@ def _close_thread_readers(pool: ThreadPoolExecutor, cog_url: str) -> None:
         if reader is not None:
             try:
                 reader.__exit__(None, None, None)
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
             _thread_local.reader = None
 

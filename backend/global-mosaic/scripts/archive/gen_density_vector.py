@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Generate the OAM global density PMTiles (grid squares with per-cell image
 counts) from the pgSTAC catalogue.
@@ -26,7 +25,7 @@ if not PG_DSN:
     PGHOST = os.getenv("PGHOST")
     PGUSER = os.getenv("PGUSER")
     PGPASSWORD = os.getenv("PGPASSWORD")
-    PGPORT = int(os.getenv("PGPORT", 5432))
+    PGPORT = int(os.getenv("PGPORT", "5432"))
     PGDATABASE = os.getenv("PGDATABASE", "eoapi")
 
     if not (PGHOST and PGUSER and PGPASSWORD):
@@ -76,17 +75,15 @@ log = logging.getLogger("gen_mosaic")
 
 # --- Web Mercator tile math (matches oam-vibe client-side helpers) ---
 def _lon2tile(lon: float, zoom: int) -> int:
-    return int(math.floor((lon + 180.0) / 360.0 * (1 << zoom)))
+    return math.floor((lon + 180.0) / 360.0 * (1 << zoom))
 
 
 def _lat2tile(lat: float, zoom: int) -> int:
     rad = math.radians(lat)
-    return int(
-        math.floor(
-            (1.0 - math.log(math.tan(rad) + 1.0 / math.cos(rad)) / math.pi)
-            / 2.0
-            * (1 << zoom)
-        )
+    return math.floor(
+        (1.0 - math.log(math.tan(rad) + 1.0 / math.cos(rad)) / math.pi)
+        / 2.0
+        * (1 << zoom)
     )
 
 
