@@ -888,7 +888,12 @@ export default function OamMap({
       }
     }
 
-    if (zoom >= TMS_LARGE_MIN_ZOOM) {
+    // The previews toggle governs all auto-loaded imagery, not just the
+    // stretched thumbnails (effect #6): without this the button looks dead
+    // once you zoom past TMS_LARGE_MIN_ZOOM, where full-res TMS overlays
+    // supersede the thumbnails. The explicitly selected image (handled
+    // above) always renders regardless of the toggle.
+    if (previewsEnabled && zoom >= TMS_LARGE_MIN_ZOOM) {
       try {
         const raw = mapInstance.querySourceFeatures("oam-tiles", {
           sourceLayer: PMTILES_SOURCE_LAYER,
@@ -997,7 +1002,14 @@ export default function OamMap({
         console.error("TMS layer error:", e);
       }
     }
-  }, [selectedFeature, isLoaded, idleTick, itemBoundsTick, filters]);
+  }, [
+    selectedFeature,
+    isLoaded,
+    idleTick,
+    itemBoundsTick,
+    filters,
+    previewsEnabled,
+  ]);
 
   // 8. HOVER HIGHLIGHT
   useEffect(() => {

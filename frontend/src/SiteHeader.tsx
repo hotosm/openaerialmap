@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
 
 // Landing point for the (upcoming) imagery uploader. Currently the
 // legacy site; swap this in one place when the new uploader ships.
-const SHARE_IMAGERY_URL = "https://map.openaerialmap.org";
+const UPLOAD_IMAGERY_URL = "https://map.openaerialmap.org";
 
 interface HeaderTab {
   label: string;
@@ -43,6 +43,12 @@ const HEADER_TABS: HeaderTab[] = [
     },
   },
   {
+    label: "Upload",
+    clickEvent: () => {
+      window.open(UPLOAD_IMAGERY_URL, "_blank");
+    },
+  },
+  {
     label: "Report a bug",
     clickEvent: () => {
       window.open("https://roadmap.hotosm.org/#tech-request", "_blank");
@@ -75,10 +81,10 @@ export default function SiteHeader() {
         variant="brand"
         class="share-imagery-btn"
         onClick={() => {
-          window.open(SHARE_IMAGERY_URL, "_blank");
+          window.open(UPLOAD_IMAGERY_URL, "_blank");
         }}
       >
-        Share Imagery
+        Upload Imagery
       </wa-button>
     </hot-header>
   );
