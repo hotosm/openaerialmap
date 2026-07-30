@@ -4,9 +4,7 @@
   "sources": {
     "global-coverage": {
       "type": "vector",
-      "tiles": [
-        "pmtiles://http://127.0.0.1/global-coverage.pmtiles/{z}/{x}/{y}"
-      ],
+      "tiles": ["pmtiles://http://127.0.0.1/global-coverage.pmtiles/{z}/{x}/{y}"],
       "minzoom": 0,
       "maxzoom": 13
     }
@@ -49,27 +47,11 @@
       "type": "symbol",
       "minzoom": 2,
       "maxzoom": 14,
-      "filter": [
-        "all",
-        [">", ["get", "count"], 0],
-        ["==", ["geometry-type"], "Point"]
-      ],
+      "filter": ["all", [">", ["get", "count"], 0], ["==", ["geometry-type"], "Point"]],
       "layout": {
         "text-field": ["to-string", ["get", "count"]],
         "text-font": ["Noto Sans Bold"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          2,
-          20,
-          5,
-          22,
-          9,
-          24,
-          13,
-          24
-        ],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 2, 20, 5, 22, 9, 24, 13, 24],
         "text-allow-overlap": false
       },
       "paint": {

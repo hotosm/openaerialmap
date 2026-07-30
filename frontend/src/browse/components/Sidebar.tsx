@@ -9,11 +9,7 @@ interface Props {
   selectedFeature: ImageFeature | null;
 }
 
-export default function Sidebar({
-  features,
-  onSelect,
-  selectedFeature,
-}: Props) {
+export default function Sidebar({ features, onSelect, selectedFeature }: Props) {
   const [visibleCount, setVisibleCount] = useState(SIDEBAR_PAGE_SIZE);
   const listRef = useRef<HTMLDivElement | null>(null);
   // Track the previous feature-id list in state (not a ref) so React's
@@ -46,9 +42,7 @@ export default function Sidebar({
   // extend visibleCount so its card renders. Same setState-in-render
   // pattern: guarded by a stale-check so we don't loop.
   if (selectedFeature) {
-    const selIdx = features.findIndex(
-      (f) => f.properties.id === selectedFeature.properties.id,
-    );
+    const selIdx = features.findIndex((f) => f.properties.id === selectedFeature.properties.id);
     if (selIdx >= visibleCount) {
       setVisibleCount(selIdx + 5);
     }
@@ -89,8 +83,7 @@ export default function Sidebar({
                 feature={feature}
                 onSelect={onSelect}
                 isSelected={
-                  !!selectedFeature &&
-                  selectedFeature.properties.id === feature.properties.id
+                  !!selectedFeature && selectedFeature.properties.id === feature.properties.id
                 }
               />
             ))}
@@ -100,9 +93,7 @@ export default function Sidebar({
                 size="small"
                 class="w-full"
                 onClick={() =>
-                  setVisibleCount((prev) =>
-                    Math.min(prev + SIDEBAR_PAGE_SIZE, features.length),
-                  )
+                  setVisibleCount((prev) => Math.min(prev + SIDEBAR_PAGE_SIZE, features.length))
                 }
               >
                 Load More ({features.length - visibleCount} remaining)
@@ -111,9 +102,8 @@ export default function Sidebar({
           </>
         ) : (
           <p className="text-center text-gray-500 py-8 px-6">
-            Zoom in to see imagery footprints. The grid squares on the map show
-            where imagery is available; individual images appear once you zoom
-            in far enough.
+            Zoom in to see imagery footprints. The grid squares on the map show where imagery is
+            available; individual images appear once you zoom in far enough.
           </p>
         )}
       </div>

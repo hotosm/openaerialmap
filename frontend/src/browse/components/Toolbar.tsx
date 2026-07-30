@@ -23,9 +23,7 @@ export default function Toolbar({
   basemap,
   setBasemap,
 }: Props) {
-  const [activeTool, setActiveTool] = useState<"search" | "layers" | null>(
-    null,
-  );
+  const [activeTool, setActiveTool] = useState<"search" | "layers" | null>(null);
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -70,9 +68,7 @@ export default function Toolbar({
   }
 
   return (
-    <div
-      className={`flex flex-col font-sans shadow-lg rounded-md ${className}`}
-    >
+    <div className={`flex flex-col font-sans shadow-lg rounded-md ${className}`}>
       <div className="relative">
         <button
           type="button"
@@ -96,12 +92,7 @@ export default function Toolbar({
                 class="flex-1"
                 onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
               />
-              <wa-button
-                type="submit"
-                size="small"
-                variant="brand"
-                disabled={isSearching}
-              >
+              <wa-button type="submit" size="small" variant="brand" disabled={isSearching}>
                 {isSearching ? "…" : "Go"}
               </wa-button>
             </form>
@@ -135,9 +126,7 @@ export default function Toolbar({
                   setActiveTool(null);
                 }}
                 className={`block w-full text-left px-4 py-2 text-xs font-medium hover:bg-gray-50 border-b border-gray-50 last:border-0 cursor-pointer ${
-                  basemap === opt.id
-                    ? "text-cyan-600 bg-cyan-50"
-                    : "text-gray-700"
+                  basemap === opt.id ? "text-cyan-600 bg-cyan-50" : "text-gray-700"
                 }`}
               >
                 {opt.label}

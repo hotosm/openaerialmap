@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import type { ImageFeature } from "../utils/types";
-import {
-  COLLECTION_ID,
-  STAC_BROWSER_URL,
-  STAC_TITILER_URL,
-  STAC_URL,
-} from "../utils/constants";
+import { COLLECTION_ID, STAC_BROWSER_URL, STAC_TITILER_URL, STAC_URL } from "../utils/constants";
 import { formatDate, formatPlatform, toSentenceCase } from "../utils/format";
 import { triggerTilepack, type TilepackFormat } from "../utils/tilepack";
 
@@ -137,11 +132,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-  const handleCopy = (
-    e: React.MouseEvent,
-    text: string,
-    feedbackId: string,
-  ) => {
+  const handleCopy = (e: React.MouseEvent, text: string, feedbackId: string) => {
     e.stopPropagation();
     navigator.clipboard.writeText(text);
     setCopyFeedback(feedbackId);
@@ -237,9 +228,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
         </div>
 
         <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
-          <span className="font-medium text-gray-700">
-            {formatDate(p.date)}
-          </span>
+          <span className="font-medium text-gray-700">{formatDate(p.date)}</span>
           <span className="text-gray-300">•</span>
           <span className="truncate max-w-[150px]" title={p.provider}>
             {p.provider}
@@ -292,20 +281,10 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               >
                 {copyFeedback === "tms" ? "Copied!" : "Copy TMS"}
               </wa-button>
-              <wa-button
-                size="small"
-                appearance="outlined"
-                class="flex-1"
-                onClick={handleOpenId}
-              >
+              <wa-button size="small" appearance="outlined" class="flex-1" onClick={handleOpenId}>
                 Open iD
               </wa-button>
-              <wa-button
-                size="small"
-                appearance="outlined"
-                class="flex-1"
-                onClick={handleOpenJosm}
-              >
+              <wa-button size="small" appearance="outlined" class="flex-1" onClick={handleOpenJosm}>
                 Open JOSM
               </wa-button>
             </div>
@@ -321,28 +300,19 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 onGenerate={() => runTilepack("mbtiles")}
               />
             </div>
-            {(pmtilesState.kind === "pending" ||
-              mbtilesState.kind === "pending") && (
+            {(pmtilesState.kind === "pending" || mbtilesState.kind === "pending") && (
               <p className="text-[11px] leading-snug text-gray-500">
-                This can take a few minutes for large images. Click the button
-                again to check status; no need to wait on this page.
+                This can take a few minutes for large images. Click the button again to check
+                status; no need to wait on this page.
               </p>
             )}
             {pmtilesState.kind === "error" && (
-              <wa-callout
-                variant="danger"
-                size="small"
-                class="text-[11px] leading-snug"
-              >
+              <wa-callout variant="danger" size="small" class="text-[11px] leading-snug">
                 PMTiles: {pmtilesState.message}
               </wa-callout>
             )}
             {mbtilesState.kind === "error" && (
-              <wa-callout
-                variant="danger"
-                size="small"
-                class="text-[11px] leading-snug"
-              >
+              <wa-callout variant="danger" size="small" class="text-[11px] leading-snug">
                 MBTiles: {mbtilesState.message}
               </wa-callout>
             )}
@@ -355,9 +325,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               {formatPlatform(p.platform)}
             </div>
             <div>
-              <span className="block text-[10px] uppercase text-gray-400 font-bold">
-                Sensor
-              </span>
+              <span className="block text-[10px] uppercase text-gray-400 font-bold">Sensor</span>
               {toSentenceCase(p.sensor)}
             </div>
             <div>
@@ -367,15 +335,11 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               {p.gsd}
             </div>
             <div>
-              <span className="block text-[10px] uppercase text-gray-400 font-bold">
-                File Size
-              </span>
+              <span className="block text-[10px] uppercase text-gray-400 font-bold">File Size</span>
               {p.file_size || "Unknown"}
             </div>
             <div>
-              <span className="block text-[10px] uppercase text-gray-400 font-bold">
-                License
-              </span>
+              <span className="block text-[10px] uppercase text-gray-400 font-bold">License</span>
               <a
                 href="https://creativecommons.org/licenses/"
                 target="_blank"
@@ -387,9 +351,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               </a>
             </div>
             <div className="min-w-0">
-              <span className="block text-[10px] uppercase text-gray-400 font-bold">
-                ID
-              </span>
+              <span className="block text-[10px] uppercase text-gray-400 font-bold">ID</span>
               <span
                 className="font-mono text-[10px] text-gray-500 block truncate select-all cursor-text bg-gray-100 px-1 rounded"
                 title={p.id}
@@ -464,11 +426,7 @@ function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
           e.stopPropagation();
           if (!disabled) onGenerate();
         }}
-        title={
-          state.kind === "pending"
-            ? "Still generating - click to check status"
-            : undefined
-        }
+        title={state.kind === "pending" ? "Still generating - click to check status" : undefined}
       >
         <wa-spinner slot="start" style={{ fontSize: "0.875rem" }} />
         Generating…

@@ -5,12 +5,7 @@ import { PACKAGER_URL } from "./constants";
 // backend/tilepack-api/internal/handler/handler.go.
 export type TilepackFormat = "pmtiles" | "mbtiles";
 
-export type TilepackStatus =
-  | "started"
-  | "in_progress"
-  | "ready"
-  | "rate_limited"
-  | "error";
+export type TilepackStatus = "started" | "in_progress" | "ready" | "rate_limited" | "error";
 
 export interface TilepackResponse {
   status: TilepackStatus;
@@ -33,9 +28,7 @@ export async function triggerTilepack(
 ): Promise<TilepackResponse> {
   const url = `${PACKAGER_URL}/tilepacks/${itemId}?format=${format}`;
   const res = await fetch(url, { method: "POST" });
-  const body = (await res
-    .json()
-    .catch(() => ({}))) as Partial<TilepackResponse>;
+  const body = (await res.json().catch(() => ({}))) as Partial<TilepackResponse>;
   return {
     status: (body.status as TilepackStatus) ?? "error",
     url: body.url,

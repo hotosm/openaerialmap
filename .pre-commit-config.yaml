@@ -42,18 +42,25 @@ repos:
         args: [--toml, notebooks/pyproject.toml]
 
   # Autoformat: YAML, JSON, Markdown, etc.
-  - repo: https://github.com/pycontribs/mirrors-prettier
-    rev: v3.6.2
+  - repo: local
     hooks:
-      - id: prettier
+      - id: oxfmt
+        name: oxfmt
+        files: ^
+        entry: bash -c 'test "$#" -gt 0 && oxfmt --write "$@" || exit 0' --
+        language: node
+        "types": [text]
+        additional_dependencies: ["oxfmt@0.35.0"]
         args:
           [
-            --ignore-unknown,
-            --no-error-on-unmatched-pattern,
             "!CHANGELOG.md",
             "!frontend/pnpm-lock.yaml",
-            "!backend/global-tms/chart/**",
-            "!backend/tilepack-api/chart/**",
+            "!backend/global-tms/**",
+            "!backend/tilepack-api/**",
+            "!backend/stac-ingester/**",
+            "!backend/stac-api/**",
+            "!backend/global-mosaic/**",
+            "!notebooks/**",
           ]
 
   # # Lint: Dockerfile (disabled until binary is bundled)

@@ -2,20 +2,14 @@ import type { DetailedHTMLProps, HTMLAttributes } from "react";
 
 declare module "virtual:uno.css";
 
-type HotHeaderAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type HotHeaderAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   title?: string;
   logo?: string;
   size?: string;
   "tabs-center-align"?: boolean | string;
 };
 
-type WaButtonAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaButtonAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   variant?: string;
   appearance?: string;
   size?: string;
@@ -37,17 +31,11 @@ type WaButtonAttributes = DetailedHTMLProps<
   class?: string;
 };
 
-type WaCardAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaCardAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   class?: string;
 };
 
-type WaIconAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaIconAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   name?: string;
   variant?: string;
   library?: string;
@@ -59,10 +47,7 @@ type WaIconAttributes = DetailedHTMLProps<
   class?: string;
 };
 
-type WaDropdownAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaDropdownAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   open?: boolean;
   placement?: string;
   distance?: number | string;
@@ -70,10 +55,7 @@ type WaDropdownAttributes = DetailedHTMLProps<
   class?: string;
 };
 
-type WaDropdownItemAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaDropdownItemAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   value?: string;
   type?: string;
   checked?: boolean;
@@ -81,10 +63,7 @@ type WaDropdownItemAttributes = DetailedHTMLProps<
   class?: string;
 };
 
-type WaInputAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaInputAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   type?: string;
   value?: string;
   placeholder?: string;
@@ -94,17 +73,11 @@ type WaInputAttributes = DetailedHTMLProps<
   class?: string;
 };
 
-type WaSpinnerAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaSpinnerAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   class?: string;
 };
 
-type WaTagAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaTagAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   variant?: string;
   appearance?: string;
   size?: string;
@@ -112,10 +85,7 @@ type WaTagAttributes = DetailedHTMLProps<
   class?: string;
 };
 
-type WaCalloutAttributes = DetailedHTMLProps<
-  HTMLAttributes<HTMLElement>,
-  HTMLElement
-> & {
+type WaCalloutAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   variant?: string;
   appearance?: string;
   size?: string;

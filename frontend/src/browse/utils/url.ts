@@ -32,13 +32,7 @@ export function readInitialView(fallback: ViewState): ViewState {
 }
 
 const VALID_DATE_PRESETS: DatePreset[] = ["", "week", "month", "year"];
-const VALID_RESOLUTION_PRESETS: ResolutionPreset[] = [
-  "",
-  "lt05",
-  "05to2",
-  "2to10",
-  "gt10",
-];
+const VALID_RESOLUTION_PRESETS: ResolutionPreset[] = ["", "lt05", "05to2", "2to10", "gt10"];
 const VALID_PLATFORMS = ["", "satellite", "uav", "aircraft"];
 // License filter values are matched substring-wise against feature
 // licenses (see buildFilter). Confine them to the exact strings the UI
@@ -49,9 +43,7 @@ const VALID_LICENSES = ["", "CC-BY 4.0", "CC BY-NC 4.0", "CC BY-SA 4.0"];
 export function readInitialFilters(): Filters {
   const params = new URLSearchParams(window.location.search);
   const rawDate = params.get("date") || "";
-  const date = (VALID_DATE_PRESETS as string[]).includes(rawDate)
-    ? (rawDate as DatePreset)
-    : "";
+  const date = (VALID_DATE_PRESETS as string[]).includes(rawDate) ? (rawDate as DatePreset) : "";
   const rawRes = params.get("resolution") || "";
   const resolution = (VALID_RESOLUTION_PRESETS as string[]).includes(rawRes)
     ? (rawRes as ResolutionPreset)
@@ -72,9 +64,7 @@ function replaceParams(mutator: (p: URLSearchParams) => void): void {
   const params = new URLSearchParams(window.location.search);
   mutator(params);
   const qs = params.toString();
-  const url = qs
-    ? `${window.location.pathname}?${qs}`
-    : window.location.pathname;
+  const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
   window.history.replaceState({}, "", url);
 }
 

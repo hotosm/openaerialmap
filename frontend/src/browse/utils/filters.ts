@@ -1,9 +1,4 @@
-import type {
-  DatePreset,
-  Filters,
-  RawTileProperties,
-  ResolutionPreset,
-} from "./types";
+import type { DatePreset, Filters, RawTileProperties, ResolutionPreset } from "./types";
 
 // Both client-side (matchesFilters) and MapLibre-side (buildFilter)
 // implementations must agree on boundary conditions so the sidebar and
@@ -47,10 +42,7 @@ export function datePresetRange(preset: DatePreset): DateRange | null {
 // unknown-gsd imagery turns out to be significant, the fix belongs
 // backend-side in the ingester (backfill from EXIF / provider
 // metadata), not here.
-function matchesResolution(
-  gsd: number | undefined,
-  preset: ResolutionPreset,
-): boolean {
+function matchesResolution(gsd: number | undefined, preset: ResolutionPreset): boolean {
   if (!preset) return true;
   if (gsd == null) return false;
   if (preset === "lt05") return gsd < 0.5;
@@ -106,21 +98,13 @@ export function buildFilter(f: Filters): unknown[] | null {
         ["!=", ["downcase", ["get", "platform"]], "drone"],
       ]);
     } else {
-      conditions.push([
-        "==",
-        ["downcase", ["get", "platform"]],
-        f.platform.toLowerCase(),
-      ]);
+      conditions.push(["==", ["downcase", ["get", "platform"]], f.platform.toLowerCase()]);
     }
   }
   const range = datePresetRange(f.date);
   if (range) {
     conditions.push([">=", ["get", "acquisition_end"], range.start]);
-    conditions.push([
-      "<=",
-      ["get", "acquisition_end"],
-      range.end + "T23:59:59.999Z",
-    ]);
+    conditions.push(["<=", ["get", "acquisition_end"], range.end + "T23:59:59.999Z"]);
   }
   if (f.resolution) {
     // Boundaries mirror matchesResolution above. Kept identical so
@@ -146,17 +130,9 @@ export function buildFilter(f: Filters): unknown[] | null {
   if (f.license) {
     const lic = f.license.toLowerCase();
     if (lic.includes("nc")) {
-      conditions.push([
-        "in",
-        "nc",
-        ["downcase", ["to-string", ["get", "license"]]],
-      ]);
+      conditions.push(["in", "nc", ["downcase", ["to-string", ["get", "license"]]]]);
     } else if (lic.includes("sa")) {
-      conditions.push([
-        "in",
-        "sa",
-        ["downcase", ["to-string", ["get", "license"]]],
-      ]);
+      conditions.push(["in", "sa", ["downcase", ["to-string", ["get", "license"]]]]);
     } else if (lic.includes("by")) {
       conditions.push([
         "all",

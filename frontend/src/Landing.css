@@ -35,11 +35,7 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: linear-gradient(
-    135deg,
-    var(--hot-color-blue-950) 0%,
-    var(--hot-color-blue-800) 100%
-  );
+  background: linear-gradient(135deg, var(--hot-color-blue-950) 0%, var(--hot-color-blue-800) 100%);
 }
 
 .landing-hero::before {
@@ -62,16 +58,8 @@
       rgba(6, 17, 29, 0.5) 40%,
       rgba(24, 38, 66, 0.35) 100%
     ),
-    radial-gradient(
-      circle at 78% 22%,
-      rgba(214, 63, 63, 0.22),
-      transparent 44%
-    ),
-    radial-gradient(
-      circle at 18% 78%,
-      rgba(255, 255, 255, 0.1),
-      transparent 42%
-    );
+    radial-gradient(circle at 78% 22%, rgba(214, 63, 63, 0.22), transparent 44%),
+    radial-gradient(circle at 18% 78%, rgba(255, 255, 255, 0.1), transparent 42%);
   z-index: 1;
   pointer-events: none;
 }
@@ -345,11 +333,7 @@
 }
 
 .landing-card-link--primary .landing-component-card::part(base) {
-  background: linear-gradient(
-    155deg,
-    var(--hot-color-primary-50) 0%,
-    white 60%
-  );
+  background: linear-gradient(155deg, var(--hot-color-primary-50) 0%, white 60%);
   border-color: var(--hot-color-primary-200);
 }
 

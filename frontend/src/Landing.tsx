@@ -88,15 +88,13 @@ const RESOURCES = [
   {
     type: "Documentation",
     title: "Technical docs",
-    description:
-      "Architecture, deployment, and integration guides for the OAM v2 stack.",
+    description: "Architecture, deployment, and integration guides for the OAM v2 stack.",
     href: "https://docs.imagery.hotosm.org/",
   },
   {
     type: "Source",
     title: "GitHub repository",
-    description:
-      "OAM is open source under the HOTOSM organization. Contributions welcome.",
+    description: "OAM is open source under the HOTOSM organization. Contributions welcome.",
     href: "https://github.com/hotosm/openaerialmap",
   },
 ];
@@ -125,11 +123,7 @@ async function fetchLiveStats(): Promise<LiveStats | null> {
   const items = data?.items;
   const areaKm2 = data?.area_km2;
   const collections = data?.catalog?.collections;
-  if (
-    typeof items !== "number" ||
-    typeof areaKm2 !== "number" ||
-    typeof collections !== "number"
-  ) {
+  if (typeof items !== "number" || typeof areaKm2 !== "number" || typeof collections !== "number") {
     return null;
   }
   return { items, areaKm2, collections };
@@ -152,9 +146,7 @@ function formatAreaKm2(km2: number): string {
 export default function Landing() {
   const [items, setItems] = useState<number>(STATIC_STATS.items);
   const [areaKm2, setAreaKm2] = useState<number>(STATIC_STATS.areaKm2);
-  const [collections, setCollections] = useState<number>(
-    STATIC_STATS.collections,
-  );
+  const [collections, setCollections] = useState<number>(STATIC_STATS.collections);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,14 +170,12 @@ export default function Landing() {
       <main className="landing-page">
         <section className="landing-hero">
           <div className="landing-shell landing-hero-content">
-            <p className="landing-eyebrow">
-              The open collection of aerial imagery
-            </p>
+            <p className="landing-eyebrow">The open collection of aerial imagery</p>
             <h1 className="landing-title">OpenAerialMap</h1>
             <p className="landing-subtitle">
-              A catalog of openly licensed satellite and drone imagery, plus the
-              tools to search, tile, and package it - built for humanitarian
-              responders, community mappers, and researchers.
+              A catalog of openly licensed satellite and drone imagery, plus the tools to search,
+              tile, and package it - built for humanitarian responders, community mappers, and
+              researchers.
             </p>
             <div className="landing-hero-actions">
               <wa-button
@@ -209,25 +199,16 @@ export default function Landing() {
               </wa-button>
             </div>
             <p className="landing-hero-note">
-              Uploading currently happens on the legacy site - sign in at the
-              top right of{" "}
-              <a
-                href="https://map.openaerialmap.org"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              Uploading currently happens on the legacy site - sign in at the top right of{" "}
+              <a href="https://map.openaerialmap.org" target="_blank" rel="noopener noreferrer">
                 map.openaerialmap.org
               </a>{" "}
-              and use the Upload button. A new uploader is coming in the next
-              few months.
+              and use the Upload button. A new uploader is coming in the next few months.
             </p>
           </div>
         </section>
 
-        <section
-          className="landing-shell landing-metrics-shell"
-          aria-live="polite"
-        >
+        <section className="landing-shell landing-metrics-shell" aria-live="polite">
           <div className="landing-metrics-grid">
             <wa-card class="landing-metric-card">
               <div className="landing-metric-inner">
@@ -260,23 +241,18 @@ export default function Landing() {
           <div>
             <h2 className="landing-section-title">What is OpenAerialMap?</h2>
             <p>
-              OpenAerialMap (OAM) is a set of tools for searching, sharing, and
-              using openly licensed satellite and unmanned aerial vehicle (UAV)
-              imagery. Anyone can contribute imagery, and anyone can use it -
-              for disaster response, community mapping, research, or teaching.
+              OpenAerialMap (OAM) is a set of tools for searching, sharing, and using openly
+              licensed satellite and unmanned aerial vehicle (UAV) imagery. Anyone can contribute
+              imagery, and anyone can use it - for disaster response, community mapping, research,
+              or teaching.
             </p>
             <p>
               OAM v2 rebuilt the platform on the{" "}
-              <a
-                href="https://stacspec.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href="https://stacspec.org/" target="_blank" rel="noopener noreferrer">
                 SpatioTemporal Asset Catalog (STAC)
               </a>{" "}
-              standard. That means every item has consistent metadata, works
-              with any STAC-aware client, and can be tiled on the fly instead of
-              pre-processed. Read more in the{" "}
+              standard. That means every item has consistent metadata, works with any STAC-aware
+              client, and can be tiled on the fly instead of pre-processed. Read more in the{" "}
               <a
                 href="https://www.hotosm.org/en/news/openaerialmap-v2-faster-better-imagery-access-for-humanitarian-mapping/"
                 target="_blank"
@@ -291,22 +267,22 @@ export default function Landing() {
             <wa-card class="landing-highlight">
               <h3>STAC-native</h3>
               <p>
-                A standards-based catalog that plays nicely with QGIS,
-                stackstac, pystac, and any tool that speaks STAC.
+                A standards-based catalog that plays nicely with QGIS, stackstac, pystac, and any
+                tool that speaks STAC.
               </p>
             </wa-card>
             <wa-card class="landing-highlight">
               <h3>Dynamic tiling</h3>
               <p>
-                COGs served through TiTiler. Request custom rescales, band
-                combinations, and formats without pre-baking tiles.
+                COGs served through TiTiler. Request custom rescales, band combinations, and formats
+                without pre-baking tiles.
               </p>
             </wa-card>
             <wa-card class="landing-highlight">
               <h3>Open & community-driven</h3>
               <p>
-                Imagery is contributed by drone pilots, NGOs, and satellite
-                providers. All open-source, all CC-BY compatible.
+                Imagery is contributed by drone pilots, NGOs, and satellite providers. All
+                open-source, all CC-BY compatible.
               </p>
             </wa-card>
           </aside>
@@ -315,8 +291,8 @@ export default function Landing() {
         <section className="landing-shell landing-components">
           <h2 className="landing-section-title">Explore the platform</h2>
           <p className="landing-section-lead">
-            OAM is more than a single site - it's a stack of composable
-            services. Pick the entry point that matches your workflow.
+            OAM is more than a single site - it's a stack of composable services. Pick the entry
+            point that matches your workflow.
           </p>
           <div className="landing-components-grid">
             {COMPONENTS.map((c) => (
@@ -329,11 +305,7 @@ export default function Landing() {
               >
                 <wa-card class="landing-component-card">
                   <div slot="header" className="landing-component-header">
-                    <wa-icon
-                      name={c.icon}
-                      variant="solid"
-                      class="landing-component-icon"
-                    />
+                    <wa-icon name={c.icon} variant="solid" class="landing-component-icon" />
                     <span className="landing-component-tag">{c.tag}</span>
                   </div>
                   <h3 className="landing-component-title">{c.title}</h3>
@@ -402,11 +374,7 @@ export default function Landing() {
                 >
                   GitHub
                 </a>
-                <a
-                  href="https://www.hotosm.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a href="https://www.hotosm.org" target="_blank" rel="noopener noreferrer">
                   HOTOSM
                 </a>
                 <a

@@ -47,10 +47,7 @@ const LICENSES: Option<string>[] = [
 // Attach a wa-select listener imperatively. React doesn't recognise
 // custom events (onWaSelect isn't a real prop), and TypeScript would
 // reject it in JSX, so we bind through a ref.
-function useWaSelect(
-  ref: React.RefObject<HTMLElement | null>,
-  onSelect: (value: string) => void,
-) {
+function useWaSelect(ref: React.RefObject<HTMLElement | null>, onSelect: (value: string) => void) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -115,30 +112,19 @@ function FilterDropdown<V extends string>({
 }
 
 export default function MapFilterBar({ filters, onChange }: Props) {
-  const applyChange = (patch: Partial<Filters>) =>
-    onChange({ ...filters, ...patch });
+  const applyChange = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
 
   const platformLabel =
-    PLATFORMS.find((o) => o.value === filters.platform)?.label ??
-    "All Platforms";
-  const dateLabel =
-    DATES.find((o) => o.value === filters.date)?.label ?? "Any Date";
+    PLATFORMS.find((o) => o.value === filters.platform)?.label ?? "All Platforms";
+  const dateLabel = DATES.find((o) => o.value === filters.date)?.label ?? "Any Date";
   const resolutionLabel =
-    RESOLUTIONS.find((o) => o.value === filters.resolution)?.label ??
-    "Any Resolution";
+    RESOLUTIONS.find((o) => o.value === filters.resolution)?.label ?? "Any Resolution";
   const licenseLabel = (() => {
     if (!filters.license) return "Any License";
-    return (
-      LICENSES.find((o) => o.value === filters.license)?.label ?? "License"
-    );
+    return LICENSES.find((o) => o.value === filters.license)?.label ?? "License";
   })();
 
-  const anyActive = !!(
-    filters.platform ||
-    filters.date ||
-    filters.resolution ||
-    filters.license
-  );
+  const anyActive = !!(filters.platform || filters.date || filters.resolution || filters.license);
 
   return (
     <div className="font-sans">

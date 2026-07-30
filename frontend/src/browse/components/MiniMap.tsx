@@ -28,9 +28,7 @@ export default function MiniMap({ center, bounds }: MiniMapProps) {
         sources: {
           osm: {
             type: "raster",
-            tiles: [
-              "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-            ],
+            tiles: ["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
             tileSize: 256,
             attribution: "",
           },
@@ -74,9 +72,7 @@ export default function MiniMap({ center, bounds }: MiniMapProps) {
     if (center) map.current.setCenter(center);
     if (bounds) {
       const [w, s, e, n] = bounds;
-      const source = map.current.getSource("box") as
-        | maplibregl.GeoJSONSource
-        | undefined;
+      const source = map.current.getSource("box") as maplibregl.GeoJSONSource | undefined;
       if (source) {
         source.setData({
           type: "Feature",

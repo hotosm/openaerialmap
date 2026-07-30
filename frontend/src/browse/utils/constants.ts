@@ -59,20 +59,17 @@ export const DENSITY_SOURCE_LAYER = "density";
 //     - WGS84 bounds, drives MapLibre raster source bounds so we don't
 //       request tiles outside the image extent (fetchItemBounds)
 export const STAC_TITILER_URL =
-  import.meta.env.VITE_STAC_TITILER_URL ||
-  "https://api.imagery.hotosm.org/raster";
+  import.meta.env.VITE_STAC_TITILER_URL || "https://api.imagery.hotosm.org/raster";
 
 // STAC catalog root. Used to build deep-links into STAC Browser, which
 // consumes /stac item URLs via its #/external/ fragment.
-export const STAC_URL =
-  import.meta.env.VITE_STAC_URL || "https://api.imagery.hotosm.org/stac";
+export const STAC_URL = import.meta.env.VITE_STAC_URL || "https://api.imagery.hotosm.org/stac";
 
 // STAC Browser root. Renders a nicer per-item metadata page than the
 // raw JSON at STAC_URL. Item deep-links are built as
 // `${STAC_BROWSER_URL}/#/external/<STAC_URL without protocol>/...`.
 export const STAC_BROWSER_URL =
-  import.meta.env.VITE_STAC_BROWSER_URL ||
-  "https://api.imagery.hotosm.org/browser";
+  import.meta.env.VITE_STAC_BROWSER_URL || "https://api.imagery.hotosm.org/browser";
 
 // Tilepack packager service. Generates on-demand PMTiles / MBTiles
 // archives for a single STAC item. The POST endpoint is idempotent:
@@ -86,8 +83,7 @@ export const PACKAGER_URL =
 export const COLLECTION_ID = "openaerialmap";
 
 // Optional; if unset the satellite basemap is hidden from the switcher.
-export const MAPBOX_TOKEN: string | undefined = import.meta.env
-  .VITE_MAPBOX_TOKEN;
+export const MAPBOX_TOKEN: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Zoom / area thresholds for footprint / preview / TMS layer handoff.
 

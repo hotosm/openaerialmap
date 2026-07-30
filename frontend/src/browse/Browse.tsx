@@ -19,18 +19,11 @@ import MiniMap from "./components/MiniMap";
 import type { Filters, ImageFeature } from "./utils/types";
 import { EMPTY_FILTERS } from "./utils/types";
 import type { BBox } from "./utils/geo";
-import {
-  readInitialFilters,
-  readSelectedId,
-  writeFilters,
-  writeSelectedId,
-} from "./utils/url";
+import { readInitialFilters, readSelectedId, writeFilters, writeSelectedId } from "./utils/url";
 
 export default function Browse() {
   const [features, setFeatures] = useState<ImageFeature[]>([]);
-  const [selectedFeature, setSelectedFeature] = useState<ImageFeature | null>(
-    null,
-  );
+  const [selectedFeature, setSelectedFeature] = useState<ImageFeature | null>(null);
   const [mapBbox, setMapBbox] = useState<BBox | null>(null);
 
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
@@ -91,11 +84,7 @@ export default function Browse() {
 
   const handleLocationSelect = (bbox: BBox) => setMapBbox(bbox);
 
-  const handleMapMoveEnd = (
-    _bbox: BBox,
-    center: [number, number],
-    exactBounds: BBox,
-  ) => {
+  const handleMapMoveEnd = (_bbox: BBox, center: [number, number], exactBounds: BBox) => {
     setMapCenter(center);
     setMapBounds(exactBounds);
   };

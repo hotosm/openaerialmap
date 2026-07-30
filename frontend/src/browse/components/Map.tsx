@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import type {
-  FilterSpecification,
-  Map as MapLibreMap,
-  RasterTileSource,
-} from "maplibre-gl";
+import type { FilterSpecification, Map as MapLibreMap, RasterTileSource } from "maplibre-gl";
 import bbox from "@turf/bbox";
 import { FetchSource, PMTiles, Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -27,19 +23,10 @@ import {
   DEFAULT_ZOOM,
 } from "../utils/constants";
 import { readInitialView, writeView } from "../utils/url";
-import {
-  buildFilter,
-  densityCountExpr,
-  matchesFilters,
-} from "../utils/filters";
+import { buildFilter, densityCountExpr, matchesFilters } from "../utils/filters";
 import { transformFeature } from "../utils/format";
 import { bboxAreaKm2, getFullBbox, type BBox } from "../utils/geo";
-import {
-  ItemBoundsCache,
-  fetchItemBounds,
-  getTmsUrl,
-  thumbUrl,
-} from "../utils/tiles";
+import { ItemBoundsCache, fetchItemBounds, getTmsUrl, thumbUrl } from "../utils/tiles";
 import type { Filters, ImageFeature, RawTileProperties } from "../utils/types";
 import type { Basemap } from "./Toolbar";
 
@@ -49,11 +36,7 @@ interface Props {
   onSelect: (f: ImageFeature | null) => void;
   onFeaturesUpdate: (fs: ImageFeature[]) => void;
   searchBbox: BBox | null;
-  onSearchArea: (
-    bbox: BBox,
-    center: [number, number],
-    exactBounds: BBox,
-  ) => void;
+  onSearchArea: (bbox: BBox, center: [number, number], exactBounds: BBox) => void;
   previewsEnabled: boolean;
   setPreviewsEnabled: (v: boolean) => void;
   hoveredFeatureId: string | null;
@@ -242,10 +225,7 @@ export default function OamMap({
   // Build a disambiguation popup for a click that overlapped multiple
   // footprints. Declared above the map init effect so the click handler
   // registered inside can reference it without a TDZ warning.
-  const openDisambigPopup = (
-    lngLat: maplibregl.LngLat,
-    features: ImageFeature[],
-  ) => {
+  const openDisambigPopup = (lngLat: maplibregl.LngLat, features: ImageFeature[]) => {
     const container = document.createElement("div");
     container.className = "oam-popup-container";
 
@@ -331,16 +311,12 @@ export default function OamMap({
         sources: {
           "basemap-source": {
             type: "raster",
-            tiles: [
-              "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-            ],
+            tiles: ["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
             tileSize: 256,
             attribution: "&copy; OpenStreetMap &copy; CARTO",
           },
         },
-        layers: [
-          { id: "basemap-layer", type: "raster", source: "basemap-source" },
-        ],
+        layers: [{ id: "basemap-layer", type: "raster", source: "basemap-source" }],
       },
       center,
       zoom,
@@ -476,8 +452,7 @@ export default function OamMap({
         const hits = map.current!.queryRenderedFeatures(e.point, {
           layers: ["footprint-fill"],
         });
-        const hoveredId =
-          hits.length > 0 ? (hits[0].properties?._id ?? null) : null;
+        const hoveredId = hits.length > 0 ? (hits[0].properties?._id ?? null) : null;
         onHoverRef.current?.(hoveredId);
         map.current!.getCanvas().style.cursor = hoveredId ? "pointer" : "";
       });
@@ -534,10 +509,7 @@ export default function OamMap({
         const densityHits = map.current!.queryRenderedFeatures(e.point, {
           layers: ["density-fill"],
         });
-        if (
-          densityHits.length > 0 &&
-          (densityHits[0].properties?.count as number) > 0
-        ) {
+        if (densityHits.length > 0 && (densityHits[0].properties?.count as number) > 0) {
           const gp = densityHits[0].properties as {
             count: number;
             bboxW?: number;
@@ -651,9 +623,7 @@ export default function OamMap({
         `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${MAPBOX_TOKEN}`,
       ];
     }
-    const source = map.current.getSource("basemap-source") as
-      | RasterTileSource
-      | undefined;
+    const source = map.current.getSource("basemap-source") as RasterTileSource | undefined;
     if (source && tiles.length > 0) source.setTiles(tiles);
   }, [basemap, isLoaded]);
 
@@ -703,17 +673,11 @@ export default function OamMap({
     // Layer stacking + opacity dim on non-selected images.
     const style = mapInstance.getStyle();
     const selectedPreviewLayer = selectedId ? `preview-${selectedId}` : null;
-    const selectedTmsLayer = selectedId
-      ? `${TMS_PREFIX}${selectedId}-layer`
-      : null;
+    const selectedTmsLayer = selectedId ? `${TMS_PREFIX}${selectedId}-layer` : null;
     style?.layers?.forEach((layer) => {
       if (layer.id.startsWith("preview-")) {
         const previewId = layer.id.replace("preview-", "");
-        const opacity = selectedId
-          ? previewId === selectedId
-            ? 1.0
-            : 0.3
-          : 0.95;
+        const opacity = selectedId ? (previewId === selectedId ? 1.0 : 0.3) : 0.95;
         mapInstance.setPaintProperty(layer.id, "raster-opacity", opacity);
       }
       if (layer.id.startsWith(TMS_PREFIX) && layer.id.endsWith("-layer")) {
@@ -732,18 +696,10 @@ export default function OamMap({
     const fillOpacity = selectedId ? 0 : 0.1;
     const lineOpacity = selectedId ? 0.15 : 0.8;
     if (mapInstance.getLayer("footprint-fill")) {
-      mapInstance.setPaintProperty(
-        "footprint-fill",
-        "fill-opacity",
-        fillOpacity,
-      );
+      mapInstance.setPaintProperty("footprint-fill", "fill-opacity", fillOpacity);
     }
     if (mapInstance.getLayer("footprint-line")) {
-      mapInstance.setPaintProperty(
-        "footprint-line",
-        "line-opacity",
-        lineOpacity,
-      );
+      mapInstance.setPaintProperty("footprint-line", "line-opacity", lineOpacity);
     }
   }, [selectedFeature, isLoaded]);
 
@@ -793,12 +749,7 @@ export default function OamMap({
         const full = getFullBbox(mapInstance, id);
         if (!full) continue;
         const b = full.bbox;
-        const coords: [
-          [number, number],
-          [number, number],
-          [number, number],
-          [number, number],
-        ] = [
+        const coords: [[number, number], [number, number], [number, number], [number, number]] = [
           [b[0], b[3]],
           [b[2], b[3]],
           [b[2], b[1]],
@@ -806,9 +757,7 @@ export default function OamMap({
         ];
 
         if (mapInstance.getLayer(layerId)) {
-          const source = mapInstance.getSource(layerId) as
-            | maplibregl.ImageSource
-            | undefined;
+          const source = mapInstance.getSource(layerId) as maplibregl.ImageSource | undefined;
           source?.setCoordinates(coords);
           continue;
         }
@@ -848,10 +797,7 @@ export default function OamMap({
     const zoom = mapInstance.getZoom();
     const selectedId = selectedFeature?.properties?.id;
 
-    const desiredTms = new Map<
-      string,
-      { url: string; bounds: number[] | null; area: number }
-    >();
+    const desiredTms = new Map<string, { url: string; bounds: number[] | null; area: number }>();
     const tmsImageIds = new Set<string>();
 
     if (selectedFeature && zoom >= 10 && selectedId) {
@@ -986,8 +932,7 @@ export default function OamMap({
           minzoom: isSelected ? 10 : 12,
           maxzoom: 22,
         };
-        if (bounds)
-          sourceOpts.bounds = bounds as [number, number, number, number];
+        if (bounds) sourceOpts.bounds = bounds as [number, number, number, number];
         mapInstance.addSource(sourceId, sourceOpts);
         mapInstance.addLayer(
           {
@@ -1002,21 +947,13 @@ export default function OamMap({
         console.error("TMS layer error:", e);
       }
     }
-  }, [
-    selectedFeature,
-    isLoaded,
-    idleTick,
-    itemBoundsTick,
-    filters,
-    previewsEnabled,
-  ]);
+  }, [selectedFeature, isLoaded, idleTick, itemBoundsTick, filters, previewsEnabled]);
 
   // 8. HOVER HIGHLIGHT
   useEffect(() => {
     if (!map.current || !isLoaded) return;
     const selectedId = selectedFeature?.properties?.id;
-    const showHover =
-      selectedId && hoveredFeatureId && hoveredFeatureId !== selectedId;
+    const showHover = selectedId && hoveredFeatureId && hoveredFeatureId !== selectedId;
     map.current.setFilter(
       "footprint-hover",
       showHover
