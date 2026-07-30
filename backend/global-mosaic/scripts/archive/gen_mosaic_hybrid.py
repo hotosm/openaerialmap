@@ -29,24 +29,24 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Optional, Iterable
 from pathlib import Path
 from urllib.parse import quote_plus
 
+import affine
 import aiohttp
 import mercantile
 import numpy as np
-import affine
-from psycopg import connect
-from shapely.geometry import shape, box
-from shapely.strtree import STRtree
-from rasterio import features
-from rio_tiler.utils import render
-from pmtiles.writer import write
-from pmtiles.tile import zxy_to_tileid, TileType, Compression
 from minio import Minio
 from minio.error import S3Error
+from pmtiles.tile import Compression, TileType, zxy_to_tileid
+from pmtiles.writer import write
+from psycopg import connect
+from rasterio import features
+from rio_tiler.utils import render
+from shapely.geometry import box, shape
+from shapely.strtree import STRtree
 
 PG_DSN = os.getenv("PG_DSN")
 if not PG_DSN:
@@ -207,7 +207,7 @@ def make_coverage_tile_for_geom(
 
 async def fetch_tile_bytes(
     session: aiohttp.ClientSession, url: str, timeout: int, retries: int
-) -> Optional[bytes]:
+) -> bytes | None:
     """
     Fetch single tile as bytes. Return None for missing (404) or non-200.
     Retries transient network/server errors.
