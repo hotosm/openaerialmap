@@ -30,15 +30,27 @@ We want a frontend that:
   The argument in favour was around contributing to an open source
   community & reducing our maintenance, but overall this was
   outweighed.
-- **Next.js or another SSR framework**: heavier than we need for what
-  is basically a map with a sidebar talking to public read-only APIs.
-- **Vite + React SPA, with UnoCSS, `@hotosm/ui` and
-  `@awesome.me/webawesome`**: lightweight, matches the HOTOSM stack,
-  and there's nothing to run on the server.
+- Built on the surpirisingly simple yet effective _vibe-coded_ SPA
+  [developed by cgiovando](https://github.com/cgiovando/oam-vibe) and further
+  refined in [this repo](https://github.com/cgiovando/oam-frontend).
+  Would need aligning with the rest of HOTOSM tools + design.
+- Entirely new **Vite + React SPA**: lightweight, can easily match the
+  HOTOSM stack, and there's nothing to run on the server.
 
 ## Decision Outcome
 
-A new SPA in `frontend/`:
+After reviewing the code within the vibe-coded frontend by cgiovando,
+we discovered:
+
+1. It was already pretty functional as-is, but had a flaw that the frontend
+   asset aggregation would probably fall down in real world testing on the
+   30,000+ asset repository, against the ~5000 image test dataset.
+2. The code was surprisingly simple and not over-engineered, lending itself
+   to having the primary components copied across to a new frontend.
+
+An approach to solve the scalability was proposed via backend asset
+aggregation / tileset generation, so we decided on built on top of this
+frontend, while ensuring:
 
 - **Vite + React 19 + TypeScript** for the app itself.
 - **UnoCSS** for styling (small runtime, minimal config).
@@ -48,6 +60,9 @@ A new SPA in `frontend/`:
   `@hotosm/ui` doesn't cover.
 - **MapLibre GL + pmtiles** for the map, talking directly to
   titiler-pgstac and the PMTiles archive.
+
+All code was reviewed by HOT's Sr. Tech Lead before being merged into
+the current frontend code you see today.
 
 See [HOTOSM decision 0003](https://docs.hotosm.org/decisions/0003-react)
 for the org-wide React choice this follows.
