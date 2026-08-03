@@ -4,26 +4,32 @@
 
 The old OAM frontend is tightly coupled to the MongoDB API and has
 years of patterns baked in that don't line up with STAC, PMTiles, or
-the current HOTOSM design system. Retrofitting it would cost about as
-much as starting fresh, and we'd end up with roughly the same shape.
+the current HOTOSM design system. Reworking it would cost about as
+much as starting fresh.
 
 We want a frontend that:
 
 - Talks to STAC / titiler-pgstac / PMTiles directly, with nothing
   custom in between.
 - Looks and feels like the rest of the HOTOSM tools.
-- Stays quick to change with a small team.
+- Easy to fix / quick to change with a small team.
 
 ## Considered Options
 
-- **Refactor the old frontend in place**: slows down every change,
-  and hard to justify given the API is being rewritten underneath.
+- **Refactor the old frontend in place**: the frontend has been lovingly
+  maintained by Kontur for free, but now we are working with STAC, our
+  needs have shifted. It's quite antiquated JavaScript now & needs a
+  full overhaul of coding patterns and dependencies.
 - **Adopt [stac-map](https://github.com/developmentseed/stac-map) as
   the frontend, restyled and with our own basemaps**: we actually
-  tried this. It's a solid STAC viewer, but user feedback said the
-  UI was too generic/complex for OAM and it didn't cover the browse
-  and filtering flows we need. Bending it into shape was heading
-  towards a rewrite anyway.
+  tried this. A save state of the repo using stac-map can
+  [be found here](https://github.com/hotosm/openaerialmap/tree/save/stac-map-frontend).
+  It's a solid STAC viewer, but user feedback said the
+  UI was too generic for OAM (1) not meeting feature parity with the old
+  frontend (2) it will look slightly different to all our other tools.
+  The argument in favour was around contributing to an open source
+  community & reducing our maintenance, but overall this was
+  outweighed.
 - **Next.js or another SSR framework**: heavier than we need for what
   is basically a map with a sidebar talking to public read-only APIs.
 - **Vite + React SPA, with UnoCSS, `@hotosm/ui` and
