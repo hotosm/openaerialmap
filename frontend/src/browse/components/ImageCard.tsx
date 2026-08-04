@@ -15,12 +15,18 @@ interface Props {
 // TMS" button. Uses the exact same endpoint MapLibre consumes for the
 // full-res raster overlay (see utils/tiles.ts:getTmsUrl); editors read
 // the `{z}/{x}/{y}` placeholders directly, no rewriting required.
+//
+// Mirror getTmsUrl exactly: append the baked render params (bidx/rescale/
+// colormap/nodata) for non-RGB items so DEM/SAR/multispectral display
+// correctly in editors too, and only fall back to nodata=0 (visual black
+// border -> transparent) when there are none. A blanket nodata=0 would wrongly
+// hole out valid zero samples (e.g. sea-level elevation).
 function tmsTemplate(p: ImageFeature["properties"]): string {
   if (!p.id) return "";
-  return (
+  const base =
     `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${p.id}` +
-    `/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?assets=${p.assetName}&nodata=0`
-  );
+    `/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?assets=${p.assetName}`;
+  return p.renderParams ? `${base}&${p.renderParams}` : `${base}&nodata=0`;
 }
 
 // STAC Browser (https://github.com/radiantearth/stac-browser) reads a
