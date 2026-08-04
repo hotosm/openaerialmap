@@ -1,0 +1,353 @@
+# OAM GeoTIFF processing pipeline.
+# Keep this namespaced to avoid cluster-wide Argo permissions.
+# Parameter names must match app/uploads/argo.py.
+# AWS CLI steps use oam-uploader-s3 and the per-run awsurl endpoint.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: geotiff-processing-template
+spec:
+  # workflowTemplateRef applies this service account to submitted workflows.
+  serviceAccountName: argo-odm
+  entrypoint: entry
+  onExit: exit-handler
+  ttlStrategy:
+    secondsAfterCompletion: 600
+    secondsAfterSuccess: 60
+  podGC:
+    strategy: OnPodCompletion
+  volumeClaimGC:
+    strategy: OnWorkflowCompletion
+  # Baseline hardening applied to every step pod. seccomp RuntimeDefault is safe
+  # for all step images; full non-root + dropped capabilities + NetworkPolicies +
+  # a narrowly-scoped ServiceAccount are a follow-up (need testing against the
+  # aws-cli / GDAL images, which currently assume root + a writable workspace).
+  podSpecPatch: |
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+
+  arguments:
+    parameters:
+      - name: s3-path # s3://<bucket>/<folder>/
+      - name: filename # original upload filename
+      - name: bucket
+      - name: key # <folder>/<filename>
+      - name: id # upload id (== STAC item id)
+      - name: uuid # uploader user sub
+      - name: state # per-upload callback token (X-Internal-Token)
+      - name: externalaws # public S3/CDN endpoint used to build asset URLs
+      - name: awsurl # S3 endpoint reachable in-cluster
+      - name: fronturl # uploader-api base URL for status + register callbacks
+      # Pipeline step image tag; the submitter pins an immutable git SHA in prod.
+      - name: image-tag
+        value: "latest"
+
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            # Argo rejects parameters in PVC quantities. GC makes generous sizing
+            # for input, output, and temporary files inexpensive.
+            storage: 300Gi
+
+  templates:
+    # DAG
+    - name: entry
+      dag:
+        tasks:
+          - name: download
+            template: s3-download
+            hooks:
+              running:
+                expression: "true"
+                template: report-status
+                arguments:
+                  parameters:
+                    - { name: step-id, value: "Downloading" }
+                    - { name: message, value: "Downloading file from storage…" }
+
+          - name: validate
+            depends: "download.Succeeded"
+            template: validate-geotiff
+            hooks:
+              running:
+                expression: "true"
+                template: report-status
+                arguments:
+                  parameters:
+                    - { name: step-id, value: "Validating" }
+                    - { name: message, value: "Validating GeoTIFF…" }
+
+          - name: convert
+            depends: "validate.Succeeded"
+            template: convert-cog
+            hooks:
+              running:
+                expression: "true"
+                template: report-status
+                arguments:
+                  parameters:
+                    - { name: step-id, value: "Converting" }
+                    - { name: message, value: "Converting to Cloud-Optimized GeoTIFF…" }
+
+          - name: metadata
+            depends: "convert.Succeeded"
+            template: build-metadata
+
+          - name: upload-cog
+            depends: "convert.Succeeded"
+            template: s3-upload-cog
+            hooks:
+              running:
+                expression: "true"
+                template: report-status
+                arguments:
+                  parameters:
+                    - { name: step-id, value: "Uploading" }
+                    - { name: message, value: "Uploading COG to storage…" }
+
+          - name: upload-meta
+            depends: "metadata.Succeeded"
+            template: s3-upload-meta
+
+          - name: register
+            depends: "upload-cog.Succeeded && upload-meta.Succeeded"
+            template: register-stac
+            hooks:
+              running:
+                expression: "true"
+                template: report-status
+                arguments:
+                  parameters:
+                    - { name: step-id, value: "Registering" }
+                    - { name: message, value: "Registering item with STAC catalog…" }
+
+          - name: cleanup-on-failure
+            depends: "validate.Failed"
+            when: >-
+              {{tasks.validate.exitCode}} == 5 ||
+              {{tasks.validate.exitCode}} == 6 ||
+              {{tasks.validate.exitCode}} == 7
+            template: cleanup
+            arguments:
+              parameters:
+                - { name: val-exit-code, value: "{{tasks.validate.exitCode}}" }
+
+    # Final status callback
+    - name: exit-handler
+      steps:
+        - - name: report-success
+            template: report-status
+            when: "{{workflow.status}} == Succeeded"
+            arguments:
+              parameters:
+                - { name: step-id, value: "Succeeded" }
+                - { name: message, value: "Processing finished successfully." }
+          - name: report-failure
+            template: report-status
+            when: "{{workflow.status}} != Succeeded"
+            arguments:
+              parameters:
+                - { name: step-id, value: "Failed" }
+                - { name: message, value: "Workflow ended with a failure." }
+
+    # Step templates
+    - name: s3-download
+      container:
+        image: amazon/aws-cli:2.36.15
+        envFrom:
+          - secretRef: { name: oam-uploader-s3 }
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            # Only pass --endpoint-url when set; an empty value is NOT the same as
+            # omitting it, and real AWS S3 needs it omitted (awsurl is empty then).
+            EP="{{workflow.parameters.awsurl}}"
+            AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
+            SRC="{{workflow.parameters.s3-path}}{{workflow.parameters.filename}}"
+            rm -rf /data/*
+            # Avoid aws s3 cp's carriage-return progress in pod logs.
+            TOTAL=$($AWS s3api head-object --bucket {{workflow.parameters.bucket}} \
+              --key {{workflow.parameters.key}} --query ContentLength --output text 2>/dev/null || echo 0)
+            [ "$TOTAL" -gt 0 ] 2>/dev/null || TOTAL=1
+            echo "download: starting ($TOTAL bytes)"
+            $AWS s3 cp "$SRC" /data/input.tif --no-progress &
+            DL=$!
+            NEXT=10
+            while kill -0 "$DL" 2>/dev/null; do
+              CUR=$(stat -c %s /data/input.tif 2>/dev/null || echo 0)
+              PCT=$(( CUR * 100 / TOTAL ))
+              while [ "$PCT" -ge "$NEXT" ] && [ "$NEXT" -le 100 ]; do
+                echo "download: ${NEXT}%"; NEXT=$(( NEXT + 10 ))
+              done
+              sleep 2
+            done
+            wait "$DL"
+            echo "download: 100% complete"
+            $AWS s3api head-object --bucket {{workflow.parameters.bucket}} \
+              --key {{workflow.parameters.key}} --query Metadata > /data/meta.json
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+
+    - name: validate-geotiff
+      container:
+        image: ghcr.io/hotosm/openaerialmap/uploader-validate:{{workflow.parameters.image-tag}}
+        # Avoid Argo's GHCR entrypoint lookup, which bypasses private mirrors.
+        command: ["python", "validate.py"]
+        # meta.json (written by the download step) carries the declared product_type.
+        args: ["/data/input.tif", "/data/meta.json"]
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+        resources:
+          requests: { memory: "2Gi", cpu: "1" }
+          limits: { memory: "4Gi", cpu: "2" }
+
+    - name: convert-cog
+      container:
+        image: ghcr.io/hotosm/openaerialmap/uploader-convert:{{workflow.parameters.image-tag}}
+        command: ["python", "convert.py"]
+        args: ["/data/input.tif", "/data/output.tif"]
+        env:
+          - { name: GDAL_CACHEMAX, value: "512" }
+          - { name: TMPDIR, value: "/data/tmp" }
+          # Local Talos misreports capacity, so tests disable this production guard.
+          - { name: CHECK_DISK_FREE_SPACE, value: "TRUE" }
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+        resources:
+          # Conversion streams tiles, so memory follows cache size, not file size.
+          # Disk must fit the source, COG, and temporary data.
+          requests: { memory: "2Gi", cpu: "2" }
+          limits: { memory: "4Gi", cpu: "4" }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+
+    - name: build-metadata
+      container:
+        image: ghcr.io/hotosm/openaerialmap/uploader-metadata:{{workflow.parameters.image-tag}}
+        command: ["python", "metadata.py"]
+        args:
+          - "/data/output.tif"
+          - "/data/meta.json"
+          - "/data/"
+          - "{{workflow.parameters.id}}"
+          - "{{workflow.parameters.externalaws}}"
+          - "{{workflow.parameters.bucket}}"
+          - "{{workflow.parameters.key}}"
+          - "/data/input.tif" # original, hashed + cataloged as the archival asset
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+        resources:
+          requests: { memory: "2Gi", cpu: "1" }
+          limits: { memory: "4Gi", cpu: "2" }
+      retryStrategy:
+        limit: "2"
+        retryPolicy: "OnFailure"
+
+    - name: s3-upload-cog
+      container:
+        image: amazon/aws-cli:2.36.15
+        envFrom:
+          - secretRef: { name: oam-uploader-s3 }
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            EP="{{workflow.parameters.awsurl}}"
+            AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
+            $AWS s3 cp /data/output.tif \
+              {{workflow.parameters.s3-path}}cog-{{workflow.parameters.filename}}
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+
+    - name: s3-upload-meta
+      container:
+        image: amazon/aws-cli:2.36.15
+        envFrom:
+          - secretRef: { name: oam-uploader-s3 }
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            EP="{{workflow.parameters.awsurl}}"
+            AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
+            $AWS s3 cp /data/metadata.json {{workflow.parameters.s3-path}}metadata.json
+            $AWS s3 cp /data/thumbnail.png {{workflow.parameters.s3-path}}thumbnail.png
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+
+    - name: register-stac
+      container:
+        image: ghcr.io/hotosm/openaerialmap/uploader-register:{{workflow.parameters.image-tag}}
+        command: ["python", "register.py"]
+        args: ["/data/metadata.json"]
+        env:
+          # Keep pgstac credentials in the token-guarded API, not this pod.
+          - { name: FRONT_URL, value: "{{workflow.parameters.fronturl}}" }
+          - { name: INTERNAL_TOKEN, value: "{{workflow.parameters.state}}" }
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+
+    # Validation failure cleanup
+    - name: cleanup
+      inputs:
+        parameters:
+          - name: val-exit-code
+      container:
+        image: amazon/aws-cli:2.36.15
+        envFrom:
+          - secretRef: { name: oam-uploader-s3 }
+        command: [sh, -c]
+        args:
+          - |
+            EP="{{workflow.parameters.awsurl}}"
+            AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
+            # The upload ID in this prefix prevents deletion of sibling uploads.
+            $AWS s3 rm {{workflow.parameters.s3-path}} --recursive
+            CODE="{{inputs.parameters.val-exit-code}}"
+            MSG="Validation failed."
+            [ "$CODE" = "5" ] && MSG="Invalid raster: not georeferenced (no CRS)."
+            [ "$CODE" = "6" ] && MSG="Invalid raster: image is too large."
+            [ "$CODE" = "7" ] && MSG="Invalid raster: content does not match the declared product type."
+            cat <<EOF > /tmp/payload.json
+            {"id": "{{workflow.parameters.id}}", "status": "Failed", "message": "$MSG"}
+            EOF
+            curl -sf -X POST {{workflow.parameters.fronturl}}/api/v1/workflowstatus \
+              -H "Content-Type: application/json" \
+              -H "X-Internal-Token: {{workflow.parameters.state}}" \
+              -d @/tmp/payload.json
+            exit 1
+
+    # Status callback
+    - name: report-status
+      inputs:
+        parameters:
+          - name: step-id
+          - name: message
+      container:
+        image: curlimages/curl:8.21.0
+        command: [sh, -c]
+        args:
+          - |
+            curl -sf -X POST {{workflow.parameters.fronturl}}/api/v1/workflowstatus \
+              -H "Content-Type: application/json" \
+              -H "X-Internal-Token: {{workflow.parameters.state}}" \
+              -d '{"id":"{{workflow.parameters.id}}","status":"{{inputs.parameters.step-id}}","message":"{{inputs.parameters.message}}"}'
