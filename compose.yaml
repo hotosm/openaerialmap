@@ -4,6 +4,7 @@ volumes:
   pmtiles:
   chiitiler_cache:
   tms_nginx_cache:
+  uploader_db_data:
 
 services:
   # ── Core infrastructure ───────────────────────────────────────────
@@ -50,6 +51,9 @@ services:
     environment:
       - RUSTFS_ACCESS_KEY=oam
       - RUSTFS_SECRET_KEY=oam
+    ports:
+      - "9000:9000" # presigned PUTs from the browser / uploader test script
+      - "9001:9001" # console
     volumes:
       - rustfs_data:/data
     command: server /data --console-address ":9001"
@@ -102,6 +106,15 @@ services:
         }
         s3.put_bucket_policy(Bucket="oam", Policy=json.dumps(policy))
         print("Set public-read policy on 'oam'")
+        # Ignore CORS setup until rustfs implements it.
+        try:
+            s3.put_bucket_cors(Bucket="oam", CORSConfiguration={"CORSRules": [{
+                "AllowedOrigins": ["*"], "AllowedMethods": ["GET", "PUT", "POST"],
+                "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3000}]})
+            print("Set CORS on 'oam'")
+        except botocore.exceptions.ClientError as e:
+            print(f"WARNING: could not set CORS ({e.response['Error']['Code']}); "
+                  "browser uploads may fail - use the uploader test script instead")
         print("RustFS init done.")
 
   # ── STAC API ──────────────────────────────────────────────────────
@@ -173,6 +186,40 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  # Uploader services come from backend/uploader-api/compose.yaml.
+  # This stack uses shared storage and catalog services without processing.
+  uploader-api:
+    extends:
+      file: backend/uploader-api/compose.yaml
+      service: uploader-api
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      STAC_URL: http://stac-api:8082
+    depends_on:
+      uploader-db:
+        condition: service_healthy
+      uploader-migrations:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+      stac-api:
+        condition: service_healthy
+
+  uploader-migrations:
+    extends:
+      file: backend/uploader-api/compose.yaml
+      service: uploader-migrations
+    depends_on:
+      uploader-db:
+        condition: service_healthy
+
+  uploader-db:
+    extends:
+      file: backend/uploader-api/compose.yaml
+      service: uploader-db
+
   # ── Frontend ──────────────────────────────────────────────────────
 
   frontend:
@@ -195,8 +242,7 @@ services:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
       - ./frontend/vite.config.ts:/app/vite.config.ts
-      - ./frontend/tailwind.config.js:/app/tailwind.config.js
-      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/uno.config.ts:/app/uno.config.ts
     command: pnpm dev --host 0.0.0.0
     ports:
       - "3000:3000"
