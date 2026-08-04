@@ -49,8 +49,7 @@ chart name *args:
       --set project_dir {{justfile_directory()}}/backend/{{name}} \
       --set chart_name {{name}} {{args}}
 
-# Shared Talos test cluster with Argo in the namespace required by its manifest.
-# The shared module also installs tool prerequisites.
+# Shared Talos test cluster with Argo. The module also installs required tools.
 # Usage: just k8s cluster-init | cluster-available | cluster-destroy
 k8s *args:
     @curl -sS https://raw.githubusercontent.com/hotosm/justfiles/main/k8s.just \

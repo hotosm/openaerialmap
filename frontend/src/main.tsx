@@ -2,7 +2,6 @@ import "@unocss/reset/tailwind.css";
 import "virtual:uno.css";
 import "@hotosm/ui/dist/style-core.css";
 import "@hotosm/ui/dist/components/header/header.js";
-// Shared header controls: cross-tool app switcher + locale dropdown.
 import "@hotosm/ui/dist/components/tool-menu/tool-menu.js";
 import "@awesome.me/webawesome/dist/components/button/button.js";
 import "@awesome.me/webawesome/dist/components/card/card.js";

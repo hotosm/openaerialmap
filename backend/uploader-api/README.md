@@ -112,7 +112,7 @@ Config is via environment variables. See `.env.example`.
 - `chart/`: Helm chart with namespace-scoped Argo RBAC (a Role, no ClusterRole),
   Deployment, Service, and Ingress for `upload.imagery.hotosm.org`.
 - CI: image builds plus a PR gate (`backend-uploader-checks.yml`) running ruff and
-  the app + pipeline unit tests. Auth wiring and fail-closed production config are
+  the app and pipeline unit tests. Auth wiring and production configuration are
   in place, and the chart can provision the workflow S3 secret
   (`workflowS3Secret.create`).
 

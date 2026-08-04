@@ -62,7 +62,6 @@ def main() -> int:
             "title": title,
             "content_type": "image/tiff",
             "size_bytes": size,
-            # acquisition_start is required by the API (never inferred from ingest).
             "metadata": {
                 "title": title,
                 "provider": "test",

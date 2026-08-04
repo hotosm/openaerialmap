@@ -441,12 +441,9 @@ _build-pipeline-images: _local-registry
   done
   echo "Local pipeline images built and pushed to the local registry"
 
-# Bring up the full prod-like stack against the local Talos + Argo cluster and
-# leave it running, so you can drive the whole flow interactively from the UI:
-# browser upload -> Argo pipeline -> status callbacks -> "Succeeded" in the UI.
-# Same overlay the automated `uploader-e2e` uses, minus the auto-upload/teardown.
-#   just test dev-cluster           # then open http://localhost:8090
-#   just k8s cluster-destroy        # tear the cluster down when done
+# Start the full local pipeline for interactive browser testing.
+# Run `just test dev-cluster`, then open http://localhost:8090.
+# Use `just k8s cluster-destroy` when finished.
 [no-cd]
 dev-cluster:
   #!/usr/bin/env bash
@@ -507,7 +504,6 @@ uploader-e2e tif="":
 
   just test cluster-available
 
-  # Build local images so the test exercises the current pipeline code.
   just test _build-pipeline-images
 
   # Workflow pods reach host-published services via the Talos network gateway IP.
@@ -518,7 +514,6 @@ uploader-e2e tif="":
   export OAM_WORKFLOW_CALLBACK_URL="http://${GW}:8090"
   echo "Workflow endpoints: S3=$OAM_WORKFLOW_S3_ENDPOINT STAC=$OAM_WORKFLOW_STAC_URL callback=$OAM_WORKFLOW_CALLBACK_URL"
 
-  # Point the S3 secret at the local rustfs creds.
   kubectl create secret generic oam-uploader-s3 -n "$NAMESPACE" \
       --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-oam}" \
       --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
@@ -540,7 +535,6 @@ uploader-e2e tif="":
       && echo "Collection ensured (pgstac.upsert_collection)" \
       || echo "Warning: collection upsert failed"
 
-  # Accept `tif=path`; Just passes recipe arguments positionally.
   TIF="{{ tif }}"
   TIF="${TIF#tif=}"
   if [ -z "$TIF" ]; then
@@ -552,7 +546,6 @@ uploader-e2e tif="":
   echo "Using sample: $TIF"
 
   echo "Pushing upload..."
-  # Use host networking to reach the API and a unique title to avoid collisions.
   TITLE="e2e-$(date +%s)"
   TIF_ABS="$(realpath "$TIF")"; TIF_BASE="$(basename "$TIF_ABS")"
   UPLOAD_OUT=$({{docker}} run --rm --network host \
@@ -566,7 +559,6 @@ uploader-e2e tif="":
   echo "Tracking upload: $UPLOAD_ID"
 
   echo "Waiting for the pipeline to finish..."
-  # Allow conversion to finish before cleanup stops callback delivery.
   DEADLINE=$(( $(date +%s) + ${OAM_E2E_TIMEOUT:-1800} ))
   STATUS=""
   while [ "$(date +%s)" -lt "$DEADLINE" ]; do
@@ -598,7 +590,6 @@ uploader-e2e tif="":
   done
   [ "$STATUS" = "Succeeded" ] || { echo "Timed out (last status: ${STATUS:-none})"; kubectl -n "$NAMESPACE" get wf || true; exit 1; }
 
-  # Assert THIS upload's item was registered into STAC (item id == upload id).
   ITEM_JSON=$(curl -fsS "http://localhost:8082/collections/openaerialmap/items/$UPLOAD_ID" 2>/dev/null) || {
       echo "Pipeline succeeded but STAC item $UPLOAD_ID not found; check stac-api logs."
       exit 1

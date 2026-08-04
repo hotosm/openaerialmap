@@ -1,11 +1,9 @@
-# Local/single-cluster dev overrides (e.g. minikube, kind, Talos).
-#
-# Usage:
+# Local development overrides. Install with:
 #   helm upgrade --install uploader-api ./chart \
 #     --namespace oam --create-namespace \
 #     -f chart/values.local.yaml
 #
-# Access from localhost:
+# Then access it from localhost with:
 #   kubectl -n oam port-forward svc/uploader-api 8080:8080
 
 fullnameOverride: uploader-api
@@ -14,18 +12,17 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
-# Auth disabled for local (local-admin fallback, no Hanko needed).
 env:
+  # Override production mode because Helm merges this map with values.yaml.
+  ENVIRONMENT: development
   AUTH_PROVIDER: disabled
   S3_ENDPOINT: http://rustfs:9000
   S3_EXTERNAL_ENDPOINT: http://localhost:9000
-  # Public base for STAC asset URLs (defaults to S3_EXTERNAL_ENDPOINT if unset).
   PUBLIC_ASSET_BASE_URL: http://localhost:9000
   S3_BUCKET: oam
   ARGO_NAMESPACE: oam
-  # pgstac catalog DB the register endpoint writes to. This chart does not deploy
-  # pgstac - point these at your local stac-api database service. The password
-  # goes in the secret (PGSTAC_DB_PASSWORD).
+  # This chart does not deploy pgstac. Point these settings at the local catalog
+  # database and put PGSTAC_DB_PASSWORD in the secret.
   PGSTAC_DB_HOST: database
   PGSTAC_DB_USER: oam
   PGSTAC_DB_NAME: postgis

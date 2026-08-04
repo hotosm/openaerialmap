@@ -1,4 +1,4 @@
-"""Tests for the fail-closed production config guard."""
+"""Tests for production configuration checks."""
 
 import pytest
 from pydantic import ValidationError

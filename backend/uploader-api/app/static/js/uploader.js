@@ -1,5 +1,3 @@
-// Resumable multipart upload. Completion starts the processing workflow.
-
 const PART_SIZE = 100 * 1024 * 1024; // 100 MiB
 
 async function postJSON(url, body) {
@@ -28,16 +26,14 @@ function fieldValue(form, name) {
   return el && el.value != null ? el.value : "";
 }
 
-// Small stable string hash (djb2) for the resume key.
+// Use a stable hash so the same upload can resume after a reload.
 function hash(s) {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return (h >>> 0).toString(36);
 }
 
-// A file's resume key: name+size+mtime identifies the same file across reloads,
-// plus a hash of the metadata so editing the title/license/dates starts a fresh
-// session rather than resuming one stamped with the old S3 object metadata.
+// Metadata is included so edited details start a new upload session.
 function sessionKey(file, metadata) {
   return `oam-upload:${file.name}:${file.size}:${file.lastModified}:${hash(JSON.stringify(metadata))}`;
 }
@@ -55,6 +51,7 @@ async function uploadFile(form, file) {
     acquisition_start: fieldValue(form, "acquisition_start"),
     acquisition_end: fieldValue(form, "acquisition_end"),
     sensor: fieldValue(form, "sensor").trim(),
+    contact: fieldValue(form, "contact").trim(),
   };
 
   // Reuse a session for the same file + metadata across reloads.
@@ -66,7 +63,7 @@ async function uploadFile(form, file) {
       existing = await postJSON("/api/v1/s3/listparts", saved);
       ({ key, upload_id } = saved);
     } catch {
-      localStorage.removeItem(store); // stale/aborted; start over
+      localStorage.removeItem(store);
     }
   }
   if (!key) {
@@ -104,7 +101,6 @@ async function uploadFile(form, file) {
     setProgress(n / totalParts, `Uploaded part ${n}/${totalParts}`);
   }
 
-  // Completion triggers processing.
   setProgress(1, "Finalising and queueing for processing…");
   await postJSON("/api/v1/s3/completemultipart", {
     key,
@@ -113,7 +109,7 @@ async function uploadFile(form, file) {
     filename: file.name,
     parts,
   });
-  localStorage.removeItem(store); // completed; no longer resumable
+  localStorage.removeItem(store);
   setProgress(1, "Queued! Track progress in ‘Your uploads’ below.");
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
 }

@@ -41,7 +41,6 @@ log = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
-# Hide frequent successful health-check requests from access logs.
 _HEALTHCHECK_PATHS = ("/__lbheartbeat__", "/__heartbeat__")
 
 
@@ -103,7 +102,6 @@ def _configure_templates(engine: JinjaTemplateEngine) -> None:
         auth_enabled=settings.AUTH_PROVIDER != AuthProvider.DISABLED,
         hanko_public_url=settings.HANKO_PUBLIC_URL or settings.HANKO_API_URL or "",
         frontend_url=settings.frontend_url,
-        # Main OAM map site, for the shared header's logo + Home/Browse tabs.
         main_site_url=settings.OAM_FRONTEND_URL.rstrip("/"),
     )
 
@@ -143,7 +141,7 @@ def _root_router() -> Router:
 
 def _get_logging_config() -> LoggingConfig:
     """Configure server logging."""
-    # Sentry's transport spams urllib3 DEBUG lines per envelope POST; cap them.
+    # Keep verbose Sentry transport logs at warning level.
     quiet_loggers = ("urllib3", "urllib3.connectionpool", "sentry_sdk")
     return LoggingConfig(
         root={"level": settings.LOG_LEVEL, "handlers": ["queue_listener"]},
@@ -163,7 +161,7 @@ def _get_logging_config() -> LoggingConfig:
             for name in quiet_loggers
         },
         log_exceptions="always",
-        # Skip the noisy "Uncaught exception" traceback for scanner probe 404/405s.
+        # Avoid stack traces for routine 404 and 405 responses.
         disable_stack_trace={
             status.HTTP_404_NOT_FOUND,
             status.HTTP_405_METHOD_NOT_ALLOWED,
@@ -189,14 +187,12 @@ def create_app() -> Litestar:
         create_static_files_router(path="/static", directories=[STATIC_DIR]),
     ]
 
-    # Wire shared HOT auth routes/deps unless auth is disabled.
     if settings.AUTH_PROVIDER != AuthProvider.DISABLED and setup_auth is not None:
         deps, auth_route_handlers = setup_auth()
         route_handlers.insert(
             0, Router(path="/", route_handlers=auth_route_handlers, dependencies=deps)
         )
 
-    # OTEL_PYTHON_EXCLUDED_URLS keeps health checks out of traces.
     plugins: list = [HTMXPlugin()]
     if settings.MONITORING == MonitoringTypes.SENTRY:
         log.info("Adding Sentry OpenTelemetry monitoring config")
@@ -231,11 +227,10 @@ def create_app() -> Litestar:
         debug=settings.DEBUG,
     )
 
-    # DEBUG-only request profiler (append `?profile=1` to any request).
+    # In debug mode, add ?profile=1 to profile a request.
     if settings.DEBUG:
         add_endpoint_profiler(app)
 
-    # OTLP tracer + logger for OpenObserve (Sentry sets its own tracer above).
     if settings.MONITORING == MonitoringTypes.OPENOBSERVE:
         otel_endpoint = settings.monitoring_config.otel_exporter_otpl_endpoint
         set_otel_tracer(app, otel_endpoint)

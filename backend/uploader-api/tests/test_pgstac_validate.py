@@ -1,4 +1,4 @@
-"""Tests for STAC item validation/normalisation (blocker #6)."""
+"""Tests for STAC item validation and normalization."""
 
 import copy
 

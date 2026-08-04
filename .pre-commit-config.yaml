@@ -60,6 +60,7 @@ repos:
             "!backend/stac-ingester/**",
             "!backend/stac-api/**",
             "!backend/global-mosaic/**",
+            "!backend/uploader-api/**",
             "!notebooks/**",
           ]
 

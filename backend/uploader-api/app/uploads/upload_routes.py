@@ -34,9 +34,6 @@ from app.uploads.s3 import (
 
 log = logging.getLogger(__name__)
 
-# Request models
-
-
 ALLOWED_CONTENT_TYPES = {"image/tiff", "image/tif", "application/octet-stream"}
 
 
@@ -46,9 +43,7 @@ class CreateMultipartBody(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     title: str = Field(min_length=1, max_length=200)
     content_type: str = "image/tiff"
-    # Reject known oversized uploads before storing any parts. Zero means unknown.
     size_bytes: int = Field(default=0, ge=0)
-    # Stored on the S3 object and passed to the pipeline as meta.json.
     metadata: dict[str, str] = {}
 
 
@@ -99,9 +94,6 @@ class WorkflowStatusBody(BaseModel):
     message: str = ""
 
 
-# S3 multipart lifecycle
-
-
 def _parse_iso(value: str | None) -> dt.datetime | None:
     """Parse an ISO-8601 datetime (tolerating a trailing Z), else None."""
     if not value or not value.strip():
@@ -113,13 +105,7 @@ def _parse_iso(value: str | None) -> dt.datetime | None:
 
 
 def _require_key_owner(auth_user: object, key: str) -> str:
-    """
-    Ensure the authenticated user owns `key`, returning their sub.
-
-    Keys are per-user prefixed (see build_key), so a caller can only touch
-    uploads under their own prefix - even knowing another user's key + UploadId.
-    Declaring `auth_user` on these handlers also forces authentication.
-    """
+    """Return the user's subject after verifying that they own the key."""
     user_sub = get_user_sub(auth_user)
     if not key.startswith(key_owner_prefix(user_sub) + "/"):
         raise HTTPException(
@@ -133,13 +119,7 @@ def _require_key_owner(auth_user: object, key: str) -> str:
 async def create_multipart(
     data: CreateMultipartBody, auth_user: object, db: AsyncConnection
 ) -> dict:
-    """
-    Create a multipart upload and its session row, enforcing limits.
-
-    The immutable upload id (minted here) scopes the S3 key, so uploads never
-    collide; the session row exists before any bytes land, so quotas can be
-    enforced and abandoned uploads are visible and reap-able.
-    """
+    """Create a multipart upload and its database record."""
     user_sub = get_user_sub(auth_user)
     title = data.title.strip()
     if not title:
@@ -157,9 +137,6 @@ async def create_multipart(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"Upload exceeds the {settings.MAX_UPLOAD_BYTES}-byte limit.",
         )
-    # Acquisition dates are the primary STAC search field, so validate them at
-    # the boundary (don't defer to the pipeline, which would fall back to ingest
-    # time). Require a parseable start; if end is given it must be >= start.
     start = _parse_iso(data.metadata.get("acquisition_start"))
     if start is None:
         raise HTTPException(
@@ -180,7 +157,6 @@ async def create_multipart(
                 detail="acquisition_end must be on or after acquisition_start.",
             )
 
-    # Ensure the user row exists (uploads FK) then enforce the concurrency cap.
     await DbUser.upsert(db, DbUser(sub=user_sub, username=get_user_username(auth_user)))
     active = await DbUpload.count_active(db, user_sub)
     if active >= settings.MAX_ACTIVE_UPLOADS_PER_USER:
@@ -213,8 +189,7 @@ async def create_multipart(
     )
     await db.commit()
 
-    # If S3 creation fails, mark the session Error so it doesn't linger as a
-    # stuck "Initiated" row (and doesn't count toward the user's quota).
+    # Failed S3 sessions must not count toward the user's upload limit.
     try:
         resp = internal_client().create_multipart_upload(
             Bucket=settings.S3_BUCKET,
@@ -315,9 +290,7 @@ async def complete_multipart(
             },
         )
     except botocore.exceptions.ClientError as err:
-        # Idempotency: if a previous attempt completed the multipart but died
-        # before submitting the workflow, the UploadId is gone yet the object
-        # exists - treat that as done and continue rather than dead-ending.
+        # A retry may find the object after the multipart upload has closed.
         try:
             s3.head_object(Bucket=settings.S3_BUCKET, Key=data.key)
             log.info("Multipart already completed for %s; continuing.", data.key)
@@ -327,7 +300,6 @@ async def complete_multipart(
                 detail=err.response["Error"]["Message"],
             ) from err
 
-    # Local uploads may skip processing. Submission failures are terminal.
     workflow_name = None
     if settings.ARGO_ENABLED:
         try:
@@ -375,14 +347,13 @@ async def abort_multipart(
 ) -> dict:
     """Abort an in-progress multipart upload and close out its session."""
     user_sub = _require_key_owner(auth_user, data.key)
-    # Tolerate an already-gone multipart so abort is idempotent.
+    # Aborting an upload twice is safe.
     try:
         internal_client().abort_multipart_upload(
             Bucket=settings.S3_BUCKET, Key=data.key, UploadId=data.upload_id
         )
     except botocore.exceptions.ClientError as err:
         log.info("Abort: multipart already gone for %s (%s)", data.key, err)
-    # Close the session row so it doesn't linger / count toward the quota.
     await DbUpload.set_status_owned(
         db, upload_id_from_key(data.key), user_sub, "Aborted", "Upload aborted."
     )
@@ -390,19 +361,11 @@ async def abort_multipart(
     return {"ok": True}
 
 
-# Token-authenticated workflow callback
-
-
 @post("/workflowstatus", exclude_from_auth=True, status_code=status.HTTP_200_OK)
 async def workflow_status(
     data: WorkflowStatusBody, request: Request, db: AsyncConnection
 ) -> dict:
-    """
-    Receive a status update from an Argo workflow step.
-
-    Authenticated by the per-upload `callback_token` (header X-Internal-Token),
-    which only the workflow launched for this upload knows.
-    """
+    """Receive a token-authenticated workflow status update."""
     token = request.headers.get("X-Internal-Token", "")
     updated = await DbUpload.update_status(
         db, data.id, token, data.status, data.message
@@ -412,20 +375,13 @@ async def workflow_status(
     return {"ok": True}
 
 
-# Token-authenticated STAC registration
-
-
 @post("/register", exclude_from_auth=True, status_code=status.HTTP_200_OK)
 async def register_item(
     data: dict[str, Any], request: Request, db: AsyncConnection
 ) -> dict:
-    """
-    Register (upsert) a STAC item for an in-flight upload.
+    """Register a STAC item for an authorized upload.
 
-    Called only by the upload's Argo workflow. Guarded by the per-upload
-    callback_token (X-Internal-Token, same model as workflow_status) and scoped
-    to the upload whose id == item id. Writes via pgstac DB functions, so DB
-    credentials stay in this service, not in workflow pods.
+    The API keeps pgstac credentials out of workflow pods.
     """
     token = request.headers.get("X-Internal-Token", "")
     item_id = data.get("id")

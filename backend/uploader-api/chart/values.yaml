@@ -1,46 +1,40 @@
-# Default values for the OAM uploader-api chart.
-
 replicaCount: 1
 
 image:
   repository: ghcr.io/hotosm/openaerialmap/uploader-api
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Reference to an existing secret providing sensitive env vars (mounted via
-# envFrom on the app + migration/init containers). Put here: AWS_ACCESS_KEY_ID,
-# AWS_SECRET_ACCESS_KEY, COOKIE_SECRET, and (for an external DB) DB_PASSWORD.
+# Secret with AWS keys, COOKIE_SECRET, and database passwords.
 existingSecret:
   name: ""
 
-# Non-secret environment variables set on the app + migration containers.
 env:
   LOG_LEVEL: INFO
+  # Production requires authentication and a real COOKIE_SECRET.
+  ENVIRONMENT: production
   # Auth: disabled | hotosm | bundled | custom
   AUTH_PROVIDER: hotosm
   HANKO_API_URL: https://login.hotosm.org
   LOGIN_URL: https://login.hotosm.org/app
-  # Object storage (real S3 in prod; leave S3_ENDPOINT empty to use AWS default)
+  # Leave S3_ENDPOINT empty to use AWS S3.
   S3_ENDPOINT: ""
   S3_EXTERNAL_ENDPOINT: ""
-  # Public base URL for STAC catalog asset links (CDN or S3 website). Required in
-  # prod (else items get relative URLs); defaults to S3_EXTERNAL_ENDPOINT.
+  # Production asset links require a public S3 or CDN URL.
   PUBLIC_ASSET_BASE_URL: ""
   S3_BUCKET: oam
   S3_REGION: us-east-1
-  # Argo (this release installs INTO the oam namespace; namespace-scoped)
   ARGO_NAMESPACE: oam
   ARGO_WORKFLOW_TEMPLATE: geotiff-processing-template
-  # Downstream STAC API
+  # Pipeline step image tag; pin an immutable git SHA for reproducible deploys.
+  PIPELINE_IMAGE_TAG: main
   STAC_COLLECTION: openaerialmap
-  # pgstac catalog DB - the register endpoint writes items via pgstac functions
-  # (the STAC transactions API stays disabled). Point these at the pgstac DB in
-  # prod and put PGSTAC_DB_PASSWORD in the secret (do NOT ship the local default).
+  # Registration writes directly to pgstac. Put PGSTAC_DB_PASSWORD in the
+  # configured secret.
   PGSTAC_DB_HOST: ""
   PGSTAC_DB_PORT: "5432"
   PGSTAC_DB_USER: ""
@@ -55,9 +49,13 @@ serviceAccount:
   automount: true
   annotations: {}
 
-# A Role limits workflow access to this namespace.
 rbac:
   create: true
+
+# Disable this when Argo already provides the workflow service account and RBAC.
+workflowServiceAccount:
+  create: true
+  name: argo-odm
 
 service:
   type: ClusterIP
@@ -66,20 +64,17 @@ service:
 ingress:
   enabled: false
   className: nginx
-  # Public hostname. Required when ingress is enabled; also sets OAM_UPLOAD_DOMAIN.
-  # When disabled (local port-forward), OAM_UPLOAD_DOMAIN defaults to "localhost".
+  # Required for ingress; without ingress, the domain defaults to localhost.
   host: upload.imagery.hotosm.org
   annotations:
-    # Large multipart uploads are presigned direct-to-S3, so the API body stays
-    # small; adjust if you proxy uploads through the API instead.
+    # Uploads go directly to S3, so API request bodies remain small.
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
   tls:
     enabled: false
     # Defaults to "<host>-tls" when empty (works with cert-manager).
     secretName: ""
 
-# Optional in-cluster PostgreSQL (dedicated oam_uploader DB). Default is an
-# external DB; enable for a fully self-contained single-chart deploy.
+# Enable for an in-cluster uploader database instead of an external one.
 db:
   enabled: false
   image:
@@ -127,8 +122,7 @@ autoscaling:
 
 podAnnotations: {}
 podLabels: {}
-# Hardened, non-root defaults. readOnlyRootFilesystem is left off so the app and
-# the migration runner can use /tmp; everything else drops privileges.
+# The app runs as non-root but needs write access to /tmp.
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
@@ -152,15 +146,23 @@ dbCheckSecurityContext:
   capabilities:
     drop: ["ALL"]
 
-# Workflow S3 credentials secret (the `oam-uploader-s3` Secret the pipeline steps
-# read via envFrom). Set create=true to provision it from the chart; otherwise
-# it must exist in the namespace already (the deployment contract).
+# Create the workflow S3 secret here or provide it in the namespace.
 workflowS3Secret:
   create: false
   name: oam-uploader-s3
   accessKeyId: ""
   secretAccessKey: ""
   region: us-east-1
+# Enable bundled Argo only when the cluster has no workflow controller. HOTOSM
+# production uses its existing cluster-wide controller.
+argo:
+  enabled: false
+  singleNamespace: true
+  server:
+    enabled: false
+  controller:
+    parallelism: 5
+
 nodeSelector: {}
 tolerations: []
 affinity: {}

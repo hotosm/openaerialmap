@@ -1,4 +1,4 @@
-"""Tests for the workflow status state machine (blocker #5)."""
+"""Tests for workflow status transitions."""
 
 from app.db.models import status_transition
 
@@ -10,7 +10,6 @@ def test_forward_transition_applies():
 
 
 def test_regression_is_ignored():
-    # A late/out-of-order hook must not move the status backwards.
     apply, _ = status_transition("Registering", "Downloading")
     assert apply is False
 

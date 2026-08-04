@@ -15,13 +15,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Match Drone-TM typography. -->
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300..700;1,300..700&family=Manrope:wght@400;500;600;700&display=swap"
     />
 
-    <!-- Inline brand tokens and hide undefined components to prevent FOUC. -->
+    <!-- Hide custom elements until their scripts load. -->
     <style>
       :root {
         --wa-color-brand-fill-loud: #d73f3f;
@@ -35,7 +34,6 @@
         --hot-color-neutral-100: #f5f5f5;
       }
 
-      /* visibility (not display) keeps layout stable while components upgrade. */
       wa-button:not(:defined),
       wa-callout:not(:defined),
       wa-input:not(:defined),
@@ -44,6 +42,7 @@
       wa-progress-bar:not(:defined),
       wa-spinner:not(:defined),
       wa-tag:not(:defined),
+      wa-details:not(:defined),
       wa-dropdown:not(:defined),
       hotosm-auth:not(:defined),
       hot-header:not(:defined),
@@ -90,13 +89,12 @@
       src="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/hotosm-ui.js"
     ></script>
 
-    <!-- Shared cross-tool menu. -->
     <script
       type="module"
       src="https://cdn.jsdelivr.net/npm/@hotosm/tool-menu@0.2.7/dist/tool-menu.esm.js"
     ></script>
 
-    <!-- hotosm-ui does not register components used only by this app. -->
+    <!-- Import the Web Awesome components used only by this app. -->
     <script type="module">
       import "@awesome.me/webawesome/dist/components/button/button.js";
       import "@awesome.me/webawesome/dist/components/callout/callout.js";
@@ -107,6 +105,7 @@
       import "@awesome.me/webawesome/dist/components/progress-bar/progress-bar.js";
       import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
       import "@awesome.me/webawesome/dist/components/tag/tag.js";
+      import "@awesome.me/webawesome/dist/components/details/details.js";
     </script>
     {% if auth_enabled %}
     <link
@@ -132,9 +131,7 @@
   </head>
 
   <body>
-    <!-- Same header chrome as the OAM map frontend (frontend/src/SiteHeader.tsx):
-         shared logo, tabs, locale switcher and app switcher. This site adds the
-         auth control (slot) and a Profile tab. -->
+    <!-- Keep this header in sync with frontend/src/SiteHeader.tsx. -->
     <hot-header
       id="oam-header"
       title="OpenAerialMap"
@@ -165,8 +162,6 @@
     </hot-header>
 
     <script>
-      // Canonical nav, matching the map frontend, plus an uploader-only Profile
-      // tab. Home/Browse open the main site; Upload is this site.
       (function () {
         const MAIN = "{{ main_site_url }}";
         const header = document.getElementById("oam-header");
@@ -192,9 +187,14 @@
             clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
           },
         ];
-        // The component hardcodes the logo/brand link to "/"; send the OAM logo
-        // back to the main site instead of this uploader. Handle the click on the
-        // host (survives re-renders) and also patch the href for middle-click.
+        // The header does not select the Upload tab for the root path.
+        const activeLabel = window.location.pathname.startsWith("/profile") ? "Profile" : "Upload";
+        const activeIndex = header.tabs.findIndex((t) => t.label === activeLabel);
+        if (activeIndex >= 0) {
+          header.selectedTab = activeIndex;
+          header.activeTabIndex = activeIndex;
+        }
+        // The header links its logo to this site's root by default.
         header.addEventListener("click", (e) => {
           if (
             e.composedPath().some((el) => el.classList && el.classList.contains("header--link"))

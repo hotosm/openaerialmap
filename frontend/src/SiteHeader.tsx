@@ -2,10 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { UPLOADER_URL } from "./browse/utils/constants";
 
-// Canonical top nav for the OAM UI. The uploader-api renders the SAME chrome
-// (see backend/uploader-api/app/templates/layout.html) - same logo, tabs,
-// locale switcher and app switcher - so moving between the map and the uploader
-// only changes the URL. The uploader additionally shows login + a Profile tab.
+// Keep these tabs aligned with backend/uploader-api/app/templates/layout.html.
 
 interface HeaderTab {
   label: string;
@@ -54,7 +51,6 @@ export default function SiteHeader() {
       size="small"
       tabs-center-align
     >
-      {/* Right-side controls shared with the uploader (which adds auth). */}
       <div slot="auth" className="oam-header-controls">
         <wa-dropdown class="oam-locale">
           <wa-button slot="trigger" appearance="plain" size="small" with-caret>

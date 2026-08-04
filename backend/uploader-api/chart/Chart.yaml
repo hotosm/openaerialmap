@@ -9,3 +9,12 @@ home: https://github.com/hotosm/openaerialmap/tree/main/backend/uploader-api
 maintainers:
   - name: HOTOSM
     email: sysadmin@hotosm.org
+dependencies:
+  # Optional bundled Argo Workflows controller for standalone installs.
+  # Leave argo.enabled=false when the cluster already runs a controller that
+  # watches all namespaces (e.g. the one the ScaleODM chart deploys at HOTOSM).
+  - name: argo-workflows
+    version: 0.45.28
+    repository: https://argoproj.github.io/argo-helm
+    condition: argo.enabled
+    alias: argo

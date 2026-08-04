@@ -1,8 +1,16 @@
 # uploader-api Helm chart
 
 Deploys the OpenAerialMap uploader API + htmx UI, plus the namespace-scoped RBAC
-it needs to submit Argo Workflows. Install it **into the `oam` namespace** (the
-dedicated, namespace-scoped Argo install lives there).
+it needs to submit Argo Workflows. Install it **into the `oam` namespace**.
+
+An Argo Workflows **controller** must be able to see this namespace. Two
+options:
+
+- **Reuse an existing cluster-wide controller** (default, `argo.enabled=false`).
+  At HOTOSM the ScaleODM chart deploys a controller in the `argo` namespace that
+  watches all namespaces, so workflows created here are picked up automatically.
+- **Bundle one** (`argo.enabled=true`): installs the `argo-workflows` subchart
+  confined to this namespace (`singleNamespace`), for clusters without Argo.
 
 ## Layout
 
@@ -10,8 +18,12 @@ dedicated, namespace-scoped Argo install lives there).
   once before the app) and, when `db.enabled`, a `db-check` init-container.
 - **Role + RoleBinding** (`rbac.create`) - `argoproj.io/workflows` in this
   namespace only. No ClusterRole.
+- **Workflow ServiceAccount** (`workflowServiceAccount.create`) - the `argo-odm`
+  SA the WorkflowTemplate assigns to step pods, plus minimum executor RBAC
+  (workflowtaskresults etc.) in this namespace.
 - **Optional in-cluster Postgres** (`db.enabled`) - `db-deployment`,
   `db-service`, `db-pvc`. Default is an external DB.
+- **Optional bundled Argo Workflows** (`argo.enabled`) - see above.
 - Service, Ingress (`upload.imagery.hotosm.org`), optional HPA.
 
 ## Config model (mirrors field-tm)
@@ -49,10 +61,15 @@ than a drift-prone copy in this chart).
 **Workflow contract** (what the WorkflowTemplate expects to exist in the
 namespace):
 
-- ServiceAccount `argo-odm` (created by the Argo install / shared k8s module).
+- ServiceAccount `argo-odm` - created by this chart
+  (`workflowServiceAccount.create=true`, the default). Set it to `false` when
+  the Argo install already provisions it (e.g. the local k8s.just test module).
 - Secret `oam-uploader-s3` with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` /
   `AWS_DEFAULT_REGION`. Set `workflowS3Secret.create=true` to have this chart
   provision it, or create it out of band.
+- If the shared controller archives workflow logs to S3 (HOTOSM's does), the
+  artifact-repository credentials secret it names (`argo-logs-s3-creds`) is
+  resolved in the **workflow's** namespace, so a copy must exist here too.
 
 Pods run with hardened, non-root security contexts by default (see the
 `*SecurityContext` values). For reproducible deploys, pin the pipeline images by

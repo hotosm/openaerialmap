@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 
 import numpy as np
@@ -39,13 +40,11 @@ RENDER_EXT_URI = "https://stac-extensions.github.io/render/v2.0.0/schema.json"
 PROC_EXT_URI = "https://stac-extensions.github.io/processing/v1.2.0/schema.json"
 EO_EXT_URI = "https://stac-extensions.github.io/eo/v1.1.0/schema.json"
 
-# rasterio colour interpretation -> EO common_name for the obvious visual bands.
 _CI_COMMON = {
     ColorInterp.red: "red",
     ColorInterp.green: "green",
     ColorInterp.blue: "blue",
 }
-# Band-description keyword -> EO common_name for bands colour interp can't name.
 _DESC_COMMON = {
     "red": "red",
     "green": "green",
@@ -70,6 +69,68 @@ def _parse_dt(value: str | None) -> dt.datetime | None:
         return None
 
 
+def _file_tags(paths: list[str | None]) -> dict:
+    """GDAL default + EXIF domain tags from the first readable path.
+
+    The original upload comes first: EXIF rarely survives COG conversion.
+    """
+    for path in paths:
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            with rasterio.open(path) as src:
+                tags = dict(src.tags())
+                tags.update(src.tags(ns="EXIF"))
+                return tags
+        except Exception:
+            log.warning("Could not read tags from %s", path)
+    return {}
+
+
+def _tag_datetime(tags: dict) -> dt.datetime | None:
+    """Capture datetime from file tags, else None.
+
+    Weak signal: processed orthomosaics usually lack these tags, and
+    TIFFTAG_DATETIME may be the processing time rather than capture.
+    """
+    for key in ("EXIF_DateTimeOriginal", "TIFFTAG_DATETIME"):
+        raw = (tags.get(key) or "").strip()
+        # EXIF format is "YYYY:MM:DD HH:MM:SS"; some writers (e.g. ODM)
+        # append a timezone offset. Normalise the date part to ISO.
+        m = re.match(r"^(\d{4}):(\d{2}):(\d{2})(.*)$", raw)
+        if not m:
+            continue
+        try:
+            parsed = dt.datetime.fromisoformat(
+                f"{m[1]}-{m[2]}-{m[3]}{m[4]}".replace("Z", "+00:00")
+            )
+        except ValueError:
+            continue
+        # Assume UTC when no offset is stored.
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
+    return None
+
+
+def _tag_sensor(tags: dict) -> str | None:
+    """Camera make + model from EXIF tags, else None."""
+    make = (tags.get("EXIF_Make") or "").strip()
+    model = (tags.get("EXIF_Model") or "").strip()
+    if make and model.lower().startswith(make.lower()):
+        return model
+    return " ".join(p for p in (make, model) if p) or None
+
+
+def _tag_software(tags: dict) -> tuple[str, str] | None:
+    """(name, version) from TIFFTAG_SOFTWARE (e.g. "ODM 3.6.1"), else None."""
+    raw = (tags.get("TIFFTAG_SOFTWARE") or "").strip()
+    if not raw:
+        return None
+    name, _, version = raw.rpartition(" ")
+    if name and any(c.isdigit() for c in version):
+        return name, version
+    return raw, "unknown"
+
+
 def _detect_product_type(src: rasterio.DatasetReader) -> str:
     """Infer a product type for bulk and legacy inputs that omit it.
 
@@ -80,15 +141,12 @@ def _detect_product_type(src: rasterio.DatasetReader) -> str:
     if src.count == 1 and ColorInterp.palette in src.colorinterp:
         return "pseudocolor"
     if src.count == 1:
-        # Float single band is almost always a DEM; integer/complex is ambiguous
-        # (panchromatic, classification, index) so don't guess elevation.
+        # Integer and complex single-band data is too ambiguous to call elevation.
         return "elevation" if dtype.startswith("float") else "multispectral"
     if src.count == 3 and dtype == "uint8":
         return "visual"
     if src.count == 4 and dtype == "uint8":
-        # RGBA (a 4th alpha band) is visual; RGBN (a continuous 4th band, i.e.
-        # near-infrared) is multispectral. Trust the colour interp, else look at
-        # the band: alpha reads near-binary (0/255), NIR is continuous.
+        # Distinguish RGBA from RGB with a near-infrared fourth band.
         if ColorInterp.alpha in src.colorinterp or _looks_like_alpha(src, 4):
             return "visual"
         return "multispectral"
@@ -187,7 +245,6 @@ def _browse(
     sent to TiTiler, and preserve source palettes for pseudocolor rasters.
     """
     idx = _display_bands(product_type, bands)
-    # Pseudocolour: keep the source palette instead of a grayscale stretch.
     if product_type == "pseudocolor":
         palette = _read_color_table(src)
         if palette:
@@ -198,8 +255,7 @@ def _browse(
     elif product_type == "sar" or (len(idx) == 1 and product_type != "pseudocolor"):
         colormap = "gray"
 
-    # One decimated read (~1000px max) drives both the thumbnail and the stats;
-    # never upscale (scale >= 1) so small rasters aren't enlarged.
+    # Reuse one small read for the thumbnail and statistics.
     scale = max(1.0, max(src.width, src.height) / 1000)
     h, w = max(1, int(src.height / scale)), max(1, int(src.width / scale))
     arr = src.read(
@@ -253,13 +309,11 @@ def _renders(
     browse = {"assets": ["visual"], "title": product_type.capitalize(), "bidx": idx}
     if rescale:
         browse["rescale"] = rescale
-    # A dict is an explicit palette (pseudocolour); a str is a named colormap.
     if isinstance(colormap, dict):
         browse["colormap"] = colormap
     elif colormap:
         browse["colormap_name"] = colormap
-    # Visual COGs use 0 for the border (OAM convention); otherwise honour the
-    # source nodata so titiler makes those pixels transparent.
+    # Visual COG borders use 0; other data keeps its source nodata value.
     browse_nodata = 0 if product_type == "visual" else nodata
     if browse_nodata is not None:
         browse["nodata"] = browse_nodata
@@ -288,8 +342,7 @@ def _footprint(
         h, w = max(1, int(src.height / scale)), max(1, int(src.width / scale))
         mask = src.dataset_mask(out_shape=(h, w))
         if mask.all():
-            # Fully valid: no alpha/nodata excludes anything, so the traced
-            # footprint would just be the bbox - let the caller use that.
+            # A fully valid mask has the same footprint as the bounding box.
             return None
         if not mask.any():
             return None
@@ -368,8 +421,6 @@ def build_item(
         src_nodata = src.nodata
         _write_thumbnail(thumb, thumbnail_path)
 
-        # True valid-pixel footprint from the raster's mask; falls back to the
-        # bbox rectangle when there's no mask to trace (flagged below).
         fp = _footprint(src)
         if fp:
             geojson, bbox, footprint_area = fp
@@ -392,8 +443,7 @@ def build_item(
             footprint_source = "bbox"
         footprint_wkt = shape(geojson).wkt
         projection_wkt = src.crs.to_wkt()
-        # gsd must be metres; src.res is in CRS units. Average the X/Y pixel
-        # sizes so non-square pixels don't bias the gsd toward one axis.
+        # Convert pixel size to metres and average non-square pixels.
         if src.crs.is_geographic:
             # Degrees: approximate metres at the image-centre latitude.
             center_lat = (bbox[1] + bbox[3]) / 2.0
@@ -401,8 +451,7 @@ def build_item(
             x_m = abs(src.res[0]) * m_per_deg * math.cos(math.radians(center_lat))
             y_m = abs(src.res[1]) * m_per_deg
         else:
-            # Projected CRS units are usually but not always metres (e.g. survey
-            # feet); convert via the CRS's metres-per-unit factor.
+            # Convert projected units, including feet, to metres.
             try:
                 _, to_metres = src.crs.linear_units_factor
             except Exception:
@@ -411,15 +460,19 @@ def build_item(
             y_m = abs(src.res[1]) * to_metres
         gsd = float((x_m + y_m) / 2.0)
 
-    # Preserve the user-supplied acquisition time. Flag ingest time if used as a
-    # legacy fallback.
+    # Imports that bypass the API may need file tags or ingest time as a fallback.
+    # These fallback dates are marked as estimates.
     now = dt.datetime.now(dt.UTC)
+    tags = _file_tags([original_path, cog_path])
     start = _parse_dt(user_md.get("acquisition_start"))
+    acquisition_source = "user"
+    if start is None:
+        start = _tag_datetime(tags)
+        acquisition_source = "file-tags" if start else "ingest"
+    if start is None:
+        log.warning("No acquisition date from user or file tags; using ingest time")
+        start = now
     end = _parse_dt(user_md.get("acquisition_end")) or start
-    acquisition_known = start is not None
-    if not acquisition_known:
-        log.warning("No acquisition_start; using ingest time, flagged as estimated")
-        start = end = now
 
     image_url = f"{asset_base_url}/{cog_filename}"
     thumbnail_url = f"{asset_base_url}/thumbnail.png"
@@ -430,10 +483,9 @@ def build_item(
         title=user_md.get("title") or item_id,
         contact=user_md.get("contact") or user_md.get("provider") or "unknown",
         provider=user_md.get("provider") or "unknown",
-        # oam:platform_type is enum-validated (kite|balloon|uav|aircraft|satellite);
-        # "unknown" fails the OAM schema, so fall back to the common UAV case.
+        # The OAM schema does not allow an unknown platform.
         platform=user_md.get("platform") or "uav",
-        sensor=user_md.get("sensor"),
+        sensor=user_md.get("sensor") or _tag_sensor(tags),
         license=user_md.get("license"),
         acquisition_start=start,
         acquisition_end=end,
@@ -443,8 +495,8 @@ def build_item(
         footprint_wkt=footprint_wkt,
         projection_wkt=projection_wkt,
         gsd=gsd,
-        # Point the visual asset at the LOCAL COG so create_item's projection
-        # read succeeds; we rewrite it to the final URL below before saving.
+        # create_item reads projection data from the local COG. The URL is
+        # replaced before the item is saved.
         image_url=cog_path,
         image_file_size=os.path.getsize(cog_path),
         thumbnail_url=thumbnail_url,
@@ -456,8 +508,9 @@ def build_item(
 
     # Ingest time (STAC Common). Distinct from datetime, which is acquisition.
     item.properties["created"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    if not acquisition_known:
+    if acquisition_source != "user":
         item.properties["oam:acquisition_time_estimated"] = True
+        item.properties["oam:acquisition_source"] = acquisition_source
 
     item.properties["oam:product_type"] = product_type
     item.properties["oam:product_type_source"] = product_type_source
@@ -475,7 +528,6 @@ def build_item(
     if EO_EXT_URI not in item.stac_extensions:
         item.stac_extensions.append(EO_EXT_URI)
 
-    # The convert sidecar supplies processing provenance.
     prov = _load_provenance(cog_path)
     if prov:
         opts = prov.get("cog_options", {})
@@ -491,6 +543,15 @@ def build_item(
         )
         if prov.get("created_at"):
             item.properties["processing:datetime"] = prov["created_at"]
+        if PROC_EXT_URI not in item.stac_extensions:
+            item.stac_extensions.append(PROC_EXT_URI)
+
+    # Preserve source software details even without a provenance sidecar.
+    source_software = _tag_software(tags)
+    if source_software:
+        item.properties.setdefault("processing:software", {}).setdefault(
+            *source_software
+        )
         if PROC_EXT_URI not in item.stac_extensions:
             item.stac_extensions.append(PROC_EXT_URI)
 

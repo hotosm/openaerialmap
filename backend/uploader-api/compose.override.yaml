@@ -1,5 +1,4 @@
-# Standalone-only S3 overlay, loaded automatically from this directory.
-# Root compose excludes it so the local S3 dependency cannot leak into root.
+# Standalone S3 services, loaded automatically from this directory.
 services:
   uploader-api:
     depends_on:
@@ -25,8 +24,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # One-shot: create the bucket, public-read policy, and a CORS rule so the
-  # browser can PUT presigned parts and read the ETag response header.
+  # Create the bucket, public-read policy, and browser CORS rule.
   uploader-s3-init:
     build: ../tilepack-api/worker
     depends_on:

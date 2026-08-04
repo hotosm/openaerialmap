@@ -1,6 +1,3 @@
-{{- /* Fail fast on missing prod config, rather than crashing at startup
-       (empty PGSTAC_DB_HOST fails config validation) or writing invalid
-       relative catalog URLs (empty asset base). */ -}}
 {{- if not .Values.env.PGSTAC_DB_HOST }}
 {{-   fail "values.env.PGSTAC_DB_HOST is required: point it at the pgstac catalog DB (the register endpoint writes there via pgstac functions)." }}
 {{- end }}

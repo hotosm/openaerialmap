@@ -5,8 +5,7 @@ on:
     branches:
       - main
     paths:
-      # Whole dir, so migrations, the migrate entrypoint, and chart also trigger
-      # a rebuild (the `**` glob is needed to match files under the directory).
+      # Rebuild for uploader changes, including migrations and the chart.
       - "backend/uploader-api/**"
   workflow_dispatch:
 

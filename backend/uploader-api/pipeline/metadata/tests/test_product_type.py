@@ -1,4 +1,4 @@
-"""Tests for product-type auto-detection (the form field is now optional)."""
+"""Tests for product-type detection."""
 
 import metadata
 import numpy as np
@@ -6,8 +6,7 @@ from rasterio.enums import ColorInterp
 
 
 class _FakeSrc:
-    """Minimal stand-in for a rasterio dataset: only what _detect_product_type
-    and _looks_like_alpha read."""
+    """Small rasterio dataset stand-in used by the detection tests."""
 
     def __init__(self, count, dtype, colorinterp, band4=None):
         self.count = count
@@ -18,9 +17,8 @@ class _FakeSrc:
 
     def read(self, band, out_shape=None, resampling=None):
         h, w = out_shape
-        if self._band4 == "alpha":  # near-binary opaque alpha
+        if self._band4 == "alpha":
             return np.full((h, w), 255, dtype="uint8")
-        # NIR: a gradient in 20..219, so nothing is exactly 0 or 255
         return (np.arange(h * w) % 200 + 20).reshape(h, w).astype("uint8")
 
 
@@ -35,14 +33,12 @@ def test_rgba_by_colorinterp_is_visual():
 
 
 def test_undeclared_alpha_band_is_visual():
-    # 4th band reads near-binary (0/255) -> treated as alpha.
     ci = [ColorInterp.gray] * 4
     src = _FakeSrc(4, "uint8", ci, band4="alpha")
     assert metadata._detect_product_type(src) == "visual"
 
 
 def test_continuous_fourth_band_is_multispectral():
-    # 4th band is continuous (NIR), not alpha.
     ci = [ColorInterp.gray] * 4
     src = _FakeSrc(4, "uint8", ci, band4="nir")
     assert metadata._detect_product_type(src) == "multispectral"

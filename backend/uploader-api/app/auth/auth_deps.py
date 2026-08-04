@@ -12,13 +12,14 @@ from litestar.exceptions import HTTPException
 
 from app.config import AuthProvider, settings
 
-try:  # Only importable when the hotosm-auth[litestar] extra is installed.
+# hotosm-auth is optional when authentication is disabled.
+try:
     from hotosm_auth_litestar import (
         get_current_user,
         get_current_user_optional,
         setup_auth,
     )
-except ImportError:  # pragma: no cover - allows boot with AUTH disabled
+except ImportError:  # pragma: no cover
     get_current_user = None
     get_current_user_optional = None
     setup_auth = None

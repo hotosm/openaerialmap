@@ -65,8 +65,7 @@ export const STAC_TITILER_URL =
 // consumes /stac item URLs via its #/external/ fragment.
 export const STAC_URL = import.meta.env.VITE_STAC_URL || "https://api.imagery.hotosm.org/stac";
 
-// The uploader-api site (shares the same header chrome). The "Upload" nav item
-// and any upload CTA point here. Override per-deploy with VITE_UPLOADER_URL.
+// Override the uploader link with VITE_UPLOADER_URL.
 export const UPLOADER_URL =
   import.meta.env.VITE_UPLOADER_URL || "https://upload.imagery.hotosm.org";
 

@@ -21,10 +21,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("convert")
 
-# ZSTD balances lossless compression with read speed in the OAM stack.
 COMPRESS = os.environ.get("COG_COMPRESS", "ZSTD")
-# Level 16 is near ZSTD's compression-ratio knee; local tests use 6 for speed.
-LEVEL = os.environ.get("COG_LEVEL", "16")
+# Level 12 was the measured time/size sweet spot for OAM orthophotos;
+# higher levels became very slow for marginal compression gains.
+LEVEL = os.environ.get("COG_LEVEL", "12")
 BLOCKSIZE = os.environ.get("COG_BLOCKSIZE", "512")
 # "average" gives smoother zoomed-out imagery than nearest.
 OVERVIEW_RESAMPLING = os.environ.get("COG_OVERVIEW_RESAMPLING", "average")
@@ -34,9 +34,7 @@ OVERVIEWS = os.environ.get("COG_OVERVIEWS", "IGNORE_EXISTING")
 GDAL_CACHEMAX = os.environ.get("COG_GDAL_CACHEMAX", "512")  # MB (values <100000)
 VERIFY = os.environ.get("COG_VERIFY", "on").lower() != "off"
 VALIDATE = os.environ.get("COG_VALIDATE", "on").lower() != "off"
-# GDAL scratch dir; on the workspace volume in-cluster, overridable for tests.
 TMPDIR = os.environ.get("CPL_TMPDIR", "/data/tmp")
-# Stamped into the STAC processing provenance; CI injects the git ref.
 PIPELINE_VERSION = os.environ.get("OAM_PIPELINE_VERSION", "dev")
 
 
@@ -78,7 +76,6 @@ def _write_provenance(dst_path: str, predictor: str) -> None:
     Capture versions here because this image performs the conversion.
     """
     prov = {
-        # RFC 3339 with a trailing Z (the STAC convention) rather than +00:00.
         "created_at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "software": {
             "oam-uploader-convert": PIPELINE_VERSION,
@@ -133,7 +130,7 @@ def convert_to_cog(src_path: str, dst_path: str) -> None:
     # Production stores scratch data here and retains GDAL's default check.
     env = {
         "GDAL_NUM_THREADS": NUM_THREADS,
-        "GDAL_CACHEMAX": int(GDAL_CACHEMAX),  # rasterio.Env wants an int here
+        "GDAL_CACHEMAX": int(GDAL_CACHEMAX),
         "CPL_TMPDIR": TMPDIR,
     }
     with rasterio.Env(**env):

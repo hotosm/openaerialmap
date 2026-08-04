@@ -1,7 +1,5 @@
 # E2E overlay for the real Argo pipeline on local Talos.
-#
-# Host networking connects the API to Talos and local services. Pods use the
-# Talos gateway and published ports configured through OAM_WORKFLOW_*.
+# Host networking connects the API, Talos, and local services.
 services:
   uploader-api:
     network_mode: host
@@ -16,8 +14,7 @@ services:
       S3_EXTERNAL_ENDPOINT: http://localhost:9000
       STAC_COLLECTION: openaerialmap
       WF_CALLBACK_URL: ${OAM_WORKFLOW_CALLBACK_URL:-http://localhost:8090}
-      # Register writes go to pgstac directly (transactions API stays off). The
-      # host-networked API reaches the published pgstac database on localhost.
+      # Registration writes to the published pgstac database.
       PGSTAC_DB_HOST: localhost
       PGSTAC_DB_PORT: "5442"
       PGSTAC_DB_USER: oam
@@ -25,8 +22,7 @@ services:
       PGSTAC_DB_NAME: postgis
     volumes:
       - /tmp/oam-kubeconfig:/root/.kube/config:ro # written by the recipe
-    # Replace the merged depends_on: the standalone uploader-s3-init is not part
-    # of the repo-root project (rustfs-init seeds the shared bucket instead).
+    # Root compose uses rustfs-init instead of uploader-s3-init.
     depends_on: !override
       uploader-db:
         condition: service_healthy
@@ -46,21 +42,16 @@ services:
           'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8090/__lbheartbeat__'')"',
         ]
 
-  # Publish the uploader DB so the host-networked API reaches it on localhost:5433.
   uploader-db:
     ports:
       - "5433:5432"
 
-  # Publish the pgstac catalog DB so the host-networked uploader-api can reach it
-  # on localhost:5442 for register writes (pgstac.upsert_item). 5442 avoids
-  # clashing with a host postgres on 5432 or the uploader-db on 5433.
+  # Port 5442 avoids the host and uploader database ports.
   database:
     ports:
       - "5442:5432"
 
-  # Publish STAC so Talos pods reach it via <gateway>:8082 (and the recipe can
-  # curl it). Transactions extension stays OFF - registration writes go via
-  # pgstac DB functions through the uploader-api, not the STAC transactions API.
+  # Workflow pods use this port; registration still writes directly to pgstac.
   stac-api:
     ports:
       - "8082:8082"

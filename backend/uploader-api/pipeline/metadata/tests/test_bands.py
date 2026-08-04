@@ -1,10 +1,9 @@
-"""Tests for EO band selection + datetime parsing (blockers #3, #4)."""
+"""Tests for EO band selection and datetime parsing."""
 
 import metadata
 
 
 def test_rgb_indexes_resolve_bgr_order():
-    # RGB isn't always bands 1-3; common names must drive selection.
     bands = [
         {"name": "b1", "eo:common_name": "blue"},
         {"name": "b2", "eo:common_name": "green"},

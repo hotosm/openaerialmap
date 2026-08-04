@@ -20,10 +20,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AuthProvider(str, Enum):
     """Authentication providers."""
 
-    DISABLED = "disabled"  # Local-only bypass with a fallback admin.
-    HOTOSM = "hotosm"  # Central HOT login at login.hotosm.org.
-    BUNDLED = "bundled"  # Self-hosted Hanko.
-    CUSTOM = "custom"  # User-provided Hanko and login URLs.
+    DISABLED = "disabled"
+    HOTOSM = "hotosm"
+    BUNDLED = "bundled"
+    CUSTOM = "custom"
 
 
 class MonitoringTypes(str, Enum):
@@ -34,8 +34,6 @@ class MonitoringTypes(str, Enum):
     OPENOBSERVE = "openobserve"
 
 
-# Exclude high-volume health and static requests from traces. app.main applies
-# the matching access-log filter.
 _OTEL_EXCLUDED_URLS = (
     "__heartbeat__,__lbheartbeat__,__version__,favicon.ico,schema,^/static/.*"
 )
@@ -119,12 +117,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "OAM Uploader"
     OAM_UPLOAD_DOMAIN: str = "upload.imagery.hotosm.org"
     OAM_UPLOAD_DEV_PORT: str | None = None
-    # Main OpenAerialMap frontend (map/browse). The shared header's logo and
-    # Home/Browse tabs point here so the uploader feels like the same site.
     OAM_FRONTEND_URL: str = "https://imagery.hotosm.org"
     DEBUG: bool = False
-    # Deployment environment. "production" fails closed on insecure config (see
-    # _fail_closed_in_prod); local dev / compose / tests stay "development".
+    # Production mode rejects disabled authentication and the default secret.
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
 
@@ -145,7 +140,7 @@ class Settings(BaseSettings):
         if v and isinstance(v, str):
             return v
         password = info.data.get("DB_PASSWORD")
-        # key=value conninfo safely quotes passwords with URL-reserved characters.
+        # make_conninfo safely quotes special characters in passwords.
         return make_conninfo(
             host=info.data.get("DB_HOST"),
             port=info.data.get("DB_PORT"),
@@ -154,8 +149,7 @@ class Settings(BaseSettings):
             dbname=info.data.get("DB_NAME"),
         )
 
-    # Registration uses pgstac functions because the transactions API is disabled.
-    # Defaults target the local catalog database.
+    # Registration writes directly to pgstac because its transactions API is off.
     PGSTAC_DB_HOST: str = "database"
     PGSTAC_DB_PORT: int = 5432
     PGSTAC_DB_USER: str = "oam"
@@ -170,7 +164,6 @@ class Settings(BaseSettings):
         if v and isinstance(v, str):
             return v
         password = info.data.get("PGSTAC_DB_PASSWORD")
-        # See assemble_db_url: key=value conninfo handles reserved characters.
         return make_conninfo(
             host=info.data.get("PGSTAC_DB_HOST"),
             port=info.data.get("PGSTAC_DB_PORT"),
@@ -179,52 +172,39 @@ class Settings(BaseSettings):
             dbname=info.data.get("PGSTAC_DB_NAME"),
         )
 
-    # Object storage.
-    # Internal endpoint used by the API (in-cluster / compose network).
+    # The API and browser may need different S3 endpoints.
     S3_ENDPOINT: str | None = None
-    # External endpoint handed to the browser for presigned multipart PUTs.
     S3_EXTERNAL_ENDPOINT: str | None = None
-    # Catalog assets may use a CDN instead of the presigning endpoint. Production
-    # requires an absolute URL; otherwise S3_EXTERNAL_ENDPOINT is used.
+    # This can point catalog assets at a CDN instead of the upload endpoint.
     PUBLIC_ASSET_BASE_URL: str | None = None
     S3_BUCKET: str = "oam"
     S3_REGION: str = "us-east-1"
     AWS_ACCESS_KEY_ID: str | None = None
     AWS_SECRET_ACCESS_KEY: SecretStr | None = None
 
-    # Argo Workflows in the dedicated oam namespace.
-    # Set false for local dev without a cluster: uploads still land in S3, but
-    # no processing workflow is submitted (the upload is marked "Uploaded").
+    # Local setups can store uploads without running an Argo workflow.
     ARGO_ENABLED: bool = True
     ARGO_NAMESPACE: str = "oam"
     ARGO_WORKFLOW_TEMPLATE: str = "geotiff-processing-template"
-    # Tag for the pipeline step images the workflow runs. Pin to an immutable
-    # git SHA in production; "latest" suits local dev where images are rebuilt.
+    # Production should use an immutable image tag.
     PIPELINE_IMAGE_TAG: str = "latest"
-    # URL the workflow uses to POST status back to this API (in-cluster).
     WF_CALLBACK_URL: str = "http://uploader-api.oam.svc.cluster.local:8080"
 
-    # Downstream STAC catalog.
     STAC_URL: str = "http://stac-api:8082"
     STAC_COLLECTION: str = "openaerialmap"
-    # Strict extension checks need remote schemas. Keep off until they are cached.
+    # Strict checks fetch remote extension schemas.
     STAC_STRICT_EXTENSIONS: bool = False
 
-    # Bound storage use and workflow fan-out.
     MAX_UPLOAD_BYTES: int = 100 * 1024**3  # 100 GiB
     MAX_ACTIVE_UPLOADS_PER_USER: int = 5
-    # Days after which S3 aborts an incomplete multipart upload (abandoned).
     ABORT_INCOMPLETE_MULTIPART_DAYS: int = 7
 
-    # Shared HOT authentication.
     AUTH_PROVIDER: AuthProvider = AuthProvider.DISABLED
     HANKO_API_URL: str | None = None
     HANKO_PUBLIC_URL: str | None = None
     LOGIN_URL: str | None = None
-    # 32-char secret shared with hotosm-auth for cookie signing.
     COOKIE_SECRET: SecretStr = SecretStr("change-me-32-characters-long-xxx")
 
-    # Optional OpenTelemetry backend.
     MONITORING: MonitoringTypes | None = None
 
     @computed_field

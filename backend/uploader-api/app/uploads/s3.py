@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 def _client(endpoint: str | None):
     return boto3.client(
         "s3",
-        # "" is not a valid endpoint for boto3; None selects the standard AWS one.
+        # An empty endpoint selects standard AWS S3.
         endpoint_url=endpoint or None,
         region_name=settings.S3_REGION,
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -31,10 +31,10 @@ def _client(endpoint: str | None):
             else None
         ),
         config=Config(
-            # Custom endpoints may default to SigV2, which MinIO and rustfs reject.
+            # Local S3 services require SigV4 and path-style addresses.
             signature_version="s3v4",
-            s3={"addressing_style": "path"},  # path-style for rustfs / localstack
-            # New botocore checksums break presigned PUTs on MinIO and rustfs.
+            s3={"addressing_style": "path"},
+            # Automatic checksums break presigned PUTs on MinIO and rustfs.
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
         ),
@@ -54,13 +54,10 @@ def external_client():
 
 
 def safe_filename(filename: str) -> str:
-    """Remove shell metacharacters and path separators from an upload name.
-
-    The pipeline interpolates this value into an AWS CLI shell command.
-    """
+    """Make a filename safe to use in the pipeline's shell command."""
     base = os.path.basename((filename or "").strip())
     stem, dot, ext = base.rpartition(".")
-    if not dot:  # no extension present
+    if not dot:
         stem, ext = base, "tif"
     stem = re.sub(r"[^A-Za-z0-9_-]", "-", stem).strip("-._") or "upload"
     ext = re.sub(r"[^A-Za-z0-9]", "", ext)[:8] or "tif"
@@ -68,19 +65,12 @@ def safe_filename(filename: str) -> str:
 
 
 def key_owner_prefix(user_sub: str) -> str:
-    """Return a stable, collision-resistant S3 prefix for a user.
-
-    A hash of the canonical subject (not a lossy slug), so distinct identities
-    can never normalise to the same prefix and cross into each other's uploads.
-    """
+    """Hash the user identity so different subjects cannot share a prefix."""
     return "u-" + hashlib.sha256((user_sub or "").encode()).hexdigest()[:16]
 
 
 def build_key(user_sub: str, upload_id: str, filename: str) -> str:
-    """Build a key scoped by user and immutable upload ID.
-
-    The upload ID prevents title collisions and makes prefix deletion safe.
-    """
+    """Build a key scoped by user and upload ID."""
     return f"{key_owner_prefix(user_sub)}/{upload_id}/{safe_filename(filename)}"
 
 

@@ -46,10 +46,9 @@ def validate_item(
     ):
         props["datetime"] = None
 
-    # Never trust the caller for the target collection.
+    # Use the collection from server configuration.
     item["collection"] = collection
-    # STAC requires a rel=collection link whenever `collection` is set; add
-    # parent too (same target) so the item is properly anchored in the catalog.
+    # Items with a collection also need collection and parent links.
     collection_href = f"{settings.STAC_URL.rstrip('/')}/collections/{collection}"
     links = item.setdefault("links", [])
     have = {link.get("rel") for link in links if isinstance(link, dict)}
@@ -59,7 +58,6 @@ def validate_item(
                 {"rel": rel, "href": collection_href, "type": "application/json"}
             )
 
-    # Core validation is local and always required.
     try:
         Item.model_validate(item)
     except Exception as exc:  # noqa: BLE001

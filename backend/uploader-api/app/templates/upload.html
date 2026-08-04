@@ -10,7 +10,6 @@ content %}
   {% else %}
   <form id="upload-form" class="oam-form" onsubmit="return false;">
     <wa-input name="title" label="Dataset title" required></wa-input>
-    <wa-input name="provider" label="Provider / producer"></wa-input>
     <wa-select name="platform" label="Platform type" value="uav" required>
       <wa-option value="uav">UAV / drone</wa-option>
       <wa-option value="aircraft">Aircraft</wa-option>
@@ -23,20 +22,31 @@ content %}
       <wa-option value="CC BY-NC 4.0">CC BY-NC 4.0</wa-option>
       <wa-option value="CC BY-SA 4.0">CC BY-SA 4.0</wa-option>
     </wa-select>
-    <!-- Never substitute upload time for the STAC acquisition date. -->
-    <wa-input name="acquisition_start" type="date" label="Acquisition start" required></wa-input>
     <wa-input
-      name="acquisition_end"
-      type="date"
-      label="Acquisition end"
-      hint="Leave blank for single-date imagery."
+      name="provider"
+      label="Provider / producer"
+      hint="Organisation or person that produced the imagery."
     ></wa-input>
+    <!-- Required: only the uploader knows the true capture date, and
+         processed orthomosaics rarely carry a usable one in their tags. -->
+    <wa-input name="acquisition_start" type="date" label="Acquisition date" required></wa-input>
 
     <wa-details summary="Extra details">
+      <wa-input
+        name="acquisition_end"
+        type="date"
+        label="Acquisition end"
+        hint="Leave blank for single-date imagery."
+      ></wa-input>
       <wa-input
         name="sensor"
         label="Sensor"
         hint="Camera or sensor model, e.g. DJI Zenmuse P1."
+      ></wa-input>
+      <wa-input
+        name="contact"
+        label="Contact"
+        hint="Email or name shown for imagery enquiries. Defaults to the provider."
       ></wa-input>
       <wa-select
         name="product_type"
