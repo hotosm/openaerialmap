@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" class="hot-theme-light wa-theme-default wa-palette-hotosm">
+  <head>
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Upload openly licensed aerial imagery to OpenAerialMap." />
+    <meta name="author" content="Humanitarian OpenStreetMap Team" />
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <meta name="theme-color" content="#d73f3f" />
+
+    <link rel="icon" type="image/svg+xml" href="/static/openaerialmap.svg" />
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Match Drone-TM typography. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300..700;1,300..700&family=Manrope:wght@400;500;600;700&display=swap"
+    />
+
+    <!-- Inline brand tokens and hide undefined components to prevent FOUC. -->
+    <style>
+      :root {
+        --wa-color-brand-fill-loud: #d73f3f;
+        --wa-color-brand-border-loud: #ed5c5e;
+        --wa-color-brand-on-loud: #ffffff;
+        --hot-font-sans: "Archivo", sans-serif;
+        --hot-font-sans-variant: "Archivo";
+        --hot-font-sans-variant-condensed: "Archivo";
+        --hot-color-neutral-900: #2c3038;
+        --hot-color-neutral-50: #fafafa;
+        --hot-color-neutral-100: #f5f5f5;
+      }
+
+      /* visibility (not display) keeps layout stable while components upgrade. */
+      wa-button:not(:defined),
+      wa-callout:not(:defined),
+      wa-input:not(:defined),
+      wa-select:not(:defined),
+      wa-option:not(:defined),
+      wa-progress-bar:not(:defined),
+      wa-spinner:not(:defined),
+      wa-tag:not(:defined),
+      wa-dropdown:not(:defined),
+      hotosm-auth:not(:defined),
+      hot-header:not(:defined),
+      hotosm-tool-menu:not(:defined) {
+        visibility: hidden;
+      }
+      .oam-header-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/native.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/utilities.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/themes/default.css"
+    />
+    <script type="importmap">
+      {
+        "imports": {
+          "@awesome.me/webawesome/dist/components/": "https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/components/"
+        }
+      }
+    </script>
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/style-core.css"
+    />
+    <link
+      rel="modulepreload"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/hotosm-ui.js"
+    />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/hotosm-ui.js"
+    ></script>
+
+    <!-- Shared cross-tool menu. -->
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/tool-menu@0.2.7/dist/tool-menu.esm.js"
+    ></script>
+
+    <!-- hotosm-ui does not register components used only by this app. -->
+    <script type="module">
+      import "@awesome.me/webawesome/dist/components/button/button.js";
+      import "@awesome.me/webawesome/dist/components/callout/callout.js";
+      import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
+      import "@awesome.me/webawesome/dist/components/input/input.js";
+      import "@awesome.me/webawesome/dist/components/select/select.js";
+      import "@awesome.me/webawesome/dist/components/option/option.js";
+      import "@awesome.me/webawesome/dist/components/progress-bar/progress-bar.js";
+      import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
+      import "@awesome.me/webawesome/dist/components/tag/tag.js";
+    </script>
+    {% if auth_enabled %}
+    <link
+      rel="modulepreload"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/hanko-auth/dist/hanko-auth.esm.js"
+    />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/hanko-auth/dist/hanko-auth.esm.js"
+    ></script>
+    {% endif %}
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Swap error responses so HTMX can render callouts. -->
+    <meta
+      name="htmx-config"
+      content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23].." ,"swap":true},{"code":"[45]..","swap":true,"error":true}]}'
+    />
+    <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js"></script>
+
+    {% block extra_head %}{% endblock %}
+  </head>
+
+  <body>
+    <!-- Same header chrome as the OAM map frontend (frontend/src/SiteHeader.tsx):
+         shared logo, tabs, locale switcher and app switcher. This site adds the
+         auth control (slot) and a Profile tab. -->
+    <hot-header
+      id="oam-header"
+      title="OpenAerialMap"
+      logo="/static/openaerialmap.svg"
+      size="small"
+      tabs-center-align
+    >
+      <div slot="auth" class="oam-header-controls">
+        <wa-dropdown class="oam-locale">
+          <wa-button slot="trigger" appearance="plain" size="small" with-caret>EN</wa-button>
+          <div class="oam-locale-menu">
+            <button type="button" class="oam-locale-option oam-locale-option--active">
+              English
+            </button>
+          </div>
+        </wa-dropdown>
+        <hotosm-tool-menu></hotosm-tool-menu>
+        {% if auth_enabled %}
+        <hotosm-auth
+          hanko-url="{{ hanko_public_url }}"
+          redirect-after-login="{{ frontend_url }}"
+          redirect-after-logout="{{ frontend_url }}"
+          button-variant="filled"
+          button-color="primary"
+        ></hotosm-auth>
+        {% endif %}
+      </div>
+    </hot-header>
+
+    <script>
+      // Canonical nav, matching the map frontend, plus an uploader-only Profile
+      // tab. Home/Browse open the main site; Upload is this site.
+      (function () {
+        const MAIN = "{{ main_site_url }}";
+        const header = document.getElementById("oam-header");
+        header.tabs = [
+          { label: "Home", clickEvent: () => (window.location.href = MAIN + "/") },
+          { label: "Browse", clickEvent: () => (window.location.href = MAIN + "/browse") },
+          {
+            label: "API",
+            clickEvent: () => window.open("https://api.imagery.hotosm.org", "_blank"),
+          },
+          {
+            label: "Docs",
+            clickEvent: () => window.open("https://docs.imagery.hotosm.org/", "_blank"),
+          },
+          { label: "Upload", href: "/", clickEvent: () => (window.location.href = "/") },
+          {
+            label: "Profile",
+            href: "/profile",
+            clickEvent: () => (window.location.href = "/profile"),
+          },
+          {
+            label: "Report a bug",
+            clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
+          },
+        ];
+        // The component hardcodes the logo/brand link to "/"; send the OAM logo
+        // back to the main site instead of this uploader. Handle the click on the
+        // host (survives re-renders) and also patch the href for middle-click.
+        header.addEventListener("click", (e) => {
+          if (
+            e.composedPath().some((el) => el.classList && el.classList.contains("header--link"))
+          ) {
+            e.preventDefault();
+            window.location.href = MAIN + "/";
+          }
+        });
+        customElements
+          .whenDefined("hot-header")
+          .then(() => header.updateComplete)
+          .then(() => {
+            const link = header.shadowRoot && header.shadowRoot.querySelector("a.header--link");
+            if (link) link.setAttribute("href", MAIN + "/");
+          });
+      })();
+    </script>
+
+    <main class="oam-main">{% block content %}{% endblock %}</main>
+
+    {% if auth_enabled %}
+    <script>
+      // hotosm-auth emits on every page load, so sync identity once per session.
+      const hotosmAuth = document.querySelector("hotosm-auth");
+      if (hotosmAuth) {
+        hotosmAuth.addEventListener("hanko-login", async () => {
+          if (sessionStorage.getItem("oam_profile_synced")) return;
+          try {
+            const resp = await fetch("/profile/me", { credentials: "include" });
+            if (resp.ok) sessionStorage.setItem("oam_profile_synced", "1");
+          } catch (e) {
+            console.warn("OAM: failed to sync user profile:", e);
+          }
+        });
+        hotosmAuth.addEventListener("logout", () => {
+          sessionStorage.removeItem("oam_profile_synced");
+        });
+      }
+    </script>
+    {% endif %} {% block extra_body %}{% endblock %}
+  </body>
+</html>

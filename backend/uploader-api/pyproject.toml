@@ -1,0 +1,71 @@
+[project]
+name = "oam-uploader-api"
+version = "0.1.0"
+description = "OpenAerialMap imagery uploader API + htmx UI (Litestar)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "litestar[jinja]==2.21.1",
+  "uvicorn==0.41.0",
+  "psycopg[c,pool]==3.3.3",
+  "pydantic==2.9.2",
+  "pydantic-settings==2.6.0",
+  "python-multipart==0.0.30",
+  "boto3==1.43.4",
+  "httpx==0.28.1",
+  "kubernetes==35.0.0",
+  # Shared HOT auth (Hanko). Same pinned ref used by field-tm.
+  "hotosm-auth[litestar] @ git+https://github.com/hotosm/login.git@a2a1ce2a395c#subdirectory=auth-libs/python",
+  # Lazy imports keep this optional unless monitoring is enabled.
+  "pyinstrument==5.0.3",
+  "sentry-sdk[opentelemetry-otlp]==2.53.0",
+  "opentelemetry-instrumentation-asgi==0.60b1",
+  "opentelemetry-instrumentation-logging==0.60b1",
+  "opentelemetry-instrumentation-psycopg==0.60b1",
+  "opentelemetry-instrumentation-requests==0.60b1",
+  "stac-pydantic==3.6.0",
+  # Backs strict STAC extension validation (STAC_STRICT_EXTENSIONS).
+  "jsonschema>=4.0",
+]
+
+[dependency-groups]
+dev = ["pre-commit>=4.3.0", "ruff>=0.15.0"]
+test = ["pytest==8.3.5", "pytest-asyncio==0.24.0", "httpx==0.28.1", "asgi-lifespan==2.1.0"]
+
+[tool.pytest.ini_options]
+# Put the project root on sys.path so `uv run pytest` (not just `python -m
+# pytest`) can import `app`.
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D", "UP", "PL"]
+ignore = [
+  # Mutually-exclusive style pairs; pick one of each (summary placement free).
+  "D203",
+  "D212",
+  "D213",
+  # Do not enforce Pylint complexity and magic-value heuristics.
+  "PLR2004",
+  "PLR0913",
+  "PLR0915",
+  "PLR0912",
+  "PLR0917",
+  # str+Enum is an intentional idiom (pre-StrEnum) for env-parsed enums.
+  "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/*" = ["D"]
+# Allow lazy imports for optional monitoring dependencies.
+"app/monitoring.py" = ["PLC0415"]
+# rio-cogeo is optional; the S3 helper import avoids a startup cycle.
+"pipeline/convert/convert.py" = ["PLC0415"]
+"app/main.py" = ["PLC0415"]
+# Standalone stdlib helper script, not part of the app package.
+"scripts/test-upload.py" = ["D103"]

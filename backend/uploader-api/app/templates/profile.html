@@ -1,0 +1,18 @@
+{% extends "layout.html" %} {% block title %}Profile - {{ app_name }}{% endblock %} {% block content
+%}
+<section class="oam-card">
+  <h1>Your profile</h1>
+  <dl class="oam-profile">
+    <dt>Username</dt>
+    <dd>{{ user.username or "-" }}</dd>
+    <dt>Name</dt>
+    <dd>{{ user.name or "-" }}</dd>
+    <dt>Email</dt>
+    <dd>{{ user.email_address or "-" }}</dd>
+    <dt>Identity</dt>
+    <dd><code>{{ user.sub }}</code></dd>
+    <dt>Registered</dt>
+    <dd>{{ user.registered_at or "-" }}</dd>
+  </dl>
+</section>
+{% endblock %}

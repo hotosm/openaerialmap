@@ -1,13 +1,11 @@
 import { useEffect, useRef } from "react";
 
-// Canonical top nav for every page in the OAM UI. Landing and Browse
-// both previously carried their own copy of this - which drifted -
-// so anything that should live in the site chrome (nav tabs, upload
-// entry point, brand) belongs here now.
+import { UPLOADER_URL } from "./browse/utils/constants";
 
-// Landing point for the (upcoming) imagery uploader. Currently the
-// legacy site; swap this in one place when the new uploader ships.
-const UPLOAD_IMAGERY_URL = "https://map.openaerialmap.org";
+// Canonical top nav for the OAM UI. The uploader-api renders the SAME chrome
+// (see backend/uploader-api/app/templates/layout.html) - same logo, tabs,
+// locale switcher and app switcher - so moving between the map and the uploader
+// only changes the URL. The uploader additionally shows login + a Profile tab.
 
 interface HeaderTab {
   label: string;
@@ -16,49 +14,29 @@ interface HeaderTab {
 }
 
 const HEADER_TABS: HeaderTab[] = [
-  {
-    label: "Home",
-    href: "/",
-    clickEvent: () => {
-      window.location.href = "/";
-    },
-  },
+  { label: "Home", href: "/", clickEvent: () => (window.location.href = "/") },
   {
     label: "Browse",
     href: "/browse",
-    clickEvent: () => {
-      window.location.href = "/browse";
-    },
+    clickEvent: () => (window.location.href = "/browse"),
   },
   {
     label: "API",
-    clickEvent: () => {
-      window.open("https://api.imagery.hotosm.org", "_blank");
-    },
+    clickEvent: () => window.open("https://api.imagery.hotosm.org", "_blank"),
   },
   {
     label: "Docs",
-    clickEvent: () => {
-      window.open("https://docs.imagery.hotosm.org/", "_blank");
-    },
+    clickEvent: () => window.open("https://docs.imagery.hotosm.org/", "_blank"),
   },
-  {
-    label: "Upload",
-    clickEvent: () => {
-      window.open(UPLOAD_IMAGERY_URL, "_blank");
-    },
-  },
+  { label: "Upload", clickEvent: () => (window.location.href = UPLOADER_URL) },
   {
     label: "Report a bug",
-    clickEvent: () => {
-      window.open("https://roadmap.hotosm.org/#tech-request", "_blank");
-    },
+    clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
   },
 ];
 
-// hot-header is a web component: props like `title` and `logo` are
-// attributes (declared in global.d.ts), but `tabs` is a JS property so
-// it has to be assigned via ref after mount.
+// hot-header is a web component: `title`/`logo` are attributes (see
+// global.d.ts), but `tabs` is a JS property assigned via ref after mount.
 type HotHeaderElement = HTMLElement & { tabs: HeaderTab[] };
 
 export default function SiteHeader() {
@@ -76,16 +54,20 @@ export default function SiteHeader() {
       size="small"
       tabs-center-align
     >
-      <wa-button
-        slot="auth"
-        variant="brand"
-        class="share-imagery-btn"
-        onClick={() => {
-          window.open(UPLOAD_IMAGERY_URL, "_blank");
-        }}
-      >
-        Upload Imagery
-      </wa-button>
+      {/* Right-side controls shared with the uploader (which adds auth). */}
+      <div slot="auth" className="oam-header-controls">
+        <wa-dropdown class="oam-locale">
+          <wa-button slot="trigger" appearance="plain" size="small" with-caret>
+            EN
+          </wa-button>
+          <div className="oam-locale-menu">
+            <button type="button" className="oam-locale-option oam-locale-option--active">
+              English
+            </button>
+          </div>
+        </wa-dropdown>
+        <hotosm-tool-menu></hotosm-tool-menu>
+      </div>
     </hot-header>
   );
 }

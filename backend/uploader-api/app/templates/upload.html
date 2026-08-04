@@ -1,0 +1,77 @@
+{% extends "layout.html" %} {% block title %}Upload imagery - {{ app_name }}{% endblock %} {% block
+content %}
+<section class="oam-card">
+  <h1>Upload imagery</h1>
+
+  {% if auth_enabled and not logged_in %}
+  <wa-callout variant="info">
+    <span>Please log in to upload imagery.</span>
+  </wa-callout>
+  {% else %}
+  <form id="upload-form" class="oam-form" onsubmit="return false;">
+    <wa-input name="title" label="Dataset title" required></wa-input>
+    <wa-input name="provider" label="Provider / producer"></wa-input>
+    <wa-select name="platform" label="Platform type" value="uav" required>
+      <wa-option value="uav">UAV / drone</wa-option>
+      <wa-option value="aircraft">Aircraft</wa-option>
+      <wa-option value="balloon">Balloon</wa-option>
+      <wa-option value="kite">Kite</wa-option>
+      <wa-option value="satellite">Satellite</wa-option>
+    </wa-select>
+    <wa-select name="license" label="License" value="CC-BY 4.0">
+      <wa-option value="CC-BY 4.0">CC-BY 4.0</wa-option>
+      <wa-option value="CC BY-NC 4.0">CC BY-NC 4.0</wa-option>
+      <wa-option value="CC BY-SA 4.0">CC BY-SA 4.0</wa-option>
+    </wa-select>
+    <!-- Never substitute upload time for the STAC acquisition date. -->
+    <wa-input name="acquisition_start" type="date" label="Acquisition start" required></wa-input>
+    <wa-input
+      name="acquisition_end"
+      type="date"
+      label="Acquisition end"
+      hint="Leave blank for single-date imagery."
+    ></wa-input>
+
+    <wa-details summary="Extra details">
+      <wa-input
+        name="sensor"
+        label="Sensor"
+        hint="Camera or sensor model, e.g. DJI Zenmuse P1."
+      ></wa-input>
+      <wa-select
+        name="product_type"
+        label="Data type override"
+        value=""
+        hint="We detect the data type automatically from the file's bands. Only set this if the automatic choice is wrong, e.g. an elevation model or a SAR scene."
+      >
+        <wa-option value="">Auto-detect (default)</wa-option>
+        <wa-option value="visual">Visual (RGB orthophoto)</wa-option>
+        <wa-option value="multispectral">Multispectral / >4 bands</wa-option>
+        <wa-option value="elevation">Elevation / DEM</wa-option>
+        <wa-option value="sar">SAR</wa-option>
+        <wa-option value="pseudocolor">Pseudocolour (paletted)</wa-option>
+      </wa-select>
+    </wa-details>
+
+    <input type="file" id="file-input" accept=".tif,.tiff" required />
+    <wa-button type="submit" variant="brand" id="submit-btn">Start upload</wa-button>
+  </form>
+
+  <div id="upload-progress" class="oam-progress" hidden>
+    <wa-progress-bar id="progress-bar" value="0"></wa-progress-bar>
+    <p id="progress-label"></p>
+  </div>
+  <div id="upload-error"></div>
+  {% endif %}
+</section>
+
+{% if not auth_enabled or logged_in %}
+<section class="oam-card">
+  <h2>Your uploads</h2>
+  <div id="uploads-list" hx-get="/uploads" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <wa-spinner></wa-spinner>
+  </div>
+</section>
+{% endif %} {% endblock %} {% block extra_body %}
+<script src="/static/js/uploader.js"></script>
+{% endblock %}
