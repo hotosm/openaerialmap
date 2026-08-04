@@ -1,0 +1,69 @@
+{{- if .Values.db.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.dbServiceName" . }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: db
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db
+    spec:
+      {{- with .Values.db.primary.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgis
+          image: "{{ .Values.db.image.repository }}:{{ .Values.db.image.tag }}"
+          imagePullPolicy: {{ .Values.db.image.pullPolicy }}
+          {{- with .Values.db.primary.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args:
+            {{- toYaml .Values.db.command | nindent 12 }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.db.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.db.auth.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.db.auth.database | quote }}
+          resources:
+            {{- toYaml .Values.db.primary.resources | nindent 12 }}
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: db-data
+              mountPath: {{ .Values.db.primary.dataMountPath | quote }}
+      volumes:
+        - name: db-data
+          {{- if .Values.db.primary.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "chart.dbServiceName" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

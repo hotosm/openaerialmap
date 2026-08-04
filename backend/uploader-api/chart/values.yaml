@@ -1,0 +1,170 @@
+# Default values for the OAM uploader-api chart.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hotosm/openaerialmap/uploader-api
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Reference to an existing secret providing sensitive env vars (mounted via
+# envFrom on the app + migration/init containers). Put here: AWS_ACCESS_KEY_ID,
+# AWS_SECRET_ACCESS_KEY, COOKIE_SECRET, and (for an external DB) DB_PASSWORD.
+existingSecret:
+  name: ""
+
+# Non-secret environment variables set on the app + migration containers.
+env:
+  LOG_LEVEL: INFO
+  # Auth: disabled | hotosm | bundled | custom
+  AUTH_PROVIDER: hotosm
+  HANKO_API_URL: https://login.hotosm.org
+  LOGIN_URL: https://login.hotosm.org/app
+  # Object storage (real S3 in prod; leave S3_ENDPOINT empty to use AWS default)
+  S3_ENDPOINT: ""
+  S3_EXTERNAL_ENDPOINT: ""
+  # Public base URL for STAC catalog asset links (CDN or S3 website). Required in
+  # prod (else items get relative URLs); defaults to S3_EXTERNAL_ENDPOINT.
+  PUBLIC_ASSET_BASE_URL: ""
+  S3_BUCKET: oam
+  S3_REGION: us-east-1
+  # Argo (this release installs INTO the oam namespace; namespace-scoped)
+  ARGO_NAMESPACE: oam
+  ARGO_WORKFLOW_TEMPLATE: geotiff-processing-template
+  # Downstream STAC API
+  STAC_COLLECTION: openaerialmap
+  # pgstac catalog DB - the register endpoint writes items via pgstac functions
+  # (the STAC transactions API stays disabled). Point these at the pgstac DB in
+  # prod and put PGSTAC_DB_PASSWORD in the secret (do NOT ship the local default).
+  PGSTAC_DB_HOST: ""
+  PGSTAC_DB_PORT: "5432"
+  PGSTAC_DB_USER: ""
+  PGSTAC_DB_NAME: postgis
+
+# WF_CALLBACK_URL defaults to the in-cluster service DNS if left empty.
+callbackUrlOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  automount: true
+  annotations: {}
+
+# A Role limits workflow access to this namespace.
+rbac:
+  create: true
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  # Public hostname. Required when ingress is enabled; also sets OAM_UPLOAD_DOMAIN.
+  # When disabled (local port-forward), OAM_UPLOAD_DOMAIN defaults to "localhost".
+  host: upload.imagery.hotosm.org
+  annotations:
+    # Large multipart uploads are presigned direct-to-S3, so the API body stays
+    # small; adjust if you proxy uploads through the API instead.
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  tls:
+    enabled: false
+    # Defaults to "<host>-tls" when empty (works with cert-manager).
+    secretName: ""
+
+# Optional in-cluster PostgreSQL (dedicated oam_uploader DB). Default is an
+# external DB; enable for a fully self-contained single-chart deploy.
+db:
+  enabled: false
+  image:
+    repository: postgis/postgis
+    tag: "18-3.6"
+    pullPolicy: IfNotPresent
+  auth:
+    username: oam
+    password: oam
+    database: oam_uploader
+  command:
+    - -c
+    - max_connections=200
+  primary:
+    podSecurityContext: {}
+    securityContext: {}
+    dataMountPath: /var/lib/postgresql
+    resources:
+      requests: { cpu: 250m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClassName: ""
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+livenessProbe:
+  httpGet:
+    path: /__lbheartbeat__
+    port: http
+readinessProbe:
+  httpGet:
+    path: /__lbheartbeat__
+    port: http
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+podAnnotations: {}
+podLabels: {}
+# Hardened, non-root defaults. readOnlyRootFilesystem is left off so the app and
+# the migration runner can use /tmp; everything else drops privileges.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+initSecurityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+dbCheckSecurityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+# Workflow S3 credentials secret (the `oam-uploader-s3` Secret the pipeline steps
+# read via envFrom). Set create=true to provision it from the chart; otherwise
+# it must exist in the namespace already (the deployment contract).
+workflowS3Secret:
+  create: false
+  name: oam-uploader-s3
+  accessKeyId: ""
+  secretAccessKey: ""
+  region: us-east-1
+nodeSelector: {}
+tolerations: []
+affinity: {}
+volumes: []
+volumeMounts: []
+command: []
+args: []

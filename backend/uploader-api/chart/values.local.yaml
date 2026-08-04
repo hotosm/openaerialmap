@@ -1,0 +1,52 @@
+# Local/single-cluster dev overrides (e.g. minikube, kind, Talos).
+#
+# Usage:
+#   helm upgrade --install uploader-api ./chart \
+#     --namespace oam --create-namespace \
+#     -f chart/values.local.yaml
+#
+# Access from localhost:
+#   kubectl -n oam port-forward svc/uploader-api 8080:8080
+
+fullnameOverride: uploader-api
+
+image:
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Auth disabled for local (local-admin fallback, no Hanko needed).
+env:
+  AUTH_PROVIDER: disabled
+  S3_ENDPOINT: http://rustfs:9000
+  S3_EXTERNAL_ENDPOINT: http://localhost:9000
+  # Public base for STAC asset URLs (defaults to S3_EXTERNAL_ENDPOINT if unset).
+  PUBLIC_ASSET_BASE_URL: http://localhost:9000
+  S3_BUCKET: oam
+  ARGO_NAMESPACE: oam
+  # pgstac catalog DB the register endpoint writes to. This chart does not deploy
+  # pgstac - point these at your local stac-api database service. The password
+  # goes in the secret (PGSTAC_DB_PASSWORD).
+  PGSTAC_DB_HOST: database
+  PGSTAC_DB_USER: oam
+  PGSTAC_DB_NAME: postgis
+
+# Sensitive env for local (normally these live in existingSecret).
+# Create with:
+#   kubectl -n oam create secret generic oam-uploader-local \
+#     --from-literal=AWS_ACCESS_KEY_ID=oam \
+#     --from-literal=AWS_SECRET_ACCESS_KEY=oam \
+#     --from-literal=PGSTAC_DB_PASSWORD=password \
+#     --from-literal=COOKIE_SECRET=change-me-32-characters-long-xxx
+existingSecret:
+  name: oam-uploader-local
+
+# In-cluster PostGIS, ephemeral.
+db:
+  enabled: true
+  auth:
+    username: oam
+    password: oam
+    database: oam_uploader
+  primary:
+    persistence:
+      enabled: false

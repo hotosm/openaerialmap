@@ -1,0 +1,47 @@
+name: Uploader API Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "backend/uploader-api/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/uploader-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.29"
+      - name: Sync (dev + test groups)
+        run: uv sync --group dev --group test
+      - name: Ruff
+        run: uv run ruff check app pipeline scripts tests
+      - name: Pytest
+        run: uv run pytest tests -q
+
+  pipeline:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/uploader-api/pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.29"
+      - name: Sync metadata member + test group
+        run: uv sync --frozen --package oam-pipeline-metadata --group test
+      - name: Pytest
+        run: uv run --package oam-pipeline-metadata pytest metadata/tests -q
