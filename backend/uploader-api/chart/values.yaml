@@ -1,0 +1,172 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hotosm/openaerialmap/uploader-api
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Secret with AWS keys, COOKIE_SECRET, and database passwords.
+existingSecret:
+  name: ""
+
+env:
+  LOG_LEVEL: INFO
+  # Production requires authentication and a real COOKIE_SECRET.
+  ENVIRONMENT: production
+  # Auth: disabled | hotosm | bundled | custom
+  AUTH_PROVIDER: hotosm
+  HANKO_API_URL: https://login.hotosm.org
+  LOGIN_URL: https://login.hotosm.org/app
+  # Leave S3_ENDPOINT empty to use AWS S3.
+  S3_ENDPOINT: ""
+  S3_EXTERNAL_ENDPOINT: ""
+  # Production asset links require a public S3 or CDN URL.
+  PUBLIC_ASSET_BASE_URL: ""
+  S3_BUCKET: oam
+  S3_REGION: us-east-1
+  ARGO_NAMESPACE: oam
+  ARGO_WORKFLOW_TEMPLATE: geotiff-processing-template
+  # Pipeline step image tag; pin an immutable git SHA for reproducible deploys.
+  PIPELINE_IMAGE_TAG: main
+  STAC_COLLECTION: openaerialmap
+  # Registration writes directly to pgstac. Put PGSTAC_DB_PASSWORD in the
+  # configured secret.
+  PGSTAC_DB_HOST: ""
+  PGSTAC_DB_PORT: "5432"
+  PGSTAC_DB_USER: ""
+  PGSTAC_DB_NAME: postgis
+
+# WF_CALLBACK_URL defaults to the in-cluster service DNS if left empty.
+callbackUrlOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  automount: true
+  annotations: {}
+
+rbac:
+  create: true
+
+# Disable this when Argo already provides the workflow service account and RBAC.
+workflowServiceAccount:
+  create: true
+  name: argo-odm
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  # Required for ingress; without ingress, the domain defaults to localhost.
+  host: upload.imagery.hotosm.org
+  annotations:
+    # Uploads go directly to S3, so API request bodies remain small.
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  tls:
+    enabled: false
+    # Defaults to "<host>-tls" when empty (works with cert-manager).
+    secretName: ""
+
+# Enable for an in-cluster uploader database instead of an external one.
+db:
+  enabled: false
+  image:
+    repository: postgis/postgis
+    tag: "18-3.6"
+    pullPolicy: IfNotPresent
+  auth:
+    username: oam
+    password: oam
+    database: oam_uploader
+  command:
+    - -c
+    - max_connections=200
+  primary:
+    podSecurityContext: {}
+    securityContext: {}
+    dataMountPath: /var/lib/postgresql
+    resources:
+      requests: { cpu: 250m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClassName: ""
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+livenessProbe:
+  httpGet:
+    path: /__lbheartbeat__
+    port: http
+readinessProbe:
+  httpGet:
+    path: /__lbheartbeat__
+    port: http
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+podAnnotations: {}
+podLabels: {}
+# The app runs as non-root but needs write access to /tmp.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+initSecurityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+dbCheckSecurityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+# Create the workflow S3 secret here or provide it in the namespace.
+workflowS3Secret:
+  create: false
+  name: oam-uploader-s3
+  accessKeyId: ""
+  secretAccessKey: ""
+  region: us-east-1
+# Enable bundled Argo only when the cluster has no workflow controller. HOTOSM
+# production uses its existing cluster-wide controller.
+argo:
+  enabled: false
+  singleNamespace: true
+  server:
+    enabled: false
+  controller:
+    parallelism: 5
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+volumes: []
+volumeMounts: []
+command: []
+args: []

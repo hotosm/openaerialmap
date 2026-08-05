@@ -1,0 +1,30 @@
+OAM uploader-api deployed.
+
+{{- if .Values.ingress.enabled }}
+
+Access it at:
+  http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+
+The service is ClusterIP-only. Reach it via port-forward:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "chart.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  # then open http://localhost:{{ .Values.service.port }}
+{{- end }}
+
+Checks:
+  kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  # migrations run as an init-container before the app starts
+
+{{- if not .Values.db.enabled }}
+
+NOTE: db.enabled=false - an EXTERNAL Postgres is expected. Provide DB_HOST,
+DB_USER, DB_NAME via .Values.env and DB_PASSWORD via existingSecret. Set
+db.enabled=true for an in-cluster PostGIS instead.
+{{- end }}
+
+{{- if not .Values.existingSecret.name }}
+
+WARNING: existingSecret.name is empty. Create a secret with AWS_ACCESS_KEY_ID,
+AWS_SECRET_ACCESS_KEY, COOKIE_SECRET (and DB_PASSWORD if external) and set
+existingSecret.name to it.
+{{- end }}

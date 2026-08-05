@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SiteHeader from "./SiteHeader";
+import { UPLOADER_URL } from "./browse/utils/constants";
 import "./Landing.css";
 
 const COMPONENTS = [
@@ -192,18 +193,14 @@ export default function Landing() {
                 size="large"
                 class="landing-hero-upload"
                 onClick={() => {
-                  window.open("https://map.openaerialmap.org", "_blank");
+                  window.location.href = UPLOADER_URL;
                 }}
               >
                 Upload imagery
               </wa-button>
             </div>
             <p className="landing-hero-note">
-              Uploading currently happens on the legacy site - sign in at the top right of{" "}
-              <a href="https://map.openaerialmap.org" target="_blank" rel="noopener noreferrer">
-                map.openaerialmap.org
-              </a>{" "}
-              and use the Upload button. A new uploader is coming in the next few months.
+              Sign in on the uploader to add your own openly licensed imagery.
             </p>
           </div>
         </section>

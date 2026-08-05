@@ -1,0 +1,88 @@
+# Standalone uploader stack with Postgres and rustfs.
+# Run `docker compose up --build`, then open http://localhost:8090.
+# Root compose reuses the API and database with its shared S3 and STAC services.
+services:
+  uploader-api:
+    image: ghcr.io/hotosm/openaerialmap/uploader-api:debug
+    container_name: oam-uploader-api
+    build: .
+    # Explicit environment values override .env.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DEBUG: "true"
+      ARGO_ENABLED: "false"
+      OAM_UPLOAD_DOMAIN: localhost
+      OAM_UPLOAD_DEV_PORT: "8090"
+      DB_HOST: uploader-db
+      DB_USER: oam
+      DB_PASSWORD: oam
+      DB_NAME: oam_uploader
+      S3_ENDPOINT: http://uploader-s3:9000
+      S3_EXTERNAL_ENDPOINT: http://localhost:9000
+      S3_BUCKET: oam
+      S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: oam
+      AWS_SECRET_ACCESS_KEY: oam
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+    depends_on:
+      uploader-db:
+        condition: service_healthy
+      uploader-migrations:
+        condition: service_completed_successfully
+      # Keep standalone S3 in the override because `extends` merges dependencies.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8080/__lbheartbeat__'')"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # One-time schema and migration runner.
+  uploader-migrations:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_HOST: uploader-db
+      DB_USER: oam
+      DB_PASSWORD: oam
+      DB_NAME: oam_uploader
+    depends_on:
+      uploader-db:
+        condition: service_healthy
+    entrypoint: ["/migrate-entrypoint.sh"]
+    restart: "no"
+
+  uploader-db:
+    container_name: oam-uploader-db
+    image: docker.io/postgis/postgis:18-3.6-alpine
+    environment:
+      POSTGRES_USER: oam
+      POSTGRES_PASSWORD: oam
+      POSTGRES_DB: oam_uploader
+    volumes:
+      - uploader_db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oam -d oam_uploader"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Standalone S3 lives in compose.override.yaml; root compose uses rustfs.
+
+volumes:
+  uploader_db_data:

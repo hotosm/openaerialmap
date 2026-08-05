@@ -45,9 +45,9 @@ export function transformFeature(mvtFeature: GeoJSONFeature): ImageFeature {
       title: p.title || "Untitled Image",
       provider: p.provider || "Unknown",
       thumbnail: p.thumbnail || null,
-      // Default to `visual` - the only asset key observed across live
-      // OAM items; the backend enforces the same fallback.
+      // Match the backend's `visual` fallback for legacy footprints.
       assetName: p.asset_name || "visual",
+      renderParams: p.render_params || null,
       date: p.acquisition_end || "Unknown Date",
       platform: (p.platform || "unknown").toLowerCase(),
       sensor: p.sensor || "Unknown Sensor",

@@ -24,6 +24,21 @@ docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo foun
 default:
   just --justfile {{justfile()}} --list test
 
+# Run every uploader test suite in its built image (CI entrypoint).
+[no-cd]
+all: uploader metadata
+  {{docker}} compose -f compose.test.yaml down --remove-orphans
+
+# Uploader API unit tests (app/tests).
+[no-cd]
+uploader:
+  {{docker}} compose -f compose.test.yaml run --rm --build test-app
+
+# Pipeline metadata-step unit tests (metadata/tests).
+[no-cd]
+metadata:
+  {{docker}} compose -f compose.test.yaml run --rm --build test-metadata
+
 # Ensure local services needed by test recipes are running.
 [private]
 [no-cd]
@@ -140,6 +155,7 @@ populate-prod: _ensure-local-test-services
 # Generate mbtiles/pmtiles from a random local STAC item's COG.
 # Uploads to local S3, then patches the STAC item via pgstac.update_item
 # (same DB write path as production - no transactions API).
+# Generate a tile archive from a random local STAC item.
 [no-cd]
 tilepack format="mbtiles": _ensure-local-test-services
   #!/usr/bin/env python3
@@ -296,3 +312,285 @@ clean:
 
   cd {{justfile_directory()}}
   {{docker}} compose --profile tms down -v
+
+# Uploader E2E on the shared local Talos and Argo cluster.
+# These wrappers also apply OAM's WorkflowTemplate. Use
+# `just k8s cluster-destroy` for teardown.
+
+# Ensure a cluster is available, then apply the uploader WorkflowTemplate.
+[no-cd]
+cluster-available:
+  just k8s cluster-available
+  just test _apply-workflow-template
+
+# Setup Talos cluster + Argo, then apply the uploader WorkflowTemplate.
+[no-cd]
+cluster-init:
+  just k8s cluster-init
+  just test _apply-workflow-template
+
+# Render local overrides without changing the production template.
+# Set OAM_LOCAL_RESOURCES=off to retain production sizing.
+[private]
+[no-cd]
+_render-local-template:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+  TPL=backend/uploader-api/pipeline/workflow-template.yaml
+  # Always pull because reused clusters may cache stale :latest images.
+  PULL_SED='s#(image: ghcr.io/hotosm/openaerialmap/uploader/[a-z]+:[^ ]+)#\1\n        imagePullPolicy: Always#'
+  # Retain failed pods for inspection; clean them after successful workflows.
+  PODGC_SED='s/strategy: OnPodCompletion/strategy: OnWorkflowSuccess/'
+  # Keep failed workflows for 24 hours so they remain inspectable.
+  TTL_SED='s/secondsAfterCompletion: [0-9]+/secondsAfterCompletion: 86400/'
+  # Talos-in-Docker misreports free space, so disable GDAL's guard locally.
+  DISK_SED='s/(CHECK_DISK_FREE_SPACE, value: )"TRUE"/\1"FALSE"/'
+  # Use faster lossless compression locally; OAM_LOCAL_COG_LEVEL overrides it.
+  LEVEL_SED='s#(- \{name: GDAL_CACHEMAX, value: "512"\})#\1\n          - {name: COG_LEVEL, value: "'"${OAM_LOCAL_COG_LEVEL:-6}"'"}#'
+  if [ "${OAM_LOCAL_RESOURCES:-on}" = "off" ]; then
+      sed -E -e "$PULL_SED" -e "$PODGC_SED" -e "$TTL_SED" -e "$DISK_SED" -e "$LEVEL_SED" "$TPL"; exit 0
+  fi
+  REQ_MEM="${OAM_LOCAL_REQ_MEM:-2Gi}"; REQ_CPU="${OAM_LOCAL_REQ_CPU:-500m}"
+  LIM_MEM="${OAM_LOCAL_LIM_MEM:-3Gi}"; LIM_CPU="${OAM_LOCAL_LIM_CPU:-2}"
+  # Match only inline container resources, not the PVC storage request.
+  sed -E \
+      -e "s/requests: \{memory: \"[^\"]*\", cpu: \"[^\"]*\"\}/requests: {memory: \"${REQ_MEM}\", cpu: \"${REQ_CPU}\"}/" \
+      -e "s/limits: \{memory: \"[^\"]*\", cpu: \"[^\"]*\"\}/limits: {memory: \"${LIM_MEM}\", cpu: \"${LIM_CPU}\"}/" \
+      -e "$PULL_SED" \
+      -e "$PODGC_SED" \
+      -e "$TTL_SED" \
+      -e "$DISK_SED" \
+      -e "$LEVEL_SED" \
+      "$TPL"
+
+# Apply OAM's locally downscaled WorkflowTemplate.
+[private]
+[no-cd]
+_apply-workflow-template:
+  #!/usr/bin/env bash
+  set -e
+  cd {{justfile_directory()}}
+  NAMESPACE="${K8S_NAMESPACE:-argo}"
+  just test _render-local-template | kubectl apply -n "$NAMESPACE" -f -
+
+
+# Serve local images through a registry because Talos-in-Docker cannot side-load.
+# The cluster mirror reaches it through the Docker gateway.
+[private]
+[no-cd]
+_local-registry:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  PORT="${OAM_REGISTRY_PORT:-5005}"
+  if [ -z "$({{docker}} ps -q -f name=^oam-registry$ -f status=running)" ]; then
+      {{docker}} rm -f oam-registry >/dev/null 2>&1 || true
+      echo "Starting local registry oam-registry on :${PORT}..."
+      {{docker}} run -d --name oam-registry --restart unless-stopped \
+          -p "${PORT}:5000" docker.io/library/registry:2 >/dev/null
+  fi
+
+# Push local pipeline images through the cluster's GHCR mirror.
+# Used only by uploader-e2e.
+[private]
+[no-cd]
+_build-pipeline-images: _local-registry
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+  PORT="${OAM_REGISTRY_PORT:-5005}"
+  WS=backend/uploader-api/pipeline
+  for step in validate convert metadata register; do
+      img="ghcr.io/hotosm/openaerialmap/uploader/${step}:latest"
+      # Mirror repo path: ghcr.io/<path> is pulled from <registry>/<path>.
+      local_img="localhost:${PORT}/hotosm/openaerialmap/uploader/${step}:latest"
+      echo "Building ${img}..."
+      # Register has its own stdlib context; raster steps share the workspace lock.
+      if [ "$step" = "register" ]; then
+          {{docker}} build -t "$img" "${WS}/register"
+      else
+          {{docker}} build -f "${WS}/${step}/Dockerfile" -t "$img" "${WS}"
+      fi
+      echo "Pushing ${local_img}..."
+      {{docker}} tag "$img" "$local_img"
+      {{docker}} push "$local_img"
+  done
+  echo "Local pipeline images built and pushed to the local registry"
+
+# Start the full local pipeline for interactive browser testing.
+# Run `just test dev-cluster`, then open http://localhost:8090.
+# Use `just k8s cluster-destroy` when finished.
+[no-cd]
+dev-cluster:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+
+  NAMESPACE="${K8S_NAMESPACE:-argo}"
+  CLUSTER_NAME="${TALOS_CLUSTER_NAME:-oam-uploader-test}"
+  SVCS="database stac-api rustfs rustfs-init uploader-db uploader-migrations uploader-api"
+
+  just test cluster-available
+  just test _build-pipeline-images
+
+  GW=$({{docker}} network inspect "$CLUSTER_NAME" 2>/dev/null | jq -r '.[0].IPAM.Config[0].Gateway // ""' 2>/dev/null || true)
+  [ -z "$GW" ] && GW="host.docker.internal"
+  export OAM_WORKFLOW_S3_ENDPOINT="http://${GW}:9000"
+  export OAM_WORKFLOW_STAC_URL="http://${GW}:8082"
+  export OAM_WORKFLOW_CALLBACK_URL="http://${GW}:8090"
+
+  kubectl create secret generic oam-uploader-s3 -n "$NAMESPACE" \
+      --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-oam}" \
+      --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
+      --from-literal=AWS_DEFAULT_REGION=us-east-1 \
+      --dry-run=client -o yaml | kubectl apply -f -
+  kubectl config view --raw --minify --flatten > /tmp/oam-kubeconfig
+
+  echo "Starting services (no teardown): $SVCS"
+  {{docker}} compose -f compose.yaml -f compose.e2e.yaml up -d --build --wait $SVCS
+
+  COLLECTION_JSON='{"type":"Collection","id":"openaerialmap","stac_version":"1.0.0","description":"OAM uploads (local dev)","license":"CC-BY-4.0","extent":{"spatial":{"bbox":[[-180,-90,180,90]]},"temporal":{"interval":[[null,null]]}},"links":[]}'
+  {{docker}} compose -f compose.yaml -f compose.e2e.yaml exec -T database \
+      psql -U oam -d postgis -v ON_ERROR_STOP=1 \
+      -c "SELECT pgstac.upsert_collection('$COLLECTION_JSON'::jsonb);" >/dev/null \
+      && echo "Collection ensured" || echo "Warning: collection upsert failed"
+
+  echo ""
+  echo "✅ Stack up. Open the uploader UI at: http://localhost:8090"
+  echo "   Upload a GeoTIFF, then watch it go Processing -> Succeeded in 'Your uploads'."
+  echo "   Stop services: docker compose -f compose.yaml -f compose.e2e.yaml down"
+  echo "   Destroy cluster: just k8s cluster-destroy"
+
+# Run the full pipeline; generate a sample when no GeoTIFF is given.
+# Usage: just test uploader-e2e path/to/image.tif
+[no-cd]
+uploader-e2e tif="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+
+  NAMESPACE="${K8S_NAMESPACE:-argo}"
+  CLUSTER_NAME="${TALOS_CLUSTER_NAME:-oam-uploader-test}"
+  API_URL="http://localhost:8090"
+  UP=backend/uploader-api
+  SVCS="database stac-api rustfs rustfs-init uploader-db uploader-migrations uploader-api"
+
+  cleanup() { {{docker}} compose -f compose.yaml -f compose.e2e.yaml down --remove-orphans || true; }
+  trap cleanup EXIT
+
+  just test cluster-available
+
+  just test _build-pipeline-images
+
+  # Workflow pods reach host-published services via the Talos network gateway IP.
+  GW=$({{docker}} network inspect "$CLUSTER_NAME" 2>/dev/null | jq -r '.[0].IPAM.Config[0].Gateway // ""' 2>/dev/null || true)
+  [ -z "$GW" ] && GW="host.docker.internal"
+  export OAM_WORKFLOW_S3_ENDPOINT="http://${GW}:9000"
+  export OAM_WORKFLOW_STAC_URL="http://${GW}:8082"
+  export OAM_WORKFLOW_CALLBACK_URL="http://${GW}:8090"
+  echo "Workflow endpoints: S3=$OAM_WORKFLOW_S3_ENDPOINT STAC=$OAM_WORKFLOW_STAC_URL callback=$OAM_WORKFLOW_CALLBACK_URL"
+
+  kubectl create secret generic oam-uploader-s3 -n "$NAMESPACE" \
+      --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-oam}" \
+      --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
+      --from-literal=AWS_DEFAULT_REGION=us-east-1 \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+  # Minified kubeconfig for the API container (host net reaches 127.0.0.1:6443).
+  kubectl config view --raw --minify --flatten > /tmp/oam-kubeconfig
+
+  echo "Starting services: $SVCS"
+  {{docker}} compose -f compose.yaml -f compose.e2e.yaml up -d --build --wait $SVCS
+
+  # Match production by creating the collection through pgstac, not transactions.
+  # This JSON has no single quotes and is safe in the SQL literal.
+  COLLECTION_JSON='{"type":"Collection","id":"openaerialmap","stac_version":"1.0.0","description":"OAM uploads (local e2e)","license":"CC-BY-4.0","extent":{"spatial":{"bbox":[[-180,-90,180,90]]},"temporal":{"interval":[[null,null]]}},"links":[]}'
+  {{docker}} compose -f compose.yaml -f compose.e2e.yaml exec -T database \
+      psql -U oam -d postgis -v ON_ERROR_STOP=1 \
+      -c "SELECT pgstac.upsert_collection('$COLLECTION_JSON'::jsonb);" \
+      && echo "Collection ensured (pgstac.upsert_collection)" \
+      || echo "Warning: collection upsert failed"
+
+  TIF="{{ tif }}"
+  TIF="${TIF#tif=}"
+  if [ -z "$TIF" ]; then
+      TIF=/tmp/oam-sample.tif
+      [ -f "$TIF" ] || {{docker}} run --rm -v /tmp:/out -v "$PWD/$UP/scripts:/scripts:ro" \
+          docker.io/python:3.13-slim-trixie bash -lc \
+          'pip install --no-cache-dir rasterio numpy >/dev/null && python /scripts/make_sample_tif.py /out/oam-sample.tif'
+  fi
+  echo "Using sample: $TIF"
+
+  echo "Pushing upload..."
+  TITLE="e2e-$(date +%s)"
+  TIF_ABS="$(realpath "$TIF")"; TIF_BASE="$(basename "$TIF_ABS")"
+  UPLOAD_OUT=$({{docker}} run --rm --network host \
+      -v "$PWD/$UP/scripts:/scripts:ro" \
+      -v "${TIF_ABS}:/data/${TIF_BASE}:ro" \
+      docker.io/python:3.13-slim \
+      python "/scripts/test-upload.py" "/data/${TIF_BASE}" --api "$API_URL" --title "$TITLE")
+  echo "$UPLOAD_OUT"
+  UPLOAD_ID=$(printf '%s\n' "$UPLOAD_OUT" | sed -n 's/^UPLOAD_ID=//p' | tail -1)
+  [ -n "$UPLOAD_ID" ] || { echo "Could not determine upload id from upload output"; exit 1; }
+  echo "Tracking upload: $UPLOAD_ID"
+
+  echo "Waiting for the pipeline to finish..."
+  DEADLINE=$(( $(date +%s) + ${OAM_E2E_TIMEOUT:-1800} ))
+  STATUS=""
+  while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+      # Poll the exact upload, not just the newest row.
+      STATUS=$({{docker}} compose -f compose.yaml -f compose.e2e.yaml exec -T uploader-db \
+          psql -U oam -d oam_uploader -tAc \
+          "SELECT status FROM uploads WHERE id = '$UPLOAD_ID';" 2>/dev/null | tr -d '[:space:]' || true)
+      echo "  status=${STATUS:-?}"
+      case "$STATUS" in
+          Succeeded) break ;;
+          Failed|Error)
+              WF=$({{docker}} compose -f compose.yaml -f compose.e2e.yaml exec -T uploader-db \
+                  psql -U oam -d oam_uploader -tAc \
+                  "SELECT workflow_name FROM uploads WHERE id = '$UPLOAD_ID';" 2>/dev/null | tr -d '[:space:]' || true)
+              echo "❌ Pipeline failed (workflow: ${WF:-unknown})."
+              echo "--- workflow status / node errors ---"
+              kubectl -n "$NAMESPACE" get wf ${WF:+"$WF"} -o wide || true
+              kubectl -n "$NAMESPACE" get wf ${WF:+"$WF"} \
+                  -o jsonpath='{range .status.nodes.*}{.displayName}{" -> "}{.phase}{": "}{.message}{"\n"}{end}' 2>/dev/null || true
+              echo "--- failed step pod logs (retained locally on failure) ---"
+              kubectl -n "$NAMESPACE" logs -l workflows.argoproj.io/workflow${WF:+=$WF} \
+                  --all-containers --prefix --tail=200 2>/dev/null || true
+              echo "--- uploader-api logs ---"
+              {{docker}} compose -f compose.yaml -f compose.e2e.yaml logs --no-color --tail=80 uploader-api || true
+              echo "Cluster kept up. Inspect: kubectl -n $NAMESPACE get wf ; argo logs ${WF:-<wf>} -n $NAMESPACE"
+              exit 1 ;;
+      esac
+      sleep 15
+  done
+  [ "$STATUS" = "Succeeded" ] || { echo "Timed out (last status: ${STATUS:-none})"; kubectl -n "$NAMESPACE" get wf || true; exit 1; }
+
+  ITEM_JSON=$(curl -fsS "http://localhost:8082/collections/openaerialmap/items/$UPLOAD_ID" 2>/dev/null) || {
+      echo "Pipeline succeeded but STAC item $UPLOAD_ID not found; check stac-api logs."
+      exit 1
+  }
+  echo "STAC item $UPLOAD_ID registered; checking metadata..."
+
+  # A bbox has two unique X and Y values; traced footprints have more.
+  # bands is the STAC 1.1 asset field (eo:common_name lives inside each band).
+  read -r FP_SRC UNIQ_X UNIQ_Y N_BANDS < <(printf '%s' "$ITEM_JSON" | jq -r '
+      [ .properties["oam:footprint_source"] // "missing",
+        ([.geometry.coordinates | .. | select(type=="array" and length==2 and (.[0]|type=="number")) | .[0]] | unique | length),
+        ([.geometry.coordinates | .. | select(type=="array" and length==2 and (.[0]|type=="number")) | .[1]] | unique | length),
+        ((.assets.visual.bands // []) | length)
+      ] | @tsv')
+  echo "  footprint_source=$FP_SRC  uniq_x=$UNIQ_X uniq_y=$UNIQ_Y  bands=$N_BANDS"
+
+  FAIL=0
+  printf '%s' "$ITEM_JSON" | jq -e '.properties["oam:footprint_source"] == "mask"' >/dev/null \
+      || { echo "❌ oam:footprint_source != mask (footprint tracing fell back to bbox)"; FAIL=1; }
+  printf '%s' "$ITEM_JSON" | jq -e '(.properties["oam:footprint_area"] // 0) > 0' >/dev/null \
+      || { echo "❌ oam:footprint_area missing or not > 0"; FAIL=1; }
+  [ "${N_BANDS:-0}" -ge 1 ] || { echo "❌ bands missing on the visual asset"; FAIL=1; }
+  # Rectangles suit synthetic inputs but only warn because input shape varies.
+  [ "${UNIQ_X:-0}" -le 2 ] && [ "${UNIQ_Y:-0}" -le 2 ] \
+      && echo "⚠️  footprint is axis-aligned (2 unique X/Y) - expected only for north-up/synthetic inputs"
+
+  [ "$FAIL" = 0 ] || { echo "❌ E2E metadata checks failed."; exit 1; }
+  echo "E2E PASSED: STAC item $UPLOAD_ID registered; footprint + bands verified."

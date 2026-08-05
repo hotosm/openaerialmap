@@ -1,0 +1,25 @@
+# Uploader tests via `just test all` (compose.test.yaml + tasks/test).
+name: Test Uploader
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "backend/uploader-api/**"
+      - "compose.test.yaml"
+      - "tasks/test"
+      - ".github/workflows/backend-uploader-test.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    if: github.event.pull_request.draft == false
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
+    with:
+      environment: "test"
+      command: "test all"
+    secrets: inherit

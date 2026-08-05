@@ -33,6 +33,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from minio import Minio
 from minio.error import S3Error
@@ -477,6 +478,27 @@ def density_to_pmtiles() -> None:
 # =====================================================================
 
 
+def _build_render_query(renders: dict) -> str | None:
+    """Encode the browse render as TiTiler query parameters.
+
+    The frontend adds assets separately. Return None when no hints exist.
+    """
+    browse = (renders or {}).get("browse") or {}
+    parts: list[str] = []
+    for band in browse.get("bidx") or []:
+        parts.append(f"bidx={int(band)}")
+    for pair in browse.get("rescale") or []:
+        parts.append(f"rescale={quote(f'{pair[0]},{pair[1]}')}")
+    if browse.get("colormap_name"):
+        parts.append(f"colormap_name={quote(str(browse['colormap_name']))}")
+    if browse.get("colormap"):
+        # TiTiler expects explicit palettes as JSON.
+        parts.append(f"colormap={quote(json.dumps(browse['colormap']))}")
+    if browse.get("nodata") is not None:
+        parts.append(f"nodata={quote(str(browse['nodata']))}")
+    return "&".join(parts) or None
+
+
 def _extract_feature_properties(feature_id: str, content: dict) -> dict:
     """
     Flatten STAC Item content into the minimal property set the browser
@@ -544,6 +566,9 @@ def _extract_feature_properties(feature_id: str, content: dict) -> dict:
         # `?assets=` query param. Usually `visual`, occasionally `data`
         # on older items.
         "asset_name": asset_name,
+        # Preserve STAC render hints for non-RGB imagery. The frontend defaults
+        # plain visual items to nodata=0.
+        "render_params": _build_render_query(props.get("renders") or {}),
         "file_size": file_size,
     }
 

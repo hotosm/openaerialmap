@@ -1,0 +1,41 @@
+name: Build Uploader Pipeline Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/uploader-api/pipeline/**"
+  workflow_dispatch:
+
+jobs:
+  image-build-and-push:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Raster steps share pipeline/uv.lock; register has a stdlib-only context.
+        include:
+          - step: validate
+            context: backend/uploader-api/pipeline
+            dockerfile: validate/Dockerfile
+            build_args: ""
+          - step: convert
+            context: backend/uploader-api/pipeline
+            dockerfile: convert/Dockerfile
+            # Stamp the git SHA into STAC processing provenance.
+            build_args: "OAM_PIPELINE_VERSION=${{ github.sha }}"
+          - step: metadata
+            context: backend/uploader-api/pipeline
+            dockerfile: metadata/Dockerfile
+            build_args: ""
+          - step: register
+            context: backend/uploader-api/pipeline/register
+            dockerfile: Dockerfile
+            build_args: ""
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
+    with:
+      context: ${{ matrix.context }}
+      image_name: ghcr.io/${{ github.repository }}/uploader/${{ matrix.step }}
+      build_target: prod
+      dockerfile: ${{ matrix.dockerfile }}
+      extra_build_args: ${{ matrix.build_args }}

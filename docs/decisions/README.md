@@ -15,3 +15,4 @@ from the projects inception.
 - [0004 - Frontend stack (Vite + React + UnoCSS + hotosm/ui + Web Awesome)](./0004-frontend-stack.md)
 - [0005 - Composable services over a monolith](./0005-composable-architecture.md)
 - [0006 - Tilepack API for MBTiles / PMTiles downloads](./0006-tilepack-api.md)
+- [0007 - Uploader stack (Litestar + HTMX + Kubernetes)](./0007-uploader-stack.md)

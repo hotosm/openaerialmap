@@ -65,6 +65,10 @@ export const STAC_TITILER_URL =
 // consumes /stac item URLs via its #/external/ fragment.
 export const STAC_URL = import.meta.env.VITE_STAC_URL || "https://api.imagery.hotosm.org/stac";
 
+// Override the uploader link with VITE_UPLOADER_URL.
+export const UPLOADER_URL =
+  import.meta.env.VITE_UPLOADER_URL || "https://upload.imagery.hotosm.org";
+
 // STAC Browser root. Renders a nicer per-item metadata page than the
 // raw JSON at STAC_URL. Item deep-links are built as
 // `${STAC_BROWSER_URL}/#/external/<STAC_URL without protocol>/...`.

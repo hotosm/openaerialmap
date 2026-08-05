@@ -1,0 +1,229 @@
+/* App styles. Look comes from @hotosm/ui + WebAwesome; the palette and type
+   below match the Drone-TM design system (Archivo + Manrope, brand red). */
+
+:root {
+  /* Drone-TM palette */
+  --oam-red: #d73f3f;
+  --oam-redlight: #ffeded;
+  --oam-orange: #faa71e;
+  --oam-bluedark: #2c3038;
+  --oam-bluegrey: #68707f;
+  --oam-greylight: #e1e0e0;
+  --oam-grey-50: #fafafa;
+  --oam-grey-100: #f5f5f5;
+  --oam-grey-300: #d7d7d7;
+  --oam-grey-500: #989898;
+  --oam-grey-800: #484848;
+  --oam-grey-900: #212121;
+
+  --oam-shadow-light: 0px 2px 20px 4px rgba(0, 0, 0, 0.12);
+
+  /* Brand red into WebAwesome so hotosm-ui buttons/tags match Drone-TM. */
+  --wa-color-brand-fill-loud: var(--oam-red);
+  --wa-color-brand-border-loud: #ed5c5e;
+  --wa-color-brand-on-loud: #ffffff;
+}
+
+/* Archivo drives body text and all hotosm-ui / WebAwesome components. */
+html,
+body {
+  font-family: "Archivo", sans-serif;
+  --hot-font-sans: "Archivo", sans-serif;
+  --hot-font-sans-variant: "Archivo";
+  --hot-font-sans-variant-condensed: "Archivo";
+  color: var(--oam-bluedark);
+  background: var(--oam-grey-50);
+  margin: 0;
+}
+
+/* Login / account button sizing (mirrors Drone-TM). */
+hotosm-auth {
+  --font-family: var(--hot-font-sans);
+  --login-btn-text-size: var(--hot-font-size-x-small);
+}
+
+/* Header nav (Drone-TM layout) */
+.oam-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.5rem;
+  padding: 0.5rem 1.5rem 0;
+  border-bottom: 1px solid var(--oam-grey-300);
+  background: #ffffff;
+}
+
+.oam-nav__left,
+.oam-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.oam-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.oam-nav__logo {
+  height: 2rem;
+  width: 2rem;
+}
+
+.oam-nav__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--oam-bluedark);
+}
+
+.oam-nav__divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--oam-grey-300);
+}
+
+.oam-nav__link {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--oam-grey-800);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+}
+
+.oam-nav__link:hover {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.oam-nav__link--active {
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--oam-red);
+}
+
+/* Locale switcher (English only for now). */
+.oam-locale-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 8rem;
+}
+
+.oam-locale-option {
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  color: var(--oam-grey-800);
+}
+
+.oam-locale-option:hover {
+  background: var(--oam-grey-100);
+}
+
+.oam-locale-option--active {
+  font-weight: 700;
+  color: var(--oam-red);
+}
+
+/* Page content */
+.oam-main {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.oam-card {
+  background: #ffffff;
+  border: 1px solid var(--oam-greylight);
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  box-shadow: var(--oam-shadow-light);
+}
+
+.oam-card h1,
+.oam-card h2 {
+  margin-top: 0;
+  color: var(--oam-bluedark);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.oam-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 480px;
+}
+
+.oam-form input[type="file"] {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.875rem;
+  color: var(--oam-bluegrey);
+  border: 1px dashed var(--oam-greylight);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--oam-grey-50);
+}
+
+.oam-progress {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.oam-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.oam-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  color: var(--oam-bluegrey);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.72rem;
+  border-bottom: 2px solid var(--oam-greylight);
+}
+
+.oam-table td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--oam-grey-100);
+}
+
+.oam-table tbody tr:hover {
+  background: var(--oam-grey-50);
+}
+
+.oam-profile {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.6rem 1rem;
+}
+
+.oam-profile dt {
+  font-weight: 600;
+  color: var(--oam-bluegrey);
+}
+
+.oam-profile dd {
+  margin: 0;
+  color: var(--oam-bluedark);
+}
+
+.oam-muted {
+  color: var(--oam-bluegrey);
+  font-family: "Manrope", sans-serif;
+}

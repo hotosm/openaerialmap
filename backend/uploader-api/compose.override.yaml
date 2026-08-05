@@ -1,0 +1,71 @@
+# Standalone S3 services, loaded automatically from this directory.
+services:
+  uploader-api:
+    depends_on:
+      uploader-s3-init:
+        condition: service_completed_successfully
+
+  # S3-compatible object storage for standalone testing.
+  uploader-s3:
+    image: rustfs/rustfs:1.0.0-alpha.90
+    environment:
+      RUSTFS_ACCESS_KEY: oam
+      RUSTFS_SECRET_KEY: oam
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # presigned PUTs from the browser / test script
+      - "9001:9001" # console
+    volumes:
+      - uploader_s3_data:/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Create the bucket, public-read policy, and browser CORS rule.
+  uploader-s3-init:
+    build: ../tilepack-api/worker
+    depends_on:
+      uploader-s3:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      AWS_ENDPOINT_URL: http://uploader-s3:9000
+      AWS_ACCESS_KEY_ID: oam
+      AWS_SECRET_ACCESS_KEY: oam
+      AWS_REGION: us-east-1
+    entrypoint: python
+    command:
+      - -c
+      - |
+        import json, boto3, botocore.config, botocore.exceptions
+        s3 = boto3.client("s3", config=botocore.config.Config(s3={"addressing_style": "path"}))
+        try:
+            s3.create_bucket(Bucket="oam")
+            print("Created bucket 'oam'")
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
+                print("Bucket 'oam' already exists")
+            else:
+                raise
+        s3.put_bucket_policy(Bucket="oam", Policy=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{"Effect": "Allow", "Principal": "*",
+                           "Action": "s3:GetObject", "Resource": "arn:aws:s3:::oam/*"}],
+        }))
+        print("Set public-read policy on 'oam'")
+        # Ignore CORS setup until rustfs implements it.
+        try:
+            s3.put_bucket_cors(Bucket="oam", CORSConfiguration={"CORSRules": [{
+                "AllowedOrigins": ["*"], "AllowedMethods": ["GET", "PUT", "POST"],
+                "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3000}]})
+            print("Set CORS on 'oam'")
+        except botocore.exceptions.ClientError as e:
+            print(f"WARNING: could not set CORS ({e.response['Error']['Code']}); "
+                  "browser uploads may fail - use scripts/test-upload.py instead")
+        print("S3 init done.")
+
+volumes:
+  uploader_s3_data:

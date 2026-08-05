@@ -1,7 +1,7 @@
 ARG PYTHON_VERSION=3.12
 
 FROM python:${PYTHON_VERSION}-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
 
 ENV UV_MANAGED_PYTHON=false
 ENV UV_COMPILE_BYTECODE=1

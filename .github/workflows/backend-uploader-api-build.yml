@@ -1,0 +1,19 @@
+name: Build Uploader API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Rebuild for uploader changes, including migrations and the chart.
+      - "backend/uploader-api/**"
+  workflow_dispatch:
+
+jobs:
+  image-build-and-push:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
+    with:
+      context: backend/uploader-api/
+      image_name: ghcr.io/${{ github.repository }}/uploader-api
+      build_target: prod
+      dockerfile: Dockerfile
