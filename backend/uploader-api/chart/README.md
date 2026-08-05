@@ -26,18 +26,6 @@ options:
 - **Optional bundled Argo Workflows** (`argo.enabled`) - see above.
 - Service, Ingress (`upload.imagery.hotosm.org`), optional HPA.
 
-## Config model (mirrors field-tm)
-
-- Non-secret env → `.Values.env` map (+ `OAM_UPLOAD_DOMAIN` derived from
-  `ingress.host`, `WF_CALLBACK_URL` derived from the service DNS).
-- Secrets → `existingSecret` (mounted via `envFrom`): `AWS_ACCESS_KEY_ID`,
-  `AWS_SECRET_ACCESS_KEY`, `COOKIE_SECRET`, `PGSTAC_DB_PASSWORD`, and (for an
-  external DB) `DB_HOST`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`.
-
-The chart fails to render (by design) if the pgstac DB, the public asset base, or
-the external-DB secret are missing - so a misconfigured deploy fails at
-`helm install`, not at runtime.
-
 ## Install
 
 ```bash
