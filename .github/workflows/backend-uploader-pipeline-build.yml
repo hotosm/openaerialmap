@@ -35,7 +35,7 @@ jobs:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
     with:
       context: ${{ matrix.context }}
-      image_name: ghcr.io/${{ github.repository }}/uploader-${{ matrix.step }}
+      image_name: ghcr.io/${{ github.repository }}/uploader/${{ matrix.step }}
       build_target: prod
       dockerfile: ${{ matrix.dockerfile }}
       extra_build_args: ${{ matrix.build_args }}

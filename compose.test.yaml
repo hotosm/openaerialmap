@@ -1,57 +1,18 @@
-# E2E overlay for the real Argo pipeline on local Talos.
-# Host networking connects the API, Talos, and local services.
+# CI test runner: each uploader component's pytest suite in its built image.
+name: oam-uploader-test
+
 services:
-  uploader-api:
-    network_mode: host
-    ports: !reset [] # clear the inherited 8090:8080 (host mode forbids ports)
-    environment:
-      ARGO_ENABLED: "true"
-      ARGO_NAMESPACE: argo
-      ARGO_WORKFLOW_TEMPLATE: geotiff-processing-template
-      DB_HOST: localhost
-      DB_PORT: "5433"
-      S3_ENDPOINT: ${OAM_WORKFLOW_S3_ENDPOINT:-http://localhost:9000}
-      S3_EXTERNAL_ENDPOINT: http://localhost:9000
-      STAC_COLLECTION: openaerialmap
-      WF_CALLBACK_URL: ${OAM_WORKFLOW_CALLBACK_URL:-http://localhost:8090}
-      # Registration writes to the published pgstac database.
-      PGSTAC_DB_HOST: localhost
-      PGSTAC_DB_PORT: "5442"
-      PGSTAC_DB_USER: oam
-      PGSTAC_DB_PASSWORD: password
-      PGSTAC_DB_NAME: postgis
-    volumes:
-      - /tmp/oam-kubeconfig:/root/.kube/config:ro # written by the recipe
-    # Root compose uses rustfs-init instead of uploader-s3-init.
-    depends_on: !override
-      uploader-db:
-        condition: service_healthy
-      uploader-migrations:
-        condition: service_completed_successfully
-      rustfs:
-        condition: service_healthy
-      rustfs-init:
-        condition: service_completed_successfully
-      stac-api:
-        condition: service_healthy
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8090", "--reload"]
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8090/__lbheartbeat__'')"',
-        ]
+  test-app:
+    build:
+      context: backend/uploader-api
+      dockerfile: Dockerfile
+      target: test
+    command: ["pytest", "tests"]
 
-  uploader-db:
-    ports:
-      - "5433:5432"
-
-  # Port 5442 avoids the host and uploader database ports.
-  database:
-    ports:
-      - "5442:5432"
-
-  # Workflow pods use this port; registration still writes directly to pgstac.
-  stac-api:
-    ports:
-      - "8082:8082"
+  test-metadata:
+    # Built from the pipeline workspace root so the shared uv.lock applies.
+    build:
+      context: backend/uploader-api/pipeline
+      dockerfile: metadata/Dockerfile
+      target: test
+    command: ["pytest", "metadata/tests"]

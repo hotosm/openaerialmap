@@ -25,6 +25,15 @@ COPY metadata/pyproject.toml metadata/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-editable --package oam-pipeline-metadata
 
+# Test image (`just test metadata`): builder venv + test group + step source.
+FROM builder AS test
+ENV PATH=/app/.venv/bin:$PATH
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-editable \
+        --package oam-pipeline-metadata --group test
+COPY metadata/ /app/metadata/
+CMD ["pytest", "metadata/tests"]
+
 FROM python:3.12-slim AS prod
 # Unbuffered + faulthandler so step logs flush immediately and tracebacks are
 # complete; skip .pyc clutter.

@@ -25,6 +25,13 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-editable
 
+# Test image (`just test uploader`): builder venv + test group, runs app/tests.
+FROM builder AS test
+ENV PATH=/app/.venv/bin:$PATH
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-editable --group test
+CMD ["pytest", "tests"]
+
 FROM python:${PYTHON_VERSION}-slim AS prod
 # libpq5 for psycopg; postgresql-client (psql/pg_isready) + gettext-base
 # (envsubst) for the migration entrypoint.

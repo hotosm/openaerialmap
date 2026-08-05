@@ -187,7 +187,7 @@ spec:
 
     - name: validate-geotiff
       container:
-        image: ghcr.io/hotosm/openaerialmap/uploader-validate:{{workflow.parameters.image-tag}}
+        image: ghcr.io/hotosm/openaerialmap/uploader/validate:{{workflow.parameters.image-tag}}
         # Avoid Argo's GHCR entrypoint lookup, which bypasses private mirrors.
         command: ["python", "validate.py"]
         args: ["/data/input.tif", "/data/meta.json"]
@@ -199,7 +199,7 @@ spec:
 
     - name: convert-cog
       container:
-        image: ghcr.io/hotosm/openaerialmap/uploader-convert:{{workflow.parameters.image-tag}}
+        image: ghcr.io/hotosm/openaerialmap/uploader/convert:{{workflow.parameters.image-tag}}
         command: ["python", "convert.py"]
         args: ["/data/input.tif", "/data/output.tif"]
         env:
@@ -219,7 +219,7 @@ spec:
 
     - name: build-metadata
       container:
-        image: ghcr.io/hotosm/openaerialmap/uploader-metadata:{{workflow.parameters.image-tag}}
+        image: ghcr.io/hotosm/openaerialmap/uploader/metadata:{{workflow.parameters.image-tag}}
         command: ["python", "metadata.py"]
         args:
           - "/data/output.tif"
@@ -279,7 +279,7 @@ spec:
 
     - name: register-stac
       container:
-        image: ghcr.io/hotosm/openaerialmap/uploader-register:{{workflow.parameters.image-tag}}
+        image: ghcr.io/hotosm/openaerialmap/uploader/register:{{workflow.parameters.image-tag}}
         command: ["python", "register.py"]
         args: ["/data/metadata.json"]
         env:

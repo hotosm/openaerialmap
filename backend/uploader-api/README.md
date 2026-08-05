@@ -84,7 +84,7 @@ Two ways to drive the same setup:
   upload through the **UI** at <http://localhost:8090> and watch it go from
   Processing to Succeeded. Stop it with `docker compose ... down`.
 
-The overlay (`compose.test.yaml`) runs the API with `ARGO_ENABLED=true` and host
+The overlay (`compose.e2e.yaml`) runs the API with `ARGO_ENABLED=true` and host
 networking so it can reach the Talos API. Workflow pods reach S3, STAC, and the
 status callback via the Talos gateway IP (the recipe sets this). Both recipes
 build the four `pipeline/` images locally, so you always test your current code,
@@ -111,9 +111,9 @@ Config is via environment variables. See `.env.example`.
   use `stactools-hotosm` (the same revision as `backend/stac-ingester`).
 - `chart/`: Helm chart with namespace-scoped Argo RBAC (a Role, no ClusterRole),
   Deployment, Service, and Ingress for `upload.imagery.hotosm.org`.
-- CI: image builds plus a PR gate (`backend-uploader-checks.yml`) running ruff and
-  the app and pipeline unit tests. Auth wiring and production configuration are
-  in place, and the chart can provision the workflow S3 secret
+- CI: image builds plus a PR gate (`backend-uploader-test.yml`) running
+  `just test all` (unit tests per component in their images). Lint is on
+  pre-commit.ci. The chart can provision the workflow S3 secret
   (`workflowS3Secret.create`).
 
 ## Follow-ups
