@@ -1,0 +1,18 @@
+# CI test runner: each uploader component's pytest suite in its built image.
+name: oam-uploader-test
+
+services:
+  test-app:
+    build:
+      context: backend/uploader-api
+      dockerfile: Dockerfile
+      target: test
+    command: ["pytest", "tests"]
+
+  test-metadata:
+    # Built from the pipeline workspace root so the shared uv.lock applies.
+    build:
+      context: backend/uploader-api/pipeline
+      dockerfile: metadata/Dockerfile
+      target: test
+    command: ["pytest", "metadata/tests"]

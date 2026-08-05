@@ -49,6 +49,23 @@ chart name *args:
       --set project_dir {{justfile_directory()}}/backend/{{name}} \
       --set chart_name {{name}} {{args}}
 
+# Shared Talos test cluster with Argo. The module also installs required tools.
+# Usage: just k8s cluster-init | cluster-available | cluster-destroy
+k8s *args:
+    @curl -sS https://raw.githubusercontent.com/hotosm/justfiles/main/k8s.just \
+      -o {{justfile_directory()}}/tasks/k8s.just
+    @just --justfile {{justfile_directory()}}/tasks/k8s.just \
+      --set cluster_name "oam-uploader-test" \
+      --set namespace "argo" \
+      --set secret_name "oam-uploader-s3" \
+      --set s3_access_key "oam" \
+      --set s3_secret_key "oam" \
+      --set archive_log_bucket "oam" \
+      --set archive_s3_port "9000" \
+      --set storage_provisioner "local-path" \
+      --set registry_mirrors "ghcr.io=http://10.5.0.1:5005" \
+      {{args}}
+
 # Install curl if missing
 [private]
 _install-curl:
@@ -70,6 +87,57 @@ _install-curl:
       fi
       echo "✓ curl installed"
   fi
+
+# Install jq if missing
+[private]
+_install-jq:
+  #!/usr/bin/env bash
+  set -e
+  if ! command -v jq &> /dev/null; then
+      echo "📦 Installing jq..."
+      if command -v apt-get &> /dev/null; then sudo apt-get update -qq && sudo apt-get install -y jq;
+      elif command -v yum &> /dev/null; then sudo yum install -y jq;
+      elif command -v apk &> /dev/null; then sudo apk add --no-cache jq;
+      else echo "❌ install jq manually"; exit 1; fi
+  fi
+
+# Install talosctl if missing
+[private]
+_install-talosctl:
+  #!/usr/bin/env bash
+  set -e
+  if ! command -v talosctl &> /dev/null; then
+      echo "📦 Installing talosctl..."
+      curl -sL https://talos.dev/install | sh
+      [ -f "$HOME/.local/bin/talosctl" ] && export PATH="$HOME/.local/bin:$PATH"
+      command -v talosctl &> /dev/null || { echo "❌ Failed to install talosctl"; exit 1; }
+  fi
+
+# Install kubectl if missing
+[private]
+_install-kubectl:
+  #!/usr/bin/env bash
+  set -e
+  if ! command -v kubectl &> /dev/null; then
+      echo "📦 Installing kubectl..."
+      KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+      curl -LO "https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl"
+      chmod +x kubectl
+      sudo mv kubectl /usr/local/bin/kubectl 2>/dev/null || { mkdir -p "$HOME/.local/bin"; mv kubectl "$HOME/.local/bin/kubectl"; export PATH="$HOME/.local/bin:$PATH"; }
+  fi
+
+# Install Helm if missing (Linux)
+[private]
+_install-helm:
+  #!/usr/bin/env bash
+  set -e
+  command -v helm &> /dev/null && exit 0
+  echo "📦 Installing Helm..."
+  TMP_DIR="$(mktemp -d)"; trap 'rm -rf "$TMP_DIR"' EXIT
+  HELM_TAG="$(curl -sSL https://api.github.com/repos/helm/helm/releases/latest | grep -oE '"tag_name":\s*"v[0-9.]+"' | head -1 | sed -E 's/.*"(v[0-9.]+)"/\1/')"
+  curl -sSL "https://get.helm.sh/helm-${HELM_TAG}-linux-amd64.tar.gz" -o "$TMP_DIR/helm.tar.gz"
+  tar -xzf "$TMP_DIR/helm.tar.gz" -C "$TMP_DIR"
+  sudo mv "$TMP_DIR/linux-amd64/helm" /usr/local/bin/helm && sudo chmod +x /usr/local/bin/helm
 
 # Generate the .env file from scratch, using .env.example and substitutions
 [no-cd]
@@ -113,7 +181,8 @@ build-frontend branch="main":
     --build-arg VITE_STAC_URL=${VITE_STAC_URL} \
     --build-arg VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL} \
     --build-arg VITE_PACKAGER_URL=${VITE_PACKAGER_URL} \
-    --build-arg VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
+    --build-arg VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-} \
+    --build-arg VITE_UPLOADER_URL=${VITE_UPLOADER_URL:-}
 
 # Get temp AWS credentials using CI/CD OIDC
 get-aws-creds:

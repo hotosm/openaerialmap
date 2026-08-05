@@ -4,9 +4,10 @@ volumes:
   pmtiles:
   chiitiler_cache:
   tms_nginx_cache:
+  uploader_db_data:
 
 services:
-  # ── Core infrastructure ───────────────────────────────────────────
+  # Core infrastructure
 
   nginx:
     image: docker.io/nginx:1.31-alpine
@@ -22,6 +23,8 @@ services:
       frontend:
         condition: service_started
       stac-map:
+        condition: service_healthy
+      uploader-api:
         condition: service_healthy
     restart: unless-stopped
 
@@ -50,6 +53,9 @@ services:
     environment:
       - RUSTFS_ACCESS_KEY=oam
       - RUSTFS_SECRET_KEY=oam
+    ports:
+      - "9000:9000" # presigned PUTs from the browser / uploader test script
+      - "9001:9001" # console
     volumes:
       - rustfs_data:/data
     command: server /data --console-address ":9001"
@@ -102,9 +108,18 @@ services:
         }
         s3.put_bucket_policy(Bucket="oam", Policy=json.dumps(policy))
         print("Set public-read policy on 'oam'")
+        # Ignore CORS setup until rustfs implements it.
+        try:
+            s3.put_bucket_cors(Bucket="oam", CORSConfiguration={"CORSRules": [{
+                "AllowedOrigins": ["*"], "AllowedMethods": ["GET", "PUT", "POST"],
+                "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3000}]})
+            print("Set CORS on 'oam'")
+        except botocore.exceptions.ClientError as e:
+            print(f"WARNING: could not set CORS ({e.response['Error']['Code']}); "
+                  "browser uploads may fail - use the uploader test script instead")
         print("RustFS init done.")
 
-  # ── STAC API ──────────────────────────────────────────────────────
+  # STAC API
 
   stac-api:
     build: ./backend/stac-api
@@ -147,7 +162,7 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # ── Raster tiler (titiler-pgstac) ─────────────────────────────────
+  # Raster tiler (titiler-pgstac)
 
   raster:
     image: ghcr.io/stac-utils/titiler-pgstac:1.7.2
@@ -173,30 +188,64 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # ── Frontend ──────────────────────────────────────────────────────
+  # The uploader reuses shared storage and catalog services without processing.
+  uploader-api:
+    extends:
+      file: backend/uploader-api/compose.yaml
+      service: uploader-api
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      STAC_URL: http://stac-api:8082
+      OAM_UPLOAD_DOMAIN: upload.imagery.localhost
+      OAM_UPLOAD_DEV_PORT: "8080"
+      OAM_FRONTEND_URL: http://imagery.localhost:8080
+    depends_on:
+      uploader-db:
+        condition: service_healthy
+      uploader-migrations:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+      stac-api:
+        condition: service_healthy
+
+  uploader-migrations:
+    extends:
+      file: backend/uploader-api/compose.yaml
+      service: uploader-migrations
+    depends_on:
+      uploader-db:
+        condition: service_healthy
+
+  uploader-db:
+    extends:
+      file: backend/uploader-api/compose.yaml
+      service: uploader-db
+
+  # Frontend
 
   frontend:
     build:
       context: ./frontend
       target: build
     environment:
-      # Local dev points at the same prod PMTiles bucket since local
-      # pgstac only has a handful of test items - the browse map
-      # wouldn't be useful with an empty tileset. Override in .env if
-      # you're actively iterating on the coverage generator.
+      # Seed the local catalog with `just test populate-prod`. Services without
+      # local versions continue to use production.
       - VITE_PMTILES_URL=${VITE_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-data.pmtiles}
       - VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles}
-      - VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL:-https://api.imagery.hotosm.org/raster}
-      - VITE_STAC_URL=${VITE_STAC_URL:-https://api.imagery.hotosm.org/stac}
+      - VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL:-http://imagery.localhost:8080/raster}
+      - VITE_STAC_URL=${VITE_STAC_URL:-http://imagery.localhost:8080/stac}
       - VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL:-https://api.imagery.hotosm.org/browser}
+      - VITE_UPLOADER_URL=${VITE_UPLOADER_URL:-http://upload.imagery.localhost:8080}
       - VITE_PACKAGER_URL=${VITE_PACKAGER_URL:-https://packager.imagery.hotosm.org}
       - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
       - ./frontend/vite.config.ts:/app/vite.config.ts
-      - ./frontend/tailwind.config.js:/app/tailwind.config.js
-      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/uno.config.ts:/app/uno.config.ts
     command: pnpm dev --host 0.0.0.0
     ports:
       - "3000:3000"
@@ -208,7 +257,7 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # ── stac-map ──────────────────────────────────────────────────────
+  # stac-map
   # Wrapper around https://github.com/developmentseed/stac-map, built
   # into a tiny nginx image and served at /map/. Mirrors how the
   # eoapi chart deploys stac-browser (ghcr.io/developmentseed/eoapi-k8s-stac-browser).
@@ -217,12 +266,9 @@ services:
     build:
       context: ./stac-map
       args:
-        # Defaults point at prod so a fresh `docker compose up` gives a
-        # useful map (local pgstac only has a handful of test items).
-        # Override VITE_STAC_MAP_* in .env if you're iterating on local
-        # catalog contents.
+        # Override VITE_STAC_MAP_DEFAULT_HREF to browse another catalog.
         VITE_BASE_PATH: /map/
-        VITE_DEFAULT_HREF: ${VITE_STAC_MAP_DEFAULT_HREF:-https://api.imagery.hotosm.org/stac}
+        VITE_DEFAULT_HREF: ${VITE_STAC_MAP_DEFAULT_HREF:-http://imagery.localhost:8080/stac}
         VITE_STAC_BROWSER_URL: ${VITE_STAC_MAP_BROWSER_URL:-https://api.imagery.hotosm.org/browser/#/external/}
     healthcheck:
       # BusyBox wget on nginx:alpine sometimes fails to resolve
@@ -234,7 +280,7 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # ── Tilepack worker (profile: tilepack) ────────────────────────────
+  # Tilepack worker (profile: tilepack)
   # One-shot: generates mbtiles/pmtiles from a COG. Triggered via
   # `just test tilepack <item_id>`. Uploads to LOCAL S3 only.
 
@@ -265,7 +311,7 @@ services:
       rustfs:
         condition: service_healthy
 
-  # ── Optional: Global TMS tiles (profile: tms) ────────────────────
+  # Optional: Global TMS tiles (profile: tms)
 
   get-tiles:
     extends:

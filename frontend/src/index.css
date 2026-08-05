@@ -99,3 +99,31 @@ body {
 .share-imagery-btn::part(base):hover {
   background-color: var(--hot-color-primary-700);
 }
+
+/* Shared header controls (locale + app switcher), mirrored in the uploader-api
+   layout so the two sites' headers look identical. */
+.oam-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.oam-locale-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 8rem;
+}
+.oam-locale-option {
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.oam-locale-option:hover {
+  background: var(--wa-color-neutral-fill-normal, #f0f0f0);
+}
+.oam-locale-option--active {
+  font-weight: 700;
+  color: var(--wa-color-brand-fill-loud, #d73f3f);
+}

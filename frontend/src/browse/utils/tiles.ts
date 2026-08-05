@@ -1,24 +1,16 @@
 import { COLLECTION_ID, STAC_TITILER_URL } from "./constants";
 import type { RawTileProperties } from "./types";
 
-// Build a TiTiler-PgSTAC tile URL template MapLibre can consume for a
-// single STAC item. The item id is guaranteed to exist for every
-// footprint (it comes straight from pgSTAC and drives the whole PMTiles
-// pipeline); `asset_name` is emitted by the backend generator and falls
-// back to `visual` because that's what every current OAM item uses.
-//
-// Note: this replaces the previous S3-path synthesis that assumed the
-// COG lived at `oin-hotosm-temp.s3.us-east-1.amazonaws.com/...` and
-// went through a legacy tiles.openaerialmap.org 302 redirect. The pgstac
-// endpoint resolves the COG via the catalog, so bucket moves or asset
-// renames only need to be reflected in the ingester.
+// PgSTAC resolves asset locations, so storage changes need no frontend update.
+// Legacy footprints without an asset name use `visual`.
 export function getTmsUrl(p: RawTileProperties): string | null {
   if (!p._id) return null;
   const asset = p.asset_name || "visual";
-  return (
+  const base =
     `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${p._id}` +
-    `/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?assets=${asset}&nodata=0`
-  );
+    `/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?assets=${asset}`;
+  // Preserve STAC render hints for non-RGB data. Legacy items use nodata=0.
+  return p.render_params ? `${base}&${p.render_params}` : `${base}&nodata=0`;
 }
 
 // Query param avoids browser cache conflict with sidebar <img> tags,

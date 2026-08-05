@@ -805,6 +805,7 @@ export default function OamMap({
       const rawProps: RawTileProperties = {
         _id: p.id,
         asset_name: p.assetName,
+        render_params: p.renderParams ?? undefined,
       };
       const tmsUrl = getTmsUrl(rawProps);
       if (tmsUrl) {

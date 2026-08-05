@@ -1,0 +1,36 @@
+{% if not uploads %}
+<p class="oam-muted">No uploads yet.</p>
+{% else %}
+<table class="oam-table">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>File</th>
+      <th>Status</th>
+      <th>Message</th>
+      <th>Started</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in uploads %}
+    <tr>
+      <td>{{ u.title }}</td>
+      <td>{{ u.filename }}</td>
+      <td>
+        {% if u.status in ("Failed", "Error") %}
+        <wa-tag variant="danger">{{ u.status }}</wa-tag>
+        {% elif u.status == "Succeeded" %}
+        <wa-tag variant="success">{{ u.status }}</wa-tag>
+        {% else %}
+        <wa-tag variant="neutral">{{ u.status }}</wa-tag>
+        {% endif %}
+      </td>
+      <td class="oam-muted">{{ u.message }}</td>
+      <td class="oam-muted">
+        {{ u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "" }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

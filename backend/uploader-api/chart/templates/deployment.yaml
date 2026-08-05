@@ -1,0 +1,157 @@
+{{- if not .Values.env.PGSTAC_DB_HOST }}
+{{-   fail "values.env.PGSTAC_DB_HOST is required: point it at the pgstac catalog DB (the register endpoint writes there via pgstac functions)." }}
+{{- end }}
+{{- if not .Values.env.PGSTAC_DB_USER }}
+{{-   fail "values.env.PGSTAC_DB_USER is required." }}
+{{- end }}
+{{- if not (or .Values.env.PUBLIC_ASSET_BASE_URL .Values.env.S3_EXTERNAL_ENDPOINT) }}
+{{-   fail "Set values.env.PUBLIC_ASSET_BASE_URL (or S3_EXTERNAL_ENDPOINT): STAC asset URLs need an absolute public base." }}
+{{- end }}
+{{- if and (not .Values.db.enabled) (not .Values.existingSecret.name) }}
+{{-   fail "External DB selected (db.enabled=false) but existingSecret.name is empty: supply DB_HOST/DB_USER/DB_PASSWORD/DB_NAME and PGSTAC_DB_PASSWORD via a secret, or set db.enabled=true." }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "chart.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "chart.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if .Values.db.enabled }}
+        - name: db-check
+          image: "{{ .Values.db.image.repository }}:{{ .Values.db.image.tag }}"
+          imagePullPolicy: {{ .Values.db.image.pullPolicy }}
+          {{- with .Values.dbCheckSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: PGHOST
+              value: {{ include "chart.dbServiceHost" . | quote }}
+            - name: PGUSER
+              value: {{ .Values.db.auth.username | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.db.auth.database | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready; do
+                echo "waiting for database to be ready"; sleep 2;
+              done
+        {{- end }}
+        - name: migrations
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.initSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- include "chart.dbEnv" . | nindent 12 }}
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          {{- if .Values.existingSecret.name }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret.name | quote }}
+          {{- end }}
+          command: ["/migrate-entrypoint.sh"]
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: OAM_UPLOAD_DOMAIN
+              {{- if .Values.ingress.enabled }}
+              value: {{ required "ingress.host is required when ingress.enabled=true" .Values.ingress.host | quote }}
+              {{- else }}
+              value: "localhost"
+              {{- end }}
+            - name: WF_CALLBACK_URL
+              value: {{ .Values.callbackUrlOverride | default (printf "http://%s.%s.svc.cluster.local:%v" (include "chart.fullname" .) .Release.Namespace .Values.service.port) | quote }}
+            {{- include "chart.dbEnv" . | nindent 12 }}
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          {{- if .Values.existingSecret.name }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret.name | quote }}
+          {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -8,10 +8,10 @@ export interface ImageProperties {
   title: string;
   provider: string;
   thumbnail: string | null;
-  // Asset key TiTiler-PgSTAC should serve tiles from (defaults to
-  // 'visual'). Threaded from the PMTiles feature so newer ingester
-  // conventions can override without a frontend deploy.
+  // Keep the asset name in PMTiles so ingester changes need no frontend deploy.
   assetName: string;
+  // STAC render hints encoded for TiTiler; null for plain visual items.
+  renderParams: string | null;
   date: string;
   platform: string;
   sensor: string;
@@ -33,6 +33,7 @@ export interface RawTileProperties {
   thumbnail?: string;
   tms?: string;
   asset_name?: string;
+  render_params?: string;
   acquisition_end?: string;
   platform?: string;
   sensor?: string;

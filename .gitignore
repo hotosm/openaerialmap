@@ -77,3 +77,7 @@ parcel-bundle-reports
 envsubst
 .codex
 .claude
+
+# Local imagery test artifacts (e.g. odm_orthophoto.tif for `just test uploader-e2e`)
+*.tif
+*.tiff

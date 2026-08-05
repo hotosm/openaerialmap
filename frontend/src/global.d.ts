@@ -94,6 +94,7 @@ type WaCalloutAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLEl
 
 interface CustomElements {
   "hot-header": HotHeaderAttributes;
+  "hotosm-tool-menu": DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>;
   "wa-button": WaButtonAttributes;
   "wa-card": WaCardAttributes;
   "wa-callout": WaCalloutAttributes;
