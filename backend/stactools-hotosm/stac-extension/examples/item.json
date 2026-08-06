@@ -1,0 +1,170 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/alternate-assets/v1.2.0/schema.json",
+    "https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json"
+  ],
+  "id": "59e62b903d6412ef7220a02f",
+  "geometry": {
+    "bbox": [
+      -116.38018350872743,
+      34.74269850450097,
+      -116.37018935527587,
+      34.750779859363035
+    ],
+    "coordinates": [
+      [
+        [
+          -116.38018350872743,
+          34.750779859363035
+        ],
+        [
+          -116.37018935527587,
+          34.750779859363035
+        ],
+        [
+          -116.37018935527587,
+          34.74269850450097
+        ],
+        [
+          -116.38018350872743,
+          34.74269850450097
+        ],
+        [
+          -116.38018350872743,
+          34.750779859363035
+        ]
+      ]
+    ],
+    "type": "Polygon"
+  },
+  "bbox": [
+    -116.38018350872743,
+    34.74269850450097,
+    -116.37018935527587,
+    34.750779859363035
+  ],
+  "properties": {
+    "title": "Pisgah Crater Cinder Cone",
+    "oam:producer_name": "redacted",
+    "oam:platform_type": "uav",
+    "gsd": 2.990237944881498e-7,
+    "license": "CC-BY-4.0",
+    "instruments": [
+      "Phantom 3 Pro"
+    ],
+    "created": "2017-04-08T05:11:08.440000Z",
+    "datetime": "2016-05-01T07:00:00Z",
+    "providers": [
+      {
+        "name": "redacted",
+        "description": "redacted, redacted@redacted.redacted",
+        "roles": [
+          "producer",
+          "licensor"
+        ]
+      }
+    ]
+  },
+  "assets": {
+    "image": {
+      "href": "http://oin-hotosm-temp.s3.amazonaws.com/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Pisgah Crater Cinder Cone",
+      "file:size": 53554806,
+      "proj:code": "EPSG:4326",
+      "proj:geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -116.38018350872744,
+              34.74269850450097
+            ],
+            [
+              -116.37018935527587,
+              34.74269850450097
+            ],
+            [
+              -116.37018935527587,
+              34.75077985936304
+            ],
+            [
+              -116.38018350872744,
+              34.75077985936304
+            ],
+            [
+              -116.38018350872744,
+              34.74269850450097
+            ]
+          ]
+        ]
+      },
+      "proj:bbox": [
+        -116.38018350872744,
+        34.74269850450097,
+        -116.37018935527587,
+        34.75077985936304
+      ],
+      "proj:shape": [
+        29884,
+        30505
+      ],
+      "proj:transform": [
+        3.276234535837461e-7,
+        0,
+        -116.38018350872744,
+        0,
+        -2.704241353925534e-7,
+        34.75077985936304,
+        0,
+        0,
+        1
+      ],
+      "alternate:name": "HTTPS",
+      "alternate": {
+        "s3": {
+          "href": "s3://oin-hotosm-temp/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21.tif",
+          "alternate:name": "S3"
+        }
+      },
+      "roles": [
+        "data"
+      ]
+    },
+    "thumbnail": {
+      "href": "http://oin-hotosm-temp.s3.amazonaws.com/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21_thumb.png",
+      "type": "image/png",
+      "title": "thumbnail",
+      "alternate:name": "HTTPS",
+      "alternate": {
+        "s3": {
+          "href": "s3://oin-hotosm-temp/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21_thumb.png",
+          "alternate:name": "S3"
+        }
+      },
+      "roles": [
+        "thumbnail"
+      ]
+    },
+    "metadata": {
+      "href": "http://oin-hotosm-temp.s3.amazonaws.com/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21_meta.json",
+      "type": "application/json",
+      "title": "metadata",
+      "alternate:name": "HTTPS",
+      "alternate": {
+        "s3": {
+          "href": "s3://oin-hotosm-temp/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21_meta.json",
+          "alternate:name": "S3"
+        }
+      },
+      "roles": [
+        "metadata"
+      ]
+    }
+  },
+  "links": []
+}

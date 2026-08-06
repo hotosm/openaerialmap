@@ -1,0 +1,165 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/eo/v1.1.0/schema.json",
+    "https://stac-extensions.github.io/raster/v1.1.0/schema.json",
+    "https://stac-extensions.github.io/grid/v1.1.0/schema.json"
+  ],
+  "id": "11/031311102001/103001010A705C00",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [-118.62795874567954, 34.28398526590708],
+        [-118.64953515888635, 34.283693461083104],
+        [-118.65050916791418, 34.32930146206068],
+        [-118.6479585587209, 34.3297609747879],
+        [-118.64556367978103, 34.329930776982096],
+        [-118.63908216644218, 34.330779969610546],
+        [-118.62888980104515, 34.331686504946305],
+        [-118.62795874567954, 34.28398526590708]
+      ]
+    ]
+  },
+  "bbox": [
+    -118.65050916791418, 34.283693461083104, -118.62795874567954,
+    34.331686504946305
+  ],
+  "properties": {
+    "datetime": "2024-12-14T18:53:50Z",
+    "platform": "WV02",
+    "gsd": 0.58,
+    "ard_metadata_version": "0.0.1",
+    "catalog_id": "103001010A705C00",
+    "utm_zone": 11,
+    "quadkey": "031311102001",
+    "view:off_nadir": 27.5,
+    "view:azimuth": 233.2,
+    "view:incidence_angle": 58.9,
+    "view:sun_azimuth": 165.1,
+    "view:sun_elevation": 31.1,
+    "proj:geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [350156.25, 3794843.75],
+          [348170.6924105355, 3794843.75],
+          [348162.7630737268, 3799902.9488519602],
+          [348397.52197265625, 3799949.951171875],
+          [348618.1640625, 3799965.2099609375],
+          [349216.00341796875, 3800049.7436523438],
+          [350155.33447265625, 3800135.1928710938],
+          [350156.25, 3794843.75]
+        ]
+      ]
+    },
+    "grid:code": "MXRA-Z11-031311102001",
+    "proj:bbox": [348162.7630737268, 3794843.75, 350156.25, 3800135.1928710938],
+    "tile:data_area": 10.3,
+    "tile:clouds_area": 0.0,
+    "tile:clouds_percent": 0,
+    "proj:code": "EPSG:32611"
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://maxar-opendata.s3.amazonaws.com/events/WildFires-LosAngeles-Jan-2025/ard/11/031311102001/2024-12-14/103001010A705C00.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "collection",
+      "href": "https://maxar-opendata.s3.amazonaws.com/events/WildFires-LosAngeles-Jan-2025/ard/acquisition_collections/103001010A705C00_collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "https://maxar-opendata.s3.amazonaws.com/events/WildFires-LosAngeles-Jan-2025/ard/acquisition_collections/103001010A705C00_collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "https://maxar-opendata.s3.amazonaws.com/events/WildFires-LosAngeles-Jan-2025/ard/order_collections/6624789378770577538_root_collection.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "data-mask": {
+      "href": "./103001010A705C00-data-mask.gpkg",
+      "type": "application/geopackage+sqlite3",
+      "title": "Data Mask",
+      "roles": ["data-mask"]
+    },
+    "ms_analytic": {
+      "href": "./103001010A705C00-ms.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Multispectral Image",
+      "proj:bbox": [344843.75, 3794843.75, 350156.25, 3800156.25],
+      "proj:shape": [2371, 2371],
+      "proj:transform": [
+        2.2406157739350485, 0.0, 344843.75, 0.0, -2.2406157739350485,
+        3800156.25, 0.0, 0.0, 1.0
+      ],
+      "eo:bands": [
+        {
+          "name": "BAND_C",
+          "common_name": "coastal",
+          "description": "Coastal Blue"
+        },
+        { "name": "BAND_B", "common_name": "blue", "description": "Blue" },
+        { "name": "BAND_G", "common_name": "green", "description": "Green" },
+        { "name": "BAND_Y", "common_name": "yellow", "description": "Yellow" },
+        { "name": "BAND_R", "common_name": "red", "description": "Red" },
+        {
+          "name": "BAND_RE",
+          "common_name": "rededge",
+          "description": "Red Edge 1"
+        },
+        {
+          "name": "BAND_N",
+          "common_name": "nir08",
+          "description": "Near Infrared 1"
+        },
+        {
+          "name": "BAND_N2",
+          "common_name": "nir09",
+          "description": "Near Infrared 2"
+        }
+      ],
+      "roles": ["data"]
+    },
+    "pan_analytic": {
+      "href": "./103001010A705C00-pan.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Panchromatic Image",
+      "proj:bbox": [344843.75, 3794843.75, 350156.25, 3800156.25],
+      "proj:shape": [9484, 9484],
+      "proj:transform": [
+        0.5601539434837621, 0.0, 344843.75, 0.0, -0.5601539434837621,
+        3800156.25, 0.0, 0.0, 1.0
+      ],
+      "eo:bands": [{ "name": "BAND_P", "description": "Pan" }],
+      "roles": ["data"]
+    },
+    "visual": {
+      "href": "./103001010A705C00-visual.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Visual Image",
+      "proj:bbox": [344843.75, 3794843.75, 350156.25, 3800156.25],
+      "proj:shape": [17408, 17408],
+      "proj:transform": [
+        0.30517578125, 0.0, 344843.75, 0.0, -0.30517578125, 3800156.25, 0.0,
+        0.0, 1.0
+      ],
+      "eo:bands": [
+        { "name": "BAND_R", "common_name": "red", "description": "Red" },
+        { "name": "BAND_G", "common_name": "green", "description": "Green" },
+        { "name": "BAND_B", "common_name": "blue", "description": "Blue" }
+      ],
+      "roles": ["visual"]
+    }
+  },
+  "collection": "103001010A705C00"
+}

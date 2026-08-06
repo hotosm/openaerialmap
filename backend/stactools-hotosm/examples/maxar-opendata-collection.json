@@ -1,0 +1,45 @@
+{
+  "type": "Collection",
+  "id": "maxar-opendata",
+  "stac_version": "1.1.0",
+  "description": "Maxar Open Data Catalog, formatted for Humanitarian OpenStreetMap Team's OpenAerialMap project",
+  "links": [
+    {
+      "rel": "derived_from",
+      "href": "https://maxar-opendata.s3.amazonaws.com/events/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "stac_extensions": [
+    "https://stac-extensions.github.io/render/v2.0.0/schema.json"
+  ],
+  "item_assets": {
+    "visual": {
+      "title": "Visual image",
+      "description": "Imagery appropriate for visualization from this acquisition.",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "roles": ["data"]
+    }
+  },
+  "renders": { "visual": { "assets": ["visual"], "title": "Visual image" } },
+  "title": "Maxar ARD Open Data Catalog",
+  "extent": {
+    "spatial": { "bbox": [[-180.0, -90.0, 180.0, 90.0]] },
+    "temporal": {
+      "interval": [["2021-12-04T00:00:00Z", "2025-01-07T00:00:00Z"]]
+    }
+  },
+  "license": "CC-BY-NC-4.0",
+  "providers": [
+    {
+      "name": "Maxar",
+      "roles": ["licensor", "producer"],
+      "url": "https://www.maxar.com/open-data"
+    },
+    {
+      "name": "Amazon Web Services (AWS)",
+      "roles": ["host"],
+      "url": "https://registry.opendata.aws/maxar-open-data/"
+    }
+  ]
+}

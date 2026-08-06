@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json",
+  "title": "OAM Extension",
+  "description": "STAC Extension for HOT OAM for STAC Items.",
+  "oneOf": [
+    {
+      "$comment": "This is the schema for STAC Items.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/stac_extensions"
+        },
+        {
+          "type": "object",
+          "required": ["type", "properties", "assets"],
+          "properties": {
+            "type": {
+              "const": "Feature"
+            },
+            "properties": {
+              "allOf": [
+                {
+                  "$comment": "Require fields here for Item Properties.",
+                  "required": ["gsd", "oam:platform_type", "oam:producer_name"]
+                },
+                {
+                  "$ref": "#/definitions/fields"
+                }
+              ]
+            },
+            "assets": {
+              "$comment": "This validates the fields in Item Assets, but does not require them.",
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/fields"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "definitions": {
+    "stac_extensions": {
+      "type": "object",
+      "required": ["stac_extensions"],
+      "properties": {
+        "stac_extensions": {
+          "type": "array",
+          "contains": {
+            "const": "https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json"
+          }
+        }
+      }
+    },
+    "fields": {
+      "$comment": "Add your new fields here. Don't require them here, do that above in the corresponding schema.",
+      "type": "object",
+      "properties": {
+        "oam:platform_type": {
+          "description": "The type of platform that acquired the imagery.",
+          "type": "string",
+          "enum": ["kite", "balloon", "uav", "aircraft", "satellite"]
+        },
+        "oam:producer_name": {
+          "description": "The data producer's name. This should match an entry in the Providers object.",
+          "type": "string"
+        },
+        "license": {
+          "description": "If defined, the Item level license must be a Creative Commons license.",
+          "type": "string",
+          "enum": ["CC-BY-SA-4.0", "CC-BY-4.0", "CC-BY-NC-4.0"]
+        }
+      },
+      "patternProperties": {
+        "^(?!oam:)": {
+          "$comment": "Validate fields with `oam` prefix"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

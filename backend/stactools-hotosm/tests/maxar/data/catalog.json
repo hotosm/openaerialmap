@@ -1,0 +1,249 @@
+{
+  "type": "Catalog",
+  "id": "maxar-opendata",
+  "stac_version": "1.1.0",
+  "description": "Maxar ARD Open Data Catalog",
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://maxar-opendata.s3.amazonaws.com/events/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./BayofBengal-Cyclone-Mocha-May-23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Belize-Wildfires-June24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Brazil-Flooding-May24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Cyclone-Chido-Dec15/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Earthquake-Myanmar-March-2025/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Emilia-Romagna-Italy-flooding-may23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Floods-Spain-Oct24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Gambia-flooding-8-11-2022/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Hurricane-Fiona-9-19-2022/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Hurricane-Ian-9-26-2022/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Hurricane-Idalia-Florida-Aug23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./HurricaneHelene-Oct24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./HurricaneMilton-Oct24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Iceland-Volcano_Eruption-Dec-2023/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./India-Floods-Oct-2023/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Indonesia-Earthquake22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Japan-Earthquake-Jan-2024/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Kahramanmaras-turkey-earthquake-23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Kalehe-DRC-Flooding-5-8-23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Kenya-Flooding-May24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Libya-Floods-Sept-2023/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Marshall-Fire-21-Update/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Maui-Hawaii-fires-Aug-23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./McDougallCreekWildfire-BC-Canada-Aug-23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Morocco-Earthquake-Sept-2023/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./NWT-Canada-Aug-23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Nepal-Earthquake-Apr-2015/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Nepal-Earthquake-Nov-2023/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Nepal-Floods-Sept-2024/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./New-Zealand-Flooding23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Nigeria-Floods-Sept-2024/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./PNG-Landslide-June24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./SmokeHouseCreek-Wildfires-Texas-Mar24/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Sudan-flooding-8-22-2022/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./Vanuatu-Earthquake-Dec17/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./WildFires-LosAngeles-Jan-2025/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./afghanistan-earthquake22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./cyclone-emnati22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./ghana-explosion22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./kentucky-flooding-7-29-2022/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./pakistan-flooding22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./shovi-georgia-landslide-8Aug23/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./southafrica-flooding22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./tonga-volcano21/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./volcano-indonesia21/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./yellowstone-flooding22/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "./catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "license": "CC-BY-NC-4.0"
+}
