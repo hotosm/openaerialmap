@@ -1,5 +1,10 @@
 # Batch Ingestion into OAM STAC Catalog
 
+The `stactools-hotosm` package lives at `backend/stactools-hotosm`. It builds
+the STAC Items for OAM and is consumed by two things: the bulk
+[STAC Ingester](./stac-ingester.md) and the uploader pipeline's `metadata`
+step, both as an in-repo path dependency so the two cannot drift apart.
+
 This package contains a set of command line interface (CLI) programs designed
 to help ingest STAC data into the (PgSTAC based) OpenAerialMap STAC Catalog.
 These CLI programs address two main use cases:
@@ -56,8 +61,9 @@ $ make ingest
 
 You might also consider adding `--handle-exceptions=IGNORE` to be able to
 finish the STAC creation even if there are issues with the data upstream
-(e.g., the OpenAerialMap had a `baloon` instead of `balloon`). Errors will be
-printed out before the program exits so you can triage later.
+(e.g., the OpenAerialMap had a `baloon` instead of <!-- codespell:ignore -->
+`balloon`). Errors will be printed out before the program exits so you can
+triage later.
 
 ## Ingest directly into PgSTAC
 
@@ -72,7 +78,31 @@ based on the scheduling frequency (e.g., 30 minutes). Because there might be
 small delays between when the program is scheduled and when it begins running,
 you should add a small amount of overlap in the `--uploaded-since` argument to
 ensure there are no gaps. These CLI programs run the ETL step using the
-"upsert" mode of PgSTAC, which should accomodate any STAC Items that are
+"upsert" mode of PgSTAC, which should accommodate any STAC Items that are
 created in sequential runs. For example, if you are scheduling the ETL step to
 run every 30 minutes, consider running with `--uploaded-since=2100`
 (35 minutes).
+
+## STAC extension schema
+
+Every Item we create lists the OAM STAC extension in `stac_extensions`:
+
+```text
+https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json
+```
+
+That URL is this site. `docs/oam/v0.1.0/schema.json` is a symlink to
+`backend/stactools-hotosm/stac-extension/json-schema/schema.json`, which is the
+source of truth, so publishing a schema change is just a push to `main`.
+
+Validation during Item creation does not fetch it - the same schema is shipped
+inside the package and registered with `pystac` before `Item.validate()`, so
+ingestion does not depend on this site being up.
+
+Items ingested before the schema moved here still list the old URL,
+`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served by
+GitHub Pages on the archived standalone repo. Nothing in this repo resolves it
+any more, but external clients that validate those Items do. To get off it
+entirely, re-run `sync-oam` and `sync-maxar` with `--uploaded-after` set far
+enough back to cover the whole catalogue - both load in "upsert" mode, so every
+Item is rewritten with the current URL.

@@ -12,7 +12,7 @@ class TestOamMetadata:
         """Test sanitize() method resolves identified metadata issues."""
         example_oam_metadata.platform = "UaV"
         example_oam_metadata.license = "CC-BY 4.0"
-        example_oam_metadata.sensor = "Unknow"
+        example_oam_metadata.sensor = "Unknow"  # codespell:ignore
 
         example_oam_metadata.sanitize()
 

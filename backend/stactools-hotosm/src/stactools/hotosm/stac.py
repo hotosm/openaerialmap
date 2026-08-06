@@ -32,6 +32,7 @@ from stactools.hotosm.constants import (
     OAM_EXTENSION_SCHEMA_URI_PATTERN,
 )
 from stactools.hotosm.exceptions import AssetNotFoundError
+from stactools.hotosm.oam_extension import register_oam_extension_schemas
 from stactools.hotosm.oam_metadata import OamMetadata
 from stactools.hotosm.stac_common import add_alternate_assets
 
@@ -198,6 +199,7 @@ def create_item(oam_metadata: OamMetadata) -> Item:
         OAM_EXTENSION_SCHEMA_URI_PATTERN.format(version=OAM_EXTENSION_DEFAULT_VERSION)
     )
 
+    register_oam_extension_schemas()
     item.validate()
 
     return item

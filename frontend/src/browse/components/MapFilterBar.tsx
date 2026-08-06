@@ -6,8 +6,6 @@ interface Props {
   onChange: (f: Filters) => void;
 }
 
-// wa-select fires with `event.detail.item.value` — kept as a local
-// alias so we're not sprinkling any-casts through the JSX below.
 type WaSelectEvent = CustomEvent<{ item: HTMLElement & { value: string } }>;
 
 interface Option<V extends string> {

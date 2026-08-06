@@ -3,6 +3,5 @@
 [tool.uv.workspace]
 members = ["validate", "convert", "metadata"]
 
-# Match the bulk ingester revision so both paths emit the same OAM extension.
 [tool.uv.sources]
-stactools-hotosm = { git = "https://github.com/hotosm/stactools-hotosm", rev = "v0.2.1" }
+stactools-hotosm = { path = "../../stactools-hotosm" }

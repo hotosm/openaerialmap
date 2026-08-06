@@ -1,7 +1,9 @@
 services:
   ingester:
     container_name: hotosm-stac-ingester
-    build: .
+    build:
+      context: ..
+      dockerfile: stac-ingester/Dockerfile
     environment:
       - PGUSER=username
       - PGPASSWORD=password

@@ -2,7 +2,7 @@
 name = "stactools-hotosm"
 description = "STAC creation tools for Humanitarian OpenStreetMap Team's OpenAerialMap data"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "AGPL-3.0"
 dynamic = ["version"]
 
@@ -57,20 +57,20 @@ build-backend = "hatchling.build"
 [tool.ruff]
 fix = true
 line-length = 88
-target-version = "py310"
+target-version = "py312"
 exclude = [
     ".ruff_cache",
     "__pypackages__",
     "build",
     "dist",
-    "stactools/hotosm/__version__.py",
+    "src/stactools/hotosm/__version__.py",
 ]
 
 [tool.ruff.lint]
 select = ["ARG", "I", "E", "W", "D", "B", "F", "N", "Q"]
 ignore = ["N805", "B008"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 combine-as-imports = true
 
 [tool.ruff.lint.pydocstyle]
@@ -86,13 +86,3 @@ namespace_packages = true
 module = ["pypgstac.db", "pypgstac.load", "rasterio.*", "rio_stac.stac"]
 follow_untyped_imports = true
 ignore_missing_imports = true
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-version = "0.2.1"
-version_files = [
-    "pyproject.toml:version",
-    "stactools/hotosm/__version__.py",
-]
-changelog_file = "CHANGELOG.md"
-update_changelog_on_bump = true

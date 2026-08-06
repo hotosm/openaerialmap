@@ -8,26 +8,26 @@ ENV UV_MANAGED_PYTHON=false
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
-# Install dependencies for,
-# * Git sources
-# * building wheels (if needed)
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y build-essential git && \
+    apt-get install -y build-essential && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-WORKDIR /app
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+WORKDIR /src/stac-ingester
+
+# Include the local path dependency before syncing.
+COPY stactools-hotosm/ /src/stactools-hotosm/
+COPY stac-ingester/pyproject.toml stac-ingester/uv.lock ./
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project --no-editable
 
-COPY . /app
+COPY stac-ingester/ ./
 
 # Sync the project
 RUN --mount=type=cache,target=/root/.cache/uv \

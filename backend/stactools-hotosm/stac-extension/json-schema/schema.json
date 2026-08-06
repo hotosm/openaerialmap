@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json",
+  "$id": "https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json",
   "title": "OAM Extension",
   "description": "STAC Extension for HOT OAM for STAC Items.",
   "oneOf": [
@@ -48,7 +48,7 @@
         "stac_extensions": {
           "type": "array",
           "contains": {
-            "const": "https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json"
+            "const": "https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json"
           }
         }
       }

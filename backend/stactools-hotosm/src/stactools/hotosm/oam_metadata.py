@@ -94,5 +94,5 @@ class OamMetadata:
     def _sanitize_sensor(self):
         """Sanitize bad sensor values."""
         if self.sensor is not None:
-            if self.sensor.lower().startswith("unknow"):
+            if self.sensor.lower().startswith("unknow"):  # codespell:ignore
                 self.sensor = None

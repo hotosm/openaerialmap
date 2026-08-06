@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "backend/uploader-api/pipeline/**"
+      - "backend/stactools-hotosm/**"
   workflow_dispatch:
 
 jobs:
@@ -13,20 +14,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Raster steps share pipeline/uv.lock; register has a stdlib-only context.
         include:
           - step: validate
-            context: backend/uploader-api/pipeline
-            dockerfile: validate/Dockerfile
+            context: backend
+            dockerfile: uploader-api/pipeline/validate/Dockerfile
             build_args: ""
           - step: convert
-            context: backend/uploader-api/pipeline
-            dockerfile: convert/Dockerfile
+            context: backend
+            dockerfile: uploader-api/pipeline/convert/Dockerfile
             # Stamp the git SHA into STAC processing provenance.
             build_args: "OAM_PIPELINE_VERSION=${{ github.sha }}"
           - step: metadata
-            context: backend/uploader-api/pipeline
-            dockerfile: metadata/Dockerfile
+            context: backend
+            dockerfile: uploader-api/pipeline/metadata/Dockerfile
             build_args: ""
           - step: register
             context: backend/uploader-api/pipeline/register

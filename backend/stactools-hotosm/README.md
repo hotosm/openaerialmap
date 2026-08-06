@@ -1,22 +1,31 @@
 # STAC Tools for Humanitarian OpenStreetMap Team's OpenAerialMap
 
+Builds the STAC Items and Collections for OpenAerialMap, from both the legacy
+OAM metadata API and the Maxar Open Data Program.
+
+This package used to live at <https://github.com/hotosm/stactools-hotosm> but
+is now part of this monorepo:
+
+- `backend/stac-ingester` - the bulk/scheduled ingester image
+- `backend/uploader-api/pipeline/metadata` - the per-upload pipeline step
+
+Usage of the `hotosm` CLI is documented in
+[the developer guide](../../docs/dev/backend/stactools-hotosm.md).
+
 ## Getting started
 
-This project uses `uv` to manage our Python dependencies. Visit their
-[documentation](https://docs.astral.sh/uv/getting-started/installation/) for
-more information on how to install this tool.
-
-This project uses [pre-commit](https://pre-commit.com/) to manage linting and
-checks for code and commits. These checks require
-[Commitizen](https://commitizen-tools.github.io/commitizen/) to lint code commits.
-
-Before working on this project please install both `pre-commit` and `commitizen`
-and ensure the Git hooks are setup for this repository by running,
+Dependencies are managed with [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```bash
-pre-commit install
-pre-commit install --hook-type commit-msg
+uv sync --all-extras
 ```
+
+Linting and commit checks are handled by the repo-root `pre-commit` config, not
+a per-package one. See the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+Note that ruff resolves its configuration per directory, so this package keeps
+the stricter rule set (pydocstyle among others) declared in its own
+`pyproject.toml`, rather than inheriting the rest of `backend/`.
 
 ### Tests
 
@@ -24,47 +33,46 @@ pre-commit install --hook-type commit-msg
 ./scripts/test
 ```
 
+These scripts are also what CI runs, in
+`.github/workflows/backend-stactools-test.yml`. They use paths relative to this
+directory, so run them from here.
+
 ### Formatting, Linting, and Type Checking
 
-This project uses `ruff` to format and lint our code.
-
-To format code,
-
 ```bash
-./scripts/format
+./scripts/format     # ruff format
+./scripts/lint       # ruff check
+./scripts/typecheck  # mypy
 ```
 
-To check for lint,
+## Versioning
 
-```bash
-./scripts/lint
-```
+There is no separate release process since moving to the monorepo.
+All consuming tools simple use the `main` version in this repo.
 
-We use `mypy` for static type checking,
-
-```bash
-./scripts/typecheck
-```
-
-## Package Version Releases
-
-To cut a new release of the package version,
-
-1. Update the `CHANGELOG.md` by recording changes in a new version section
-   and updating links.
-2. Update the package version definition in `src/stactools/hotosm/__version__.py`.
-3. Open a PR with these changes and merge into `main`.
-4. Create a new tagged release on Github.
+The `__version__` is kept only as a static string for STAC provenance.
 
 ## STAC Extension
 
-This repository also defines a STAC extension describing specific OpenAerialMap
-metadata requirements. This extension is described in the
-[README](./stac-extension/README.md) and published to Github Pages
-for reference by STAC metadata.
+`stac-extension/` defines the OpenAerialMap STAC extension - see its
+[README](./stac-extension/README.md).
 
-The STAC extension will be published by creating a tagged release that looks
-like, `extension-v{major}.{minor}.{patch}` (e.g., `extension-v1.0.0`). The
-Github Actions workflow will take care of parsing the version string from this
-release name. This `extension-` prefix is required to differentiate releases
-publishing the package versus releases publishing the STAC extension.
+`json-schema/schema.json` is the source of truth, both for editing and for the
+local validation in `tests/test_stac_extension.py`. It is published at
+
+```text
+https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json
+```
+
+which is its `$id`, and the URI `create_item` puts in `stac_extensions`.
+
+Publishing happens through the mkdocs site: `docs/oam/v0.1.0/schema.json` is a
+symlink to this file, so every push that changes it redeploys the schema along
+with the docs. To cut a new extension version, copy the symlink to
+`docs/oam/v{version}/schema.json`, bump `$id` and
+`OAM_EXTENSION_DEFAULT_VERSION`, and leave the older paths in place - Items
+already in pgstac keep pointing at them.
+
+The schema was previously served from GitHub Pages on the standalone repo, at
+`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`. That URL is
+still in the `stac_extensions` array of Items ingested before the move.

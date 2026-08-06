@@ -107,8 +107,9 @@ Config is via environment variables. See `.env.example`.
 
 - The Litestar service: DB layer, auth deps, S3 multipart and Argo routes, upload
   and profile pages.
-- `pipeline/`: the `WorkflowTemplate` and four step images. Metadata and register
-  use `stactools-hotosm` (the same revision as `backend/stac-ingester`).
+- `pipeline/`: the `WorkflowTemplate` and four step images. Metadata uses
+  `stactools-hotosm` from `backend/stactools-hotosm`, the same source tree as
+  `backend/stac-ingester`.
 - `chart/`: Helm chart with namespace-scoped Argo RBAC (a Role, no ClusterRole),
   Deployment, Service, and Ingress for `upload.imagery.hotosm.org`.
 - CI: image builds plus a PR gate (`backend-uploader-test.yml`) running

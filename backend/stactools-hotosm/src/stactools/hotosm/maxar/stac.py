@@ -22,6 +22,7 @@ from stactools.hotosm.constants import (
     OAM_EXTENSION_DEFAULT_VERSION,
     OAM_EXTENSION_SCHEMA_URI_PATTERN,
 )
+from stactools.hotosm.oam_extension import register_oam_extension_schemas
 from stactools.hotosm.stac_common import add_alternate_assets
 
 COLLECTION_ID = "maxar-opendata"
@@ -150,5 +151,7 @@ def create_item(item: Item) -> Item:
     oam_item.stac_extensions.append(
         OAM_EXTENSION_SCHEMA_URI_PATTERN.format(version=OAM_EXTENSION_DEFAULT_VERSION)
     )
+
+    register_oam_extension_schemas()
 
     return oam_item

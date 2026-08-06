@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The schema is now published from `https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json`,
+  and `$id` points there. The previous location,
+  `https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served the
+  same v0.1.0 definition from the now-archived standalone repository.
+
 ### Deprecated
 
 ### Removed
@@ -23,5 +28,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First definition of the OAM STAC extension.
 
-[Unreleased]: https://github.com/hotosm/stactools-hotosm/compare/v0.1.0...HEAD
-[v0.1.0]: https://github.com/hotosm/stactools-hotosm/
+[Unreleased]: https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension
+[v0.1.0]: https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json

@@ -8,7 +8,7 @@ COLLECTION_DESCRIPTION = (
 )
 
 OAM_EXTENSION_SCHEMA_URI_PATTERN: str = (
-    "https://hotosm.github.io/stactools-hotosm/oam/v{version}/schema.json"
+    "https://docs.imagery.hotosm.org/oam/v{version}/schema.json"
 )
 OAM_EXTENSION_DEFAULT_VERSION: str = "0.1.0"
 OAM_EXTENSION_SUPPORTED_VERSIONS: list[str] = ["0.1.0"]

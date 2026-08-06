@@ -11,6 +11,7 @@ from stactools.hotosm.constants import (
     OAM_EXTENSION_DEFAULT_VERSION,
     OAM_EXTENSION_SCHEMA_URI_PATTERN,
 )
+from stactools.hotosm.oam_extension import load_oam_extension_schema
 from stactools.hotosm.oam_metadata import OamMetadata
 from stactools.hotosm.stac import create_item
 
@@ -20,6 +21,33 @@ OAM_EXT_SCHEMA = OAM_EXTENSION_SCHEMA_URI_PATTERN.format(
 OAM_STAC_EXTENSION_PATH = (
     Path(__file__).parents[1].joinpath("stac-extension", "json-schema", "schema.json")
 )
+DOCS_SITE_URL = "https://docs.imagery.hotosm.org/"
+DOCS_DIR = Path(__file__).parents[3].joinpath("docs")
+
+
+def test_stac_extension_id_matches_schema_uri():
+    """Ensure the schema's own $id is the URI we put in ``stac_extensions``."""
+    with OAM_STAC_EXTENSION_PATH.open() as f:
+        oam_extension = json.load(f)
+
+    assert oam_extension["$id"] == OAM_EXT_SCHEMA
+
+
+def test_stac_extension_is_published_through_docs():
+    """Ensure the schema URI in ``stac_extensions`` is served by the mkdocs site."""
+    assert OAM_EXT_SCHEMA.startswith(DOCS_SITE_URL)
+
+    published = DOCS_DIR.joinpath(OAM_EXT_SCHEMA.removeprefix(DOCS_SITE_URL))
+    assert published.is_file()
+    assert published.read_bytes() == OAM_STAC_EXTENSION_PATH.read_bytes()
+
+
+def test_stac_extension_is_bundled_in_package():
+    """Ensure validation resolves the schema without fetching the published URI."""
+    with OAM_STAC_EXTENSION_PATH.open() as f:
+        oam_extension = json.load(f)
+
+    assert load_oam_extension_schema(OAM_EXTENSION_DEFAULT_VERSION) == oam_extension
 
 
 @pytest.fixture
