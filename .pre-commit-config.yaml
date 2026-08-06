@@ -61,6 +61,8 @@ repos:
             "!backend/stac-api/**",
             "!backend/global-mosaic/**",
             "!backend/uploader-api/**",
+            "!backend/stactools-hotosm/**",
+            "!docs/oam/**",
             "!notebooks/**",
           ]
 
@@ -108,4 +110,8 @@ repos:
             frontend/README.md,
             --ignore,
             frontend/_README.md,
+            --ignore,
+            backend/stactools-hotosm/CHANGELOG.md,
+            --ignore,
+            backend/stactools-hotosm/stac-extension,
           ]

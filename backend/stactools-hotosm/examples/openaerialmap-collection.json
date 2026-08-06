@@ -1,0 +1,54 @@
+{
+  "type": "Collection",
+  "id": "openaerialmap",
+  "stac_version": "1.1.0",
+  "description": "OpenAerialMap (OAM) is a set of tools for searching, sharing, and using openly licensed satellite and unmanned aerial vehicle (UAV) imagery.",
+  "links": [
+    {
+      "rel": "license",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "type": "text/html",
+      "title": "CC-BY-4.0 license"
+    }
+  ],
+  "stac_extensions": [
+    "https://stac-extensions.github.io/render/v2.0.0/schema.json"
+  ],
+  "item_assets": {
+    "image": {
+      "title": "Visual image",
+      "description": "Visual imagery data acquired from satellite or unmanned aerial vehicle (UAV)",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "roles": ["data"]
+    },
+    "thumbnail": {
+      "title": "Thumbnail",
+      "description": "Thumbnail version of the image asset for browsing",
+      "type": "image/png",
+      "roles": ["thumbnail"]
+    }
+  },
+  "renders": {
+    "visual": {
+      "assets": ["image"],
+      "title": "Visual image"
+    }
+  },
+  "title": "OpenAerialMap (OAM) STAC Catalog",
+  "extent": {
+    "spatial": {
+      "bbox": [[-180.0, -90.0, 180.0, 90.0]]
+    },
+    "temporal": {
+      "interval": [["2000-01-01T00:00:00Z", null]]
+    }
+  },
+  "license": "CC-BY-4.0",
+  "providers": [
+    {
+      "name": "OpenAerialMap",
+      "roles": ["host", "licensor"],
+      "url": "https://openaerialmap.org/"
+    }
+  ]
+}

@@ -1,7 +1,15 @@
 # OpenAerialMap STAC Ingester
 
 This directory contains a deployment of the STAC ingester for HOTOSM based on the
-STAC creation package, [stactools-hotosm](https://github.com/hotosm/stactools-hotosm).
+STAC creation package, [stactools-hotosm](../stactools-hotosm/), which lives in
+this repo and is consumed here as a path dependency.
+
+Because of that path dependency, the image builds from `backend/` rather than
+from this directory:
+
+```bash
+docker build -f backend/stac-ingester/Dockerfile --target prod backend
+```
 
 ## Getting Started
 

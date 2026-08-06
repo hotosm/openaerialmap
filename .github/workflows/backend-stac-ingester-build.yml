@@ -6,13 +6,14 @@ on:
       - main
     paths:
       - "backend/stac-ingester/**"
+      - "backend/stactools-hotosm/**"
   workflow_dispatch:
 
 jobs:
   image-build-and-push:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
     with:
-      context: backend/stac-ingester/
+      context: backend/
       image_name: ghcr.io/${{ github.repository }}/stac-ingester
       build_target: prod
-      dockerfile: Dockerfile
+      dockerfile: stac-ingester/Dockerfile

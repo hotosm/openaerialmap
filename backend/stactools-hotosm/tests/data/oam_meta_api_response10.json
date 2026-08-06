@@ -1,0 +1,431 @@
+{
+  "meta": {
+    "provided_by": "OpenAerialMap",
+    "license": "CC-BY 4.0",
+    "website": "http://beta.openaerialmap.org",
+    "page": 1,
+    "limit": 10,
+    "found": 17737
+  },
+  "results": [
+    {
+      "_id": "59e62b863d6412ef72209ae1",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/573a17d4cd0663bb003c32b6/0/575fcf142b67227a79b4fbfd.tif",
+      "__v": 0,
+      "title": "Carretera _ Puente Rio Chico",
+      "projection": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        -80.4248105, -0.9801461999990004, -80.418725308, -0.9748216999999999
+      ],
+      "footprint": "POLYGON((-80.4248105 -0.9748216999999999,-80.418725308 -0.9748216999999999,-80.418725308 -0.9801461999990004,-80.4248105 -0.9801461999990004,-80.4248105 -0.9748216999999999))",
+      "gsd": 1.8570457238770968e-7,
+      "file_size": 47649982,
+      "acquisition_start": "2016-04-27T05:00:00.000Z",
+      "acquisition_end": "2016-04-28T17:00:03.000Z",
+      "platform": "uav",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/573a17d4cd0663bb003c32b6/0/575fcf142b67227a79b4fbfd/wmts",
+        "tms": "http://tiles.openaerialmap.org/573a17d4cd0663bb003c32b6/0/575fcf142b67227a79b4fbfd/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/573a17d4cd0663bb003c32b6/0/575fcf142b67227a79b4fbfd_thumb.png",
+        "sensor": "Unknow"
+      },
+      "uploaded_at": "2016-05-16T00:00:00.000Z",
+      "meta_uri": "http://oin-hotosm-temp.s3.amazonaws.com/573a17d4cd0663bb003c32b6/0/575fcf142b67227a79b4fbfd_meta.json",
+      "geojson": {
+        "bbox": [
+          -80.4248105, -0.9801461999990004, -80.418725308, -0.9748216999999999
+        ],
+        "coordinates": [
+          [
+            [-80.4248105, -0.9748216999999999],
+            [-80.418725308, -0.9748216999999999],
+            [-80.418725308, -0.9801461999990004],
+            [-80.4248105, -0.9801461999990004],
+            [-80.4248105, -0.9748216999999999]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b903d6412ef7220a022",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/58e86dc0cfbcc90010aca43e/0/60783325-6d12-4c12-844e-0b53042a94ac.tif",
+      "__v": 0,
+      "title": "Johnson Valley - Soggy Dry Lake Yardangs",
+      "platform": "uav",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "uploaded_at": "2017-04-08T04:57:38.054Z",
+      "properties": {
+        "license": "CC-BY 4.0",
+        "sensor": "DJI Phantom 3 Pro",
+        "wmts": "http://tiles.openaerialmap.org/58e86dc0cfbcc90010aca43e/0/60783325-6d12-4c12-844e-0b53042a94ac/wmts",
+        "tms": "http://tiles.openaerialmap.org/58e86dc0cfbcc90010aca43e/0/60783325-6d12-4c12-844e-0b53042a94ac/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/58e86dc0cfbcc90010aca43e/0/60783325-6d12-4c12-844e-0b53042a94ac_thumb.png"
+      },
+      "acquisition_start": "2016-12-04T20:00:00.000Z",
+      "acquisition_end": "2016-12-04T21:00:00.000Z",
+      "file_size": 32572534,
+      "projection": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "gsd": 1.9893750000012143e-7,
+      "bbox": [
+        -116.59716988178567, 34.42630988440853, -116.5934216138987,
+        34.42809659794853
+      ],
+      "footprint": "POLYGON((-116.59716988178567 34.42809659794853,-116.5934216138987 34.42809659794853,-116.5934216138987 34.42630988440853,-116.59716988178567 34.42630988440853,-116.59716988178567 34.42809659794853))",
+      "meta_uri": "http://oin-hotosm-temp.s3.amazonaws.com/58e86dc0cfbcc90010aca43e/0/60783325-6d12-4c12-844e-0b53042a94ac_meta.json",
+      "geojson": {
+        "bbox": [
+          -116.59716988178567, 34.42630988440853, -116.5934216138987,
+          34.42809659794853
+        ],
+        "coordinates": [
+          [
+            [-116.59716988178567, 34.42809659794853],
+            [-116.5934216138987, 34.42809659794853],
+            [-116.5934216138987, 34.42630988440853],
+            [-116.59716988178567, 34.42630988440853],
+            [-116.59716988178567, 34.42809659794853]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b903d6412ef7220a029",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/58e86e18cfbcc90010aca440/0/86052d9a-8c9b-4ca3-a836-02894f322464.tif",
+      "__v": 0,
+      "title": "Johnson Valley Soggy Dry Lake Cracks",
+      "platform": "uav",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "uploaded_at": "2017-04-08T04:59:05.713Z",
+      "properties": {
+        "license": "CC-BY 4.0",
+        "sensor": "DJI Phantom 3",
+        "wmts": "http://tiles.openaerialmap.org/58e86e18cfbcc90010aca440/0/86052d9a-8c9b-4ca3-a836-02894f322464/wmts",
+        "tms": "http://tiles.openaerialmap.org/58e86e18cfbcc90010aca440/0/86052d9a-8c9b-4ca3-a836-02894f322464/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/58e86e18cfbcc90010aca440/0/86052d9a-8c9b-4ca3-a836-02894f322464_thumb.png"
+      },
+      "acquisition_start": "2016-12-04T23:00:00.000Z",
+      "acquisition_end": "2016-12-05T00:00:00.000Z",
+      "file_size": 38470684,
+      "projection": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "gsd": 1.9896955816966255e-7,
+      "bbox": [
+        -116.68984993967797, 34.4506361486674, -116.6858208735412,
+        34.45395858684593
+      ],
+      "footprint": "POLYGON((-116.68984993967797 34.45395858684593,-116.6858208735412 34.45395858684593,-116.6858208735412 34.4506361486674,-116.68984993967797 34.4506361486674,-116.68984993967797 34.45395858684593))",
+      "meta_uri": "http://oin-hotosm-temp.s3.amazonaws.com/58e86e18cfbcc90010aca440/0/86052d9a-8c9b-4ca3-a836-02894f322464_meta.json",
+      "geojson": {
+        "bbox": [
+          -116.68984993967797, 34.4506361486674, -116.6858208735412,
+          34.45395858684593
+        ],
+        "coordinates": [
+          [
+            [-116.68984993967797, 34.45395858684593],
+            [-116.6858208735412, 34.45395858684593],
+            [-116.6858208735412, 34.4506361486674],
+            [-116.68984993967797, 34.4506361486674],
+            [-116.68984993967797, 34.45395858684593]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b863d6412ef72209b3d",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/57f034e184ae75bb00ec749d/0/57f036c2b0eae7f3b143a87c.tif",
+      "__v": 0,
+      "title": "Tapias - Centro Poblado",
+      "projection": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        -75.35279172145262, 4.449932472396174, -75.34923321245262,
+        4.4570479457401735
+      ],
+      "footprint": "POLYGON((-75.35279172145262 4.4570479457401735,-75.34923321245262 4.4570479457401735,-75.34923321245262 4.449932472396174,-75.35279172145262 4.449932472396174,-75.35279172145262 4.4570479457401735))",
+      "gsd": 2.9281450000005374e-7,
+      "file_size": 33151045,
+      "acquisition_start": "2016-10-01T05:00:00.000Z",
+      "acquisition_end": "2016-10-01T22:10:07.345Z",
+      "platform": "uav",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/57f034e184ae75bb00ec749d/0/57f036c2b0eae7f3b143a87c/wmts",
+        "tms": "http://tiles.openaerialmap.org/57f034e184ae75bb00ec749d/0/57f036c2b0eae7f3b143a87c/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/57f034e184ae75bb00ec749d/0/57f036c2b0eae7f3b143a87c_thumb.png",
+        "sensor": "Canos s100"
+      },
+      "uploaded_at": "2016-10-01T00:00:00.000Z",
+      "meta_uri": "http://oin-hotosm-temp.s3.amazonaws.com/57f034e184ae75bb00ec749d/0/57f036c2b0eae7f3b143a87c_meta.json",
+      "geojson": {
+        "bbox": [
+          -75.35279172145262, 4.449932472396174, -75.34923321245262,
+          4.4570479457401735
+        ],
+        "coordinates": [
+          [
+            [-75.35279172145262, 4.4570479457401735],
+            [-75.34923321245262, 4.4570479457401735],
+            [-75.34923321245262, 4.449932472396174],
+            [-75.35279172145262, 4.449932472396174],
+            [-75.35279172145262, 4.4570479457401735]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b903d6412ef7220a02f",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21.tif",
+      "__v": 0,
+      "title": "Pisgah Crater Cinder Cone",
+      "platform": "uav",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "uploaded_at": "2017-04-08T05:11:08.440Z",
+      "properties": {
+        "license": "CC-BY 4.0",
+        "sensor": "Phantom 3 Pro",
+        "wmts": "http://tiles.openaerialmap.org/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21/wmts",
+        "tms": "http://tiles.openaerialmap.org/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21_thumb.png"
+      },
+      "acquisition_start": "2016-05-01T07:00:00.000Z",
+      "acquisition_end": "2016-05-01T07:00:00.000Z",
+      "file_size": 53554806,
+      "projection": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "gsd": 2.990237944881498e-7,
+      "bbox": [
+        -116.38018350872743, 34.74269850450097, -116.37018935527587,
+        34.750779859363035
+      ],
+      "footprint": "POLYGON((-116.38018350872743 34.750779859363035,-116.37018935527587 34.750779859363035,-116.37018935527587 34.74269850450097,-116.38018350872743 34.74269850450097,-116.38018350872743 34.750779859363035))",
+      "meta_uri": "http://oin-hotosm-temp.s3.amazonaws.com/58e870a5cfbcc90010aca443/0/09c6d420-ae7a-4316-a4ad-8aaf81977e21_meta.json",
+      "geojson": {
+        "bbox": [
+          -116.38018350872743, 34.74269850450097, -116.37018935527587,
+          34.750779859363035
+        ],
+        "coordinates": [
+          [
+            [-116.38018350872743, 34.750779859363035],
+            [-116.37018935527587, 34.750779859363035],
+            [-116.37018935527587, 34.74269850450097],
+            [-116.38018350872743, 34.74269850450097],
+            [-116.38018350872743, 34.750779859363035]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b703d6412ef72208f33",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c3c39a2b67227a79b4f4e2.tif",
+      "__v": 0,
+      "title": "tacloban_part_2.tif",
+      "projection": "GEOGCS[\"WGS84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        124.99486944444445, 11.240333333333332, 125.01255555555555,
+        11.250847222222223
+      ],
+      "footprint": "POLYGON((124.99486944444445 11.250847222222223,125.01255555555555 11.250847222222223,125.01255555555555 11.240333333333332,124.99486944444445 11.240333333333332,124.99486944444445 11.250847222222223))",
+      "gsd": 3.3787e-7,
+      "file_size": 193758102,
+      "acquisition_start": "2013-11-15T00:00:00.000Z",
+      "acquisition_end": "2013-11-16T00:00:00.000Z",
+      "platform": "UAV",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/1/0/55c3c39a2b67227a79b4f4e2/wmts",
+        "tms": "http://tiles.openaerialmap.org/1/0/55c3c39a2b67227a79b4f4e2/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c3c39a2b67227a79b4f4e2_thumb.png"
+      },
+      "meta_uri": "https://s3.us-east-1.amazonaws.com/oin-hotosm/1/0/55c3c39a2b67227a79b4f4e2_meta.json",
+      "geojson": {
+        "bbox": [
+          124.99486944444445, 11.240333333333332, 125.01255555555555,
+          11.250847222222223
+        ],
+        "coordinates": [
+          [
+            [124.99486944444445, 11.250847222222223],
+            [125.01255555555555, 11.250847222222223],
+            [125.01255555555555, 11.240333333333332],
+            [124.99486944444445, 11.240333333333332],
+            [124.99486944444445, 11.250847222222223]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b703d6412ef72208f39",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c3c39a2b67227a79b4f4e4.tif",
+      "__v": 0,
+      "title": "tacloban_part_5.tif",
+      "projection": "GEOGCS[\"WGS84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        124.99346111111112, 11.235105555555554, 125.01235833333334,
+        11.249447222222221
+      ],
+      "footprint": "POLYGON((124.99346111111112 11.249447222222221,125.01235833333334 11.249447222222221,125.01235833333334 11.235105555555554,124.99346111111112 11.235105555555554,124.99346111111112 11.249447222222221))",
+      "gsd": 3.543485e-7,
+      "file_size": 221449400,
+      "acquisition_start": "2013-11-15T00:00:00.000Z",
+      "acquisition_end": "2013-11-16T00:00:00.000Z",
+      "platform": "UAV",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/1/0/55c3c39a2b67227a79b4f4e4/wmts",
+        "tms": "http://tiles.openaerialmap.org/1/0/55c3c39a2b67227a79b4f4e4/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c3c39a2b67227a79b4f4e4_thumb.png"
+      },
+      "meta_uri": "https://s3.us-east-1.amazonaws.com/oin-hotosm/1/0/55c3c39a2b67227a79b4f4e4_meta.json",
+      "geojson": {
+        "bbox": [
+          124.99346111111112, 11.235105555555554, 125.01235833333334,
+          11.249447222222221
+        ],
+        "coordinates": [
+          [
+            [124.99346111111112, 11.249447222222221],
+            [125.01235833333334, 11.249447222222221],
+            [125.01235833333334, 11.235105555555554],
+            [124.99346111111112, 11.235105555555554],
+            [124.99346111111112, 11.249447222222221]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b703d6412ef72208f44",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c4f20f2b67227a79b4f4e7.tif",
+      "__v": 0,
+      "title": "tacloban_part_6.tif",
+      "projection": "GEOGCS[\"WGS84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        124.99678333333334, 11.241569444444444, 125.01299722222222, 11.255375
+      ],
+      "footprint": "POLYGON((124.99678333333334 11.255375,125.01299722222222 11.255375,125.01299722222222 11.241569444444444,124.99678333333334 11.241569444444444,124.99678333333334 11.255375))",
+      "gsd": 3.59879e-7,
+      "file_size": 149793816,
+      "acquisition_start": "2013-11-15T00:00:00.000Z",
+      "acquisition_end": "2013-11-16T00:00:00.000Z",
+      "platform": "UAV",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/1/0/55c4f20f2b67227a79b4f4e7/wmts",
+        "tms": "http://tiles.openaerialmap.org/1/0/55c4f20f2b67227a79b4f4e7/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c4f20f2b67227a79b4f4e7_thumb.png"
+      },
+      "meta_uri": "https://s3.us-east-1.amazonaws.com/oin-hotosm/1/0/55c4f20f2b67227a79b4f4e7_meta.json",
+      "geojson": {
+        "bbox": [
+          124.99678333333334, 11.241569444444444, 125.01299722222222, 11.255375
+        ],
+        "coordinates": [
+          [
+            [124.99678333333334, 11.255375],
+            [125.01299722222222, 11.255375],
+            [125.01299722222222, 11.241569444444444],
+            [124.99678333333334, 11.241569444444444],
+            [124.99678333333334, 11.255375]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b6f3d6412ef72208f1a",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c36a162b67227a79b4f4d9.tif",
+      "__v": 0,
+      "title": "UP_Tacloban_2.tif",
+      "projection": "GEOGCS[\"WGS84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        125.00479166666666, 11.247174999999999, 125.0090111111111,
+        11.250005555555555
+      ],
+      "footprint": "POLYGON((125.00479166666666 11.250005555555555,125.0090111111111 11.250005555555555,125.0090111111111 11.247174999999999,125.00479166666666 11.247174999999999,125.00479166666666 11.250005555555555))",
+      "gsd": 3.6306450000000004e-7,
+      "file_size": 14862647,
+      "acquisition_start": "2013-11-15T00:00:00.000Z",
+      "acquisition_end": "2013-11-16T00:00:00.000Z",
+      "platform": "UAV",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/1/0/55c36a162b67227a79b4f4d9/wmts",
+        "tms": "http://tiles.openaerialmap.org/1/0/55c36a162b67227a79b4f4d9/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c36a162b67227a79b4f4d9_thumb.png"
+      },
+      "meta_uri": "https://s3.us-east-1.amazonaws.com/oin-hotosm/1/0/55c36a162b67227a79b4f4d9_meta.json",
+      "geojson": {
+        "bbox": [
+          125.00479166666666, 11.247174999999999, 125.0090111111111,
+          11.250005555555555
+        ],
+        "coordinates": [
+          [
+            [125.00479166666666, 11.250005555555555],
+            [125.0090111111111, 11.250005555555555],
+            [125.0090111111111, 11.247174999999999],
+            [125.00479166666666, 11.247174999999999],
+            [125.00479166666666, 11.250005555555555]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    },
+    {
+      "_id": "59e62b703d6412ef72208f3f",
+      "uuid": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c3c39a2b67227a79b4f4e6.tif",
+      "__v": 0,
+      "title": "tacloban_part_4.tif",
+      "projection": "GEOGCS[\"WGS84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433],AUTHORITY[\"EPSG\",\"4326\"]]",
+      "bbox": [
+        124.99433333333333, 11.236991666666666, 125.01169166666666,
+        11.248338888888888
+      ],
+      "footprint": "POLYGON((124.99433333333333 11.248338888888888,125.01169166666666 11.248338888888888,125.01169166666666 11.236991666666666,124.99433333333333 11.236991666666666,124.99433333333333 11.248338888888888))",
+      "gsd": 3.64903e-7,
+      "file_size": 184313363,
+      "acquisition_start": "2013-11-15T00:00:00.000Z",
+      "acquisition_end": "2013-11-16T00:00:00.000Z",
+      "platform": "UAV",
+      "provider": "redacted",
+      "contact": "redacted@redacted.redacted",
+      "properties": {
+        "wmts": "http://tiles.openaerialmap.org/1/0/55c3c39a2b67227a79b4f4e6/wmts",
+        "tms": "http://tiles.openaerialmap.org/1/0/55c3c39a2b67227a79b4f4e6/{z}/{x}/{y}.png",
+        "thumbnail": "http://oin-hotosm-temp.s3.amazonaws.com/1/0/55c3c39a2b67227a79b4f4e6_thumb.png"
+      },
+      "meta_uri": "https://s3.us-east-1.amazonaws.com/oin-hotosm/1/0/55c3c39a2b67227a79b4f4e6_meta.json",
+      "geojson": {
+        "bbox": [
+          124.99433333333333, 11.236991666666666, 125.01169166666666,
+          11.248338888888888
+        ],
+        "coordinates": [
+          [
+            [124.99433333333333, 11.248338888888888],
+            [125.01169166666666, 11.248338888888888],
+            [125.01169166666666, 11.236991666666666],
+            [124.99433333333333, 11.236991666666666],
+            [124.99433333333333, 11.248338888888888]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    }
+  ]
+}

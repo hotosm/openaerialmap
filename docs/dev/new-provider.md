@@ -5,17 +5,16 @@ OpenAerialMap (HOT OAM) STAC Catalog.
 
 ## Creating STAC items
 
-The code to create STAC items for the OpenAerialMap STAC Catalog lives in
-[stactools-hotosm](https://github.com/hotosm/stactools-hotosm/). For an example
-of creating HOT OAM STAC item from existing Maxar items, see [this
-file](https://github.com/hotosm/stactools-hotosm/blob/main/src/stactools/hotosm/maxar/stac.py).
-Create a new branch, create a new directory for your provider, and write the
-code. Be sure to include tests. When it's ready, open a pull request (PR) with
-your changes.
+The code to create STAC items for the OpenAerialMap STAC Catalog lives in this
+repo at `backend/stactools-hotosm`. For an example of creating a HOT OAM STAC
+item from existing Maxar items, see
+`backend/stactools-hotosm/src/stactools/hotosm/maxar/stac.py`. Create a new
+branch, create a new directory for your provider, and write the code. Be sure
+to include tests. When it's ready, open a pull request (PR) with your changes.
 
-See the [stactools-hotosm
-README](https://github.com/hotosm/stactools-hotosm/blob/main/README.md) for
-more.
+See the package
+[README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md)
+and [Batch Ingestion](./backend/stactools-hotosm.md) for more.
 
 ## Add ingestion
 

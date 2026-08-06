@@ -50,9 +50,21 @@ not part of ingestion.
 
 ## Convergence with the bulk ingester
 
-The `metadata` step builds the item with `stactools.hotosm.create_item` pinned to
-the **same `stactools-hotosm` revision** (`v0.2.1`) as `backend/stac-ingester`,
-so user-uploaded and bulk-ingested items carry an identical OAM extension.
+The `metadata` step builds the item with `stactools.hotosm.create_item` from
+`backend/stactools-hotosm`, the **same source tree** as `backend/stac-ingester`,
+so user-uploaded and bulk-ingested items carry an identical OAM extension. Both
+take it as a path dependency, so there is no revision to keep in step - see
+[ADR 0008](../../../docs/decisions/0008-stactools-into-monorepo.md).
+
+That path dependency has to live inside the build context, so the raster steps
+build from `backend/` rather than from this directory:
+
+```bash
+docker build -f backend/uploader-api/pipeline/metadata/Dockerfile \
+    --target prod backend
+```
+
+`register` is stdlib-only and still builds from its own directory.
 
 ## Deploying
 

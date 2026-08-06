@@ -19,5 +19,6 @@ dependencies = [
 dev = ["ruff>=0.11.11"]
 
 [tool.codespell]
-skip = "notebooks/*,*pnpm-lock.yaml,*package-lock.json,*CHANGELOG.md"
+# Important to skip intentional misspelling checks! E.g. API has both 'unknown' and 'unknow'
+skip = "notebooks/*,*pnpm-lock.yaml,*package-lock.json,*CHANGELOG.md,*/tests/data/*"
 write-changes = true

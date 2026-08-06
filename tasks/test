@@ -399,17 +399,16 @@ _build-pipeline-images: _local-registry
   set -euo pipefail
   cd {{justfile_directory()}}
   PORT="${OAM_REGISTRY_PORT:-5005}"
-  WS=backend/uploader-api/pipeline
+  WS=uploader-api/pipeline
   for step in validate convert metadata register; do
       img="ghcr.io/hotosm/openaerialmap/uploader/${step}:latest"
       # Mirror repo path: ghcr.io/<path> is pulled from <registry>/<path>.
       local_img="localhost:${PORT}/hotosm/openaerialmap/uploader/${step}:latest"
       echo "Building ${img}..."
-      # Register has its own stdlib context; raster steps share the workspace lock.
       if [ "$step" = "register" ]; then
-          {{docker}} build -t "$img" "${WS}/register"
+          {{docker}} build -t "$img" "backend/${WS}/register"
       else
-          {{docker}} build -f "${WS}/${step}/Dockerfile" -t "$img" "${WS}"
+          {{docker}} build -f "backend/${WS}/${step}/Dockerfile" -t "$img" backend
       fi
       echo "Pushing ${local_img}..."
       {{docker}} tag "$img" "$local_img"
