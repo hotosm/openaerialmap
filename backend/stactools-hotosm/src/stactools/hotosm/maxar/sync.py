@@ -47,3 +47,41 @@ def new_stac_items(
             assert isinstance(collection, pystac.Collection)
             collection.remove_links(pystac.RelType.ROOT)
             yield from collection.get_items(recursive=True)
+
+
+def all_catalog_ids(session: requests.Session) -> Iterator[str]:
+    """Find every Maxar acquisition "catalog ID" in the open data bucket.
+
+    Each event Collection has one child Collection per acquisition, and those
+    are named after the acquisition's "catalog_id" Item property, so the IDs
+    can be collected from the child links rather than by reading every
+    Collection in the catalog.
+
+    Args:
+        session: requests Session object
+
+    Yields:
+        Maxar catalog IDs, which may include duplicates if an acquisition
+        covers more than one event.
+    """
+    r = session.get(MAXAR_EVENT_INFO)
+    r.raise_for_status()
+    events = r.json()
+
+    for event in events:
+        url = urljoin(MAXAR_ROOT, f"{event['s3_directory']}/collection.json")
+        r = session.get(url)
+        if not r.ok:
+            # Some events listed in "event_info.json" have no Collection in
+            # the bucket, so don't fail the whole catalog for one of them
+            logger.warning(
+                "Skipping event Collection missing from bucket (HTTP %s): %s",
+                r.status_code,
+                url,
+            )
+            continue
+
+        for link in r.json().get("links", []):
+            if link.get("rel") == pystac.RelType.CHILD:
+                filename = link["href"].rsplit("/", 1)[-1]
+                yield filename.removesuffix(".json").removesuffix("_collection")

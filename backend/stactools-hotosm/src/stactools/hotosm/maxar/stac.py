@@ -1,6 +1,7 @@
 """Create STAC records for HOT OSM from Maxar's public catalog."""
 
 import datetime as dt
+from typing import Iterable
 
 from pystac import (
     Catalog,
@@ -13,6 +14,7 @@ from pystac import (
     ProviderRole,
     RelType,
     SpatialExtent,
+    Summaries,
     TemporalExtent,
 )
 from pystac.extensions.item_assets import ItemAssetDefinition
@@ -36,8 +38,18 @@ def create_collection(
     catalog: Catalog,
     temporal_extent_start: dt.datetime | None = None,
     temporal_extent_end: dt.datetime | None = None,
+    catalog_ids: Iterable[str] | None = None,
 ) -> Collection:
-    """Rewrite Maxar root Catalog into a Collection for HOT OAM."""
+    """Rewrite Maxar root Catalog into a Collection for HOT OAM.
+
+    Args:
+        catalog: Maxar root STAC Catalog
+        temporal_extent_start: Start of the Collection temporal extent
+        temporal_extent_end: End of the Collection temporal extent
+        catalog_ids: Maxar acquisition "catalog IDs" to summarize. These are
+            an opaque but useful key for finding a given open data archive,
+            see `stactools.hotosm.maxar.sync.all_catalog_ids`.
+    """
     collection = Collection(
         id=COLLECTION_ID,
         # The Maxar catalogs have terse descriptions that are better suited to use
@@ -62,6 +74,15 @@ def create_collection(
             ),
         ],
     )
+
+    if catalog_ids is not None:
+        unique_catalog_ids = sorted(set(catalog_ids))
+        # NOTE: `Summaries.to_dict` silently drops any list longer than
+        # `maxcount`, which defaults to 25
+        collection.summaries = Summaries(
+            {"catalog_id": unique_catalog_ids},
+            maxcount=len(unique_catalog_ids) + 1,
+        )
 
     if catalog_self_link := catalog.get_self_href():
         collection.add_link(

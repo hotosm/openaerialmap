@@ -47,6 +47,18 @@ def test_create_collection(catalog: pystac.Catalog, event_info: list[dict]):
 
     collection = create_collection(catalog)
     assert collection.extent.temporal.intervals == [[None, None]]
+    assert "catalog_id" not in collection.to_dict().get("summaries", {})
+    collection.validate()
+
+
+def test_create_collection_catalog_id_summaries(catalog: pystac.Catalog):
+    """Ensure Maxar catalog IDs are summarized, deduplicated and sorted."""
+    # More than `pystac.summaries.DEFAULT_MAXCOUNT` IDs, since the Maxar
+    # catalog has hundreds of acquisitions
+    catalog_ids = [f"10300100{i:08X}" for i in range(50)]
+    collection = create_collection(catalog, catalog_ids=catalog_ids + catalog_ids[:5])
+
+    assert collection.to_dict()["summaries"]["catalog_id"] == sorted(catalog_ids)
     collection.validate()
 
 

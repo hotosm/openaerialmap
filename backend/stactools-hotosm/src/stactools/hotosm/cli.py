@@ -22,6 +22,7 @@ from stactools.hotosm.maxar.stac import (
 )
 from stactools.hotosm.maxar.sync import (
     MAXAR_ROOT,
+    all_catalog_ids as all_maxar_catalog_ids,
     new_stac_items as new_maxar_stac_items,
 )
 from stactools.hotosm.oam_metadata import OamMetadata
@@ -329,7 +330,10 @@ def create_and_save_collection(catalog: str, destination: Path) -> None:
     elif catalog == "Maxar":
         maxar_catalog = pystac.read_file(urljoin(MAXAR_ROOT, "catalog.json"))
         assert isinstance(maxar_catalog, pystac.Catalog)
-        collection = create_maxar_collection(maxar_catalog)
+        collection = create_maxar_collection(
+            maxar_catalog,
+            catalog_ids=all_maxar_catalog_ids(requests.Session()),
+        )
     else:
         raise click.BadParameter("Unknown collection ID {collection}")
 
