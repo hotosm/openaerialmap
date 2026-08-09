@@ -380,6 +380,7 @@ def sync_handler(
         except Exception as e:
             if handle_exceptions == "IGNORE":
                 errors.append(f"{raw_metadata_}: {e}")
+                continue
             else:
                 raise
         # NOTE: STAC Items cannot contain a Collection ID unless they also include
