@@ -40,10 +40,11 @@ config:
   # Mounted secret file path used by the API for runtime internal token validation.
   internalTokenFile: "/var/run/secrets/oam-tilepack-internal/token"
 
-# pgstac DB connection - reuses the eoapi-managed secret.
+# pgstac DB connection - reuses the secret managed alongside the catalog DB.
 # The worker never touches this; only the API pod reads it.
 pgstac:
-  secretName: "eoapi-pguser-eoapi"
+  # No default - set per environment (the secret name is env-specific).
+  secretName: ""
   # Key inside the secret holding the libpq connection string.
   uriKey: "uri"
 

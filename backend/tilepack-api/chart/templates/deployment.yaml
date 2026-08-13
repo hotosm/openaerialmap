@@ -42,7 +42,7 @@ spec:
             - name: PGSTAC_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.pgstac.secretName }}
+                  name: {{ required "pgstac.secretName is required: name the Secret holding the pgstac catalog DSN (env-specific, no default)." .Values.pgstac.secretName }}
                   key: {{ .Values.pgstac.uriKey }}
             - name: INTERNAL_TOKEN
               valueFrom:
