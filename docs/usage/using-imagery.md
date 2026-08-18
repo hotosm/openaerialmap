@@ -82,3 +82,31 @@ https://api.imagery.hotosm.org/raster/collections/openaerialmap/tiles/WebMercato
 The same endpoint accepts `bbox` and `datetime` filters. See the
 [API docs](https://hotosm.github.io/swagger/?url=https://api.imagery.hotosm.org/raster/api)
 for the full parameter list.
+
+## PMTiles for one image
+
+Some items also carry a `pmtiles` asset, a pre-rendered raster archive of
+that single image. Check the item's assets for the `pmtiles` key and use
+its `href`, `minzoom` and `maxzoom`.
+
+If the asset isn't there yet, ask the packager to build it either
+via the web UI, or a terminal:
+
+```bash
+curl -X POST "https://packager.imagery.hotosm.org/tilepacks/{item_id}?format=pmtiles"
+```
+
+It returns 202 while the worker runs and 200 with the URL once the
+archive is on S3 and registered in STAC.
+
+With the PMTiles protocol registered as above, add it as a raster source:
+
+```js
+map.addSource("oam-image", {
+  type: "raster",
+  url: "pmtiles://<pmtiles asset href>",
+  tileSize: 256,
+});
+
+map.addLayer({ id: "oam-image", type: "raster", source: "oam-image" });
+```
