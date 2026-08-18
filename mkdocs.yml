@@ -72,6 +72,8 @@ nav:
       # - Contribution Guidelines: CONTRIBUTING.md
       - Code of Conduct: https://docs.hotosm.org/code-of-conduct
       - FAQ: about/faq.md
+  - Usage Guide:
+      - usage/using-imagery.md
   - Developer Guide:
       - Practices:
           - Dev Practices: https://docs.hotosm.org/dev-practices
