@@ -21,8 +21,9 @@ options:
 - **Workflow ServiceAccount** (`workflowServiceAccount.create`) - the `argo-odm`
   SA the WorkflowTemplate assigns to step pods, plus minimum executor RBAC
   (workflowtaskresults etc.) in this namespace.
-- **Optional in-cluster Postgres** (`db.enabled`) - `db-deployment`,
-  `db-service`, `db-pvc`. Default is an external DB.
+- **Optional in-cluster Postgres** (`db.enabled`) - `db-statefulset` +
+  `db-service`, for staging / PR previews / local dev. Storage is ephemeral
+  unless `db.primary.persistence.enabled`. Default is an external DB.
 - **Optional bundled Argo Workflows** (`argo.enabled`) - see above.
 - Service, Ingress (`upload.imagery.hotosm.org`), optional HPA.
 

@@ -37,13 +37,10 @@ env:
 existingSecret:
   name: oam-uploader-local
 
-# In-cluster PostGIS, ephemeral.
+# In-cluster PostGIS. Storage is ephemeral by default (chart-wide).
 db:
   enabled: true
   auth:
     username: oam
     password: oam
     database: oam_uploader
-  primary:
-    persistence:
-      enabled: false

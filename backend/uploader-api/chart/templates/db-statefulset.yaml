@@ -1,12 +1,13 @@
 {{- if .Values.db.enabled -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "chart.dbServiceName" . }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
     app.kubernetes.io/component: db
 spec:
+  serviceName: {{ include "chart.dbServiceName" . }}
   replicas: 1
   selector:
     matchLabels:
@@ -18,6 +19,10 @@ spec:
         {{- include "chart.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: db
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.db.primary.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -56,14 +61,25 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
           volumeMounts:
-            - name: db-data
+            - name: data
               mountPath: {{ .Values.db.primary.dataMountPath | quote }}
+      {{- if not .Values.db.primary.persistence.enabled }}
       volumes:
-        - name: db-data
-          {{- if .Values.db.primary.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ include "chart.dbServiceName" . }}-data
-          {{- else }}
+        - name: data
           emptyDir: {}
-          {{- end }}
+      {{- end }}
+  {{- if .Values.db.primary.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with .Values.db.primary.persistence.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.db.primary.persistence.size }}
+  {{- end }}
 {{- end }}

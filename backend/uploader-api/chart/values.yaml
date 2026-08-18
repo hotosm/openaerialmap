@@ -89,14 +89,30 @@ db:
     - -c
     - max_connections=200
   primary:
-    podSecurityContext: {}
-    securityContext: {}
+    # The postgres image runs as uid/gid 999; running as that user directly
+    # skips the entrypoint's gosu step, and fsGroup makes PGDATA writable.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      runAsGroup: 999
+      fsGroup: 999
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+    # Postgres 18 images put PGDATA in a subdirectory of this path
+    # (/var/lib/postgresql/18/docker), so lost+found on a fresh PVC does not
+    # trip the "directory not empty" init check.
     dataMountPath: /var/lib/postgresql
     resources:
       requests: { cpu: 250m, memory: 256Mi }
       limits: { cpu: "1", memory: 1Gi }
+    # Off by default: the bundled DB is for staging / PR previews / local dev,
+    # where the namespace is disposable. Enable for a longer-lived install.
     persistence:
-      enabled: true
+      enabled: false
       size: 10Gi
       storageClassName: ""
 
