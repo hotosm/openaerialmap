@@ -63,8 +63,24 @@ content %}
       </wa-select>
     </wa-details>
 
-    <input type="file" id="file-input" accept=".tif,.tiff" required />
+    <!-- Shown instead of the file picker when the prefill link carries a
+         source URL, naming the host the imagery will come from. -->
+    <div id="remote-source" hidden>
+      <wa-callout variant="neutral">
+        <strong>Imagery will be fetched for you</strong>
+        <p id="remote-source-detail"></p>
+      </wa-callout>
+    </div>
+
+    <div id="file-picker">
+      <input type="file" id="file-input" accept=".tif,.tiff" required />
+    </div>
     <wa-button type="submit" variant="brand" id="submit-btn">Start upload</wa-button>
+
+    <!-- Carried through from the prefill link. -->
+    <input type="hidden" name="external_id" />
+    <input type="hidden" name="external_url" />
+    <input type="hidden" name="source_url" />
   </form>
 
   <div id="upload-progress" class="oam-progress" hidden>

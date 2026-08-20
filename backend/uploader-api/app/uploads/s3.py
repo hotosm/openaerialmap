@@ -34,6 +34,11 @@ def _client(endpoint: str | None):
             # Local S3 services require SigV4 and path-style addresses.
             signature_version="s3v4",
             s3={"addressing_style": "path"},
+            # botocore defaults to a minute each; an unreachable endpoint
+            # should fail a request, not hold a worker thread that long.
+            connect_timeout=5,
+            read_timeout=60,
+            retries={"mode": "standard"},
             # Automatic checksums break presigned PUTs on MinIO and rustfs.
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
@@ -78,28 +83,3 @@ def upload_id_from_key(key: str) -> str:
     """Extract the upload ID from a build_key() key."""
     parts = key.split("/")
     return parts[-2] if len(parts) >= 2 else ""
-
-
-def ensure_bucket_lifecycle() -> None:
-    """Configure cleanup for multipart uploads abandoned by failed clients.
-
-    Lifecycle permissions are optional, so failures are logged and ignored.
-    """
-    days = settings.ABORT_INCOMPLETE_MULTIPART_DAYS
-    try:
-        internal_client().put_bucket_lifecycle_configuration(
-            Bucket=settings.S3_BUCKET,
-            LifecycleConfiguration={
-                "Rules": [
-                    {
-                        "ID": "oam-abort-incomplete-multipart",
-                        "Status": "Enabled",
-                        "Filter": {"Prefix": ""},
-                        "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": days},
-                    }
-                ]
-            },
-        )
-        log.info("S3 lifecycle set: abort incomplete multipart after %d days", days)
-    except Exception as err:  # noqa: BLE001
-        log.warning("Could not set S3 abort-incomplete-multipart lifecycle: %s", err)

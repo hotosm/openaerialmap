@@ -1,0 +1,9 @@
+[project]
+name = "oam-pipeline-fetch"
+version = "0.1.0"
+requires-python = ">=3.12"
+# Floors express what this step needs; pipeline/uv.lock holds the exact pins.
+dependencies = ["httpx>=0.28", "boto3>=1.40"]
+
+[dependency-groups]
+test = ["pytest>=8"]

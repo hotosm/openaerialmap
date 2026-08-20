@@ -7,6 +7,8 @@
     <meta name="author" content="Humanitarian OpenStreetMap Team" />
     <meta name="viewport" content="initial-scale=1, width=device-width" />
     <meta name="theme-color" content="#d73f3f" />
+    <!-- Backs up the Referrer-Policy header, for a cached copy of the page. -->
+    <meta name="referrer" content="no-referrer" />
 
     <link rel="icon" type="image/svg+xml" href="/static/openaerialmap.svg" />
 
@@ -110,11 +112,11 @@
     {% if auth_enabled %}
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/hanko-auth/dist/hanko-auth.esm.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/hanko-auth@0.5.4/dist/hanko-auth.esm.js"
     />
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/hanko-auth/dist/hanko-auth.esm.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/hanko-auth@0.5.4/dist/hanko-auth.esm.js"
     ></script>
     {% endif %}
 

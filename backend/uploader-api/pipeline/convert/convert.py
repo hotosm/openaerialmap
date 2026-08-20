@@ -21,6 +21,9 @@ logging.basicConfig(
 )
 log = logging.getLogger("convert")
 
+# Every step opens the original the same way validate checked it.
+READ_DRIVER = "GTiff"
+
 COMPRESS = os.environ.get("COG_COMPRESS", "ZSTD")
 # Level 12 was the measured time/size sweet spot for OAM orthophotos;
 # higher levels became very slow for marginal compression gains.
@@ -48,7 +51,10 @@ def _verify_lossless(src_path: str, dst_path: str) -> None:
 
     GDAL checksums are 16-bit smoke tests, not cryptographic proof.
     """
-    with rasterio.open(src_path) as src, rasterio.open(dst_path) as dst:
+    with (
+        rasterio.open(src_path, driver=READ_DRIVER) as src,
+        rasterio.open(dst_path, driver=READ_DRIVER) as dst,
+    ):
         if src.count != dst.count:
             raise ValueError(f"band count changed: {src.count} -> {dst.count}")
         for b in range(1, src.count + 1):
@@ -97,7 +103,7 @@ def _write_provenance(dst_path: str, predictor: str) -> None:
 def convert_to_cog(src_path: str, dst_path: str) -> None:
     """Translate a raster into a COG in a single pass (GDAL COG driver)."""
     src_mb = os.path.getsize(src_path) / 1e6 if os.path.exists(src_path) else -1
-    with rasterio.open(src_path) as src:
+    with rasterio.open(src_path, driver=READ_DRIVER) as src:
         dtype = src.dtypes[0]
     predictor = os.environ.get("COG_PREDICTOR", _predictor_for(dtype))
     log.info(
@@ -133,8 +139,9 @@ def convert_to_cog(src_path: str, dst_path: str) -> None:
         "GDAL_CACHEMAX": int(GDAL_CACHEMAX),
         "CPL_TMPDIR": TMPDIR,
     }
-    with rasterio.Env(**env):
-        rio_copy(src_path, dst_path, driver="COG", **creation)
+    # An open dataset rather than a path, so the copy goes through READ_DRIVER.
+    with rasterio.Env(**env), rasterio.open(src_path, driver=READ_DRIVER) as src:
+        rio_copy(src, dst_path, driver="COG", **creation)
 
     if VERIFY:
         _verify_lossless(src_path, dst_path)

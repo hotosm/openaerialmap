@@ -66,21 +66,15 @@ def validate_item(
             detail=f"invalid STAC item: {exc}",
         ) from exc
 
-    # Remote extension validation rejects failures only in strict mode.
-    if item.get("stac_extensions"):
+    # Only in strict mode: validation fetches each extension's schema over HTTP.
+    if item.get("stac_extensions") and settings.STAC_STRICT_EXTENSIONS:
         try:
             validate_extensions(item, reraise_exception=True)
         except Exception as exc:  # noqa: BLE001
-            if settings.STAC_STRICT_EXTENSIONS:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"STAC extension validation failed: {exc}",
-                ) from exc
-            log.warning(
-                "stac_extensions validation failed for %s (non-strict): %s",
-                item_id,
-                exc,
-            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"STAC extension validation failed: {exc}",
+            ) from exc
 
     return item
 
@@ -93,3 +87,34 @@ async def upsert_item(item: dict[str, Any]) -> None:
     async with await psycopg.AsyncConnection.connect(settings.PGSTAC_DB_URL) as conn:
         async with conn.cursor() as cur:
             await cur.execute("SELECT pgstac.upsert_item(%s::jsonb);", (Jsonb(item),))
+
+
+async def find_item_by_checksum(checksum: str) -> str | None:
+    """Return an item whose archived original has identical bytes, if any.
+
+    Advisory only, so an unreachable catalogue degrades to "no match" rather
+    than breaking an upload that is otherwise fine. Compares the `original`
+    asset, not the COG, whose bytes depend on the converter version.
+    """
+    if not checksum:
+        return None
+    try:
+        async with await psycopg.AsyncConnection.connect(
+            settings.PGSTAC_DB_URL
+        ) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT id FROM pgstac.items
+                    WHERE collection = %(collection)s
+                      AND content->'assets'->'original'->>'file:checksum'
+                          = %(checksum)s
+                    LIMIT 1;
+                    """,
+                    {"collection": settings.STAC_COLLECTION, "checksum": checksum},
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+    except Exception as exc:  # noqa: BLE001
+        log.warning("pgstac checksum lookup failed (treating as no match): %s", exc)
+        return None

@@ -1,7 +1,8 @@
-# A shared lock keeps rasterio and GDAL consistent across raster steps.
-# Register is stdlib-only and stays outside the workspace.
+# A shared lock keeps rasterio and GDAL consistent across raster steps, and
+# keeps one set of pins for the pipeline. Register is stdlib-only and stays
+# outside the workspace.
 [tool.uv.workspace]
-members = ["validate", "convert", "metadata"]
+members = ["fetch", "validate", "convert", "metadata"]
 
 [tool.uv.sources]
 stactools-hotosm = { path = "../../stactools-hotosm" }

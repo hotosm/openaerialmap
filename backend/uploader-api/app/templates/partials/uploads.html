@@ -25,7 +25,14 @@
         <wa-tag variant="neutral">{{ u.status }}</wa-tag>
         {% endif %}
       </td>
-      <td class="oam-muted">{{ u.message }}</td>
+      <td class="oam-muted">
+        {{ u.message }}
+        <!-- A duplicate is a warning, not a rejection: re-publishing the same
+             bytes is sometimes deliberate. -->
+        {% if u.warning %}
+        <p><wa-tag variant="warning">Warning</wa-tag> {{ u.warning }}</p>
+        {% endif %}
+      </td>
       <td class="oam-muted">
         {{ u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "" }}
       </td>

@@ -5,12 +5,13 @@ description = "OpenAerialMap imagery uploader API + htmx UI (Litestar)."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "litestar[jinja]==2.21.1",
+  "litestar[jinja]==2.22.0",
+  "anyio>=4.14.2",
   "uvicorn==0.41.0",
   "psycopg[c,pool]==3.3.3",
   "pydantic==2.9.2",
   "pydantic-settings==2.6.0",
-  "python-multipart==0.0.30",
+  "python-multipart==0.0.31",
   "boto3==1.43.4",
   "httpx==0.28.1",
   "kubernetes==35.0.0",
@@ -30,7 +31,13 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pre-commit>=4.3.0", "ruff>=0.15.0"]
-test = ["pytest==8.3.5", "pytest-asyncio==0.24.0", "httpx==0.28.1", "asgi-lifespan==2.1.0"]
+test = [
+  "pytest==8.3.5",
+  "pytest-asyncio==0.24.0",
+  "httpx==0.28.1",
+  "asgi-lifespan==2.1.0",
+  "pyyaml==6.0.2",
+]
 
 [tool.pytest.ini_options]
 # Put the project root on sys.path so `uv run pytest` (not just `python -m
@@ -50,6 +57,8 @@ ignore = [
   "D203",
   "D212",
   "D213",
+  # An __init__ docstring is almost always a restatement of the class one.
+  "D107",
   # Do not enforce Pylint complexity and magic-value heuristics.
   "PLR2004",
   "PLR0913",

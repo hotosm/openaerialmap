@@ -30,8 +30,28 @@ CREATE TABLE IF NOT EXISTS uploads (
     -- Nullable: set to NULL when a job reaches a terminal state, which revokes
     -- the token so it can't be reused after the workflow finishes.
     callback_token TEXT,
+    -- Values come from UploadStatus in app/db/models.py.
     status TEXT NOT NULL DEFAULT 'Processing',
     message TEXT NOT NULL DEFAULT '',
+    -- The columns below are repeated in ../1-remote-source-ingest.sql, which is
+    -- what an existing database gets: the baseline only runs on an empty one.
+    -- Idempotency key from the system that asked for this upload, by
+    -- convention "<source>:<id>" (e.g. "dronetm:<project-uuid>"). Never parsed.
+    external_id TEXT,
+    -- Public backlink to whatever produced the imagery; becomes the STAC item's
+    -- `rel: via` link. Not the fetch source, which is never published.
+    external_url TEXT,
+    -- Set when the pipeline fetches the bytes itself, NULL for browser
+    -- multipart uploads. Cleared once the bytes arrive; a presigned URL is a
+    -- bearer token for someone else's bucket.
+    source_url TEXT,
+    -- Dataset metadata the uploader supplied, read back by the pipeline over
+    -- the callback token rather than passed as workflow shell arguments.
+    dataset_meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- sha256 multihash of the original bytes, computed by the pipeline.
+    checksum TEXT,
+    -- Non-fatal notices (e.g. byte-identical duplicate) shown with the status.
+    warning TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -39,3 +59,14 @@ ALTER TABLE IF EXISTS uploads OWNER TO current_user;
 
 CREATE INDEX IF NOT EXISTS uploads_user_sub_idx ON uploads (user_sub);
 CREATE INDEX IF NOT EXISTS uploads_status_idx ON uploads (status);
+
+-- Partial: a failed or aborted attempt must not lock an external system out of
+-- ever publishing that dataset.
+CREATE UNIQUE INDEX IF NOT EXISTS uploads_external_id_active_idx
+    ON uploads (external_id)
+    WHERE external_id IS NOT NULL
+      AND status NOT IN ('Failed', 'Error', 'Aborted');
+
+CREATE INDEX IF NOT EXISTS uploads_checksum_idx
+    ON uploads (checksum)
+    WHERE checksum IS NOT NULL;

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Apply the baseline to an empty database, then run unrecorded migrations.
-# Keep this outside the app process so replicas cannot each run migrations.
+# Every replica runs this in its init container, so migrations must be written
+# idempotently (IF NOT EXISTS, IF EXISTS) rather than relying on a lock.
 
 set -eo pipefail
 
@@ -92,7 +93,11 @@ SQL
             sort
     )
 
-    [ "$ran" -eq 0 ] && echo "No new migrations found."
+    # An `&&` here would be the function's exit status, and `set -e` would then
+    # kill the script every time a migration actually ran.
+    if [ "$ran" -eq 0 ]; then
+        echo "No new migrations found."
+    fi
 }
 
 pretty_echo "### Migrations Start ###"

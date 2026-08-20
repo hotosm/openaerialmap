@@ -13,12 +13,17 @@ import sys
 
 import numpy as np
 import rasterio
+import rasterio.errors
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s [validate] %(message)s",
 )
 log = logging.getLogger("validate")
+
+# By name, because GDAL would otherwise open whatever the bytes turn out to be,
+# and a VRT named input.tif can point its source band at another file or a URL.
+READ_DRIVER = "GTiff"
 
 PRODUCT_TYPES = {"visual", "multispectral", "sar", "elevation", "pseudocolor"}
 # Bound both grid operations and decoded memory for many-band rasters.
@@ -40,7 +45,12 @@ def _declared_product_type(meta_path: str | None) -> str:
 
 def validate_raster(path: str, meta_path: str | None = None) -> bool:
     """Check a raster is georeferenced, within size limits, and self-consistent."""
-    with rasterio.open(path) as src:
+    try:
+        src = rasterio.open(path, driver=READ_DRIVER)
+    except rasterio.errors.RasterioIOError:
+        log.error("Rejected: not a GeoTIFF (%s could not be read as one)", path)
+        sys.exit(8)
+    with src:
         dtype = src.dtypes[0]
         log.info(
             "Validating %s: crs=%s bands=%s dtype=%s size=%sx%s colorinterp=%s",

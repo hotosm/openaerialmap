@@ -19,12 +19,13 @@ import sys
 import numpy as np
 import rasterio
 from pyproj import Geod
-from pystac import Asset, MediaType
+from pystac import Asset, Link, MediaType
 from pystac.extensions.file import FileExtension
 from rasterio import Affine, features
 from rasterio.enums import ColorInterp, Resampling
-from rasterio.warp import transform_bounds, transform_geom
-from shapely.geometry import mapping, shape
+from rasterio.warp import transform_geom
+from shapely.affinity import translate
+from shapely.geometry import MultiPolygon, box, mapping, shape
 from shapely.ops import unary_union
 from stactools.hotosm.oam_metadata import OamMetadata
 from stactools.hotosm.stac import create_item
@@ -34,6 +35,9 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [metadata] %(message)s",
 )
 log = logging.getLogger("metadata")
+
+# Every step opens the original the same way validate checked it.
+READ_DRIVER = "GTiff"
 
 PRODUCT_TYPES = {"visual", "multispectral", "sar", "elevation", "pseudocolor"}
 RENDER_EXT_URI = "https://stac-extensions.github.io/render/v2.0.0/schema.json"
@@ -78,7 +82,7 @@ def _file_tags(paths: list[str | None]) -> dict:
         if not path or not os.path.exists(path):
             continue
         try:
-            with rasterio.open(path) as src:
+            with rasterio.open(path, driver=READ_DRIVER) as src:
                 tags = dict(src.tags())
                 tags.update(src.tags(ns="EXIF"))
                 return tags
@@ -327,6 +331,92 @@ def _renders(
     return renders
 
 
+# Longitudes this far apart mean the geometry was torn at the antimeridian; the
+# widest real OAM scene is a few degrees across.
+_TORN_LONGITUDE_SPAN = 180.0
+
+# Sampled per edge when projecting a raster's rectangle, because a straight line
+# in a projected CRS is a curve in geographic coordinates.
+_EDGE_SAMPLES = 25
+
+
+def _polygons(geom) -> list:
+    """Keep the polygonal parts of a geometry, and only those.
+
+    Cutting at the meridian leaves the shared edge behind as a LineString, and a
+    GeometryCollection is not a valid STAC item geometry.
+    """
+    parts = getattr(geom, "geoms", [geom])
+    return [p for p in parts if p.geom_type == "Polygon" and not p.is_empty]
+
+
+def _wgs84_geometry(geom) -> tuple[dict, list[float]]:
+    """Return a geometry inside WGS84 bounds, with a bounding box to match.
+
+    Antimeridian scenes arrive wrong from two directions. A geographic raster
+    running past 180 keeps counting (`transform_geom` hands back 180.0008); a
+    projected one is split at the meridian by GDAL, and then shapely's `bounds`
+    sees parts near -180 and near +180 and reports a box spanning the planet.
+
+    So rejoin the halves into one continuous run of longitude, cut that at the
+    meridian into a MultiPolygon, and give it the wrapped bounding box RFC 7946
+    defines for the case (`bbox[0] > bbox[2]`). A geometry that does not cross
+    is returned untouched.
+    """
+    min_lon, min_lat, max_lon, max_lat = geom.bounds
+    within = -180 <= min_lon and max_lon <= 180
+    if within and (max_lon - min_lon) <= _TORN_LONGITUDE_SPAN:
+        return mapping(geom), [min_lon, min_lat, max_lon, max_lat]
+
+    # Rejoin: shift the western half a full turn east, so the pieces are adjacent
+    # again and the geometry is continuous across the meridian.
+    parts = list(getattr(geom, "geoms", [geom]))
+    continuous = unary_union(
+        [translate(part, xoff=360) if part.bounds[0] < 0 else part for part in parts]
+    )
+
+    world = box(-180, -90, 180, 90)
+    pieces = _polygons(continuous.intersection(world))
+    pieces += [
+        translate(piece, xoff=-360)
+        for piece in _polygons(continuous.intersection(box(180, -90, 540, 90)))
+    ]
+    if not pieces:
+        # Entirely past the meridian rather than across it; one turn back lands it.
+        pieces = _polygons(translate(continuous, xoff=-360))
+
+    split = pieces[0] if len(pieces) == 1 else MultiPolygon(pieces)
+    east = [p for p in pieces if p.bounds[0] >= 0]
+    west = [p for p in pieces if p.bounds[0] < 0]
+    if east and west:
+        # RFC 7946 section 5.2: the box starts east of the meridian and ends west
+        # of it, which is how a reader tells that it wraps.
+        bbox = [
+            min(p.bounds[0] for p in east),
+            min_lat,
+            max(p.bounds[2] for p in west),
+            max_lat,
+        ]
+    else:
+        bbox = [split.bounds[0], min_lat, split.bounds[2], max_lat]
+    return mapping(split), [float(v) for v in bbox]
+
+
+def _projected_rectangle(src: rasterio.DatasetReader):
+    """Project the raster's own extent, sampling its edges rather than assuming."""
+    left, bottom, right, top = src.bounds
+    xs = [left + (right - left) * i / _EDGE_SAMPLES for i in range(_EDGE_SAMPLES + 1)]
+    ys = [bottom + (top - bottom) * i / _EDGE_SAMPLES for i in range(_EDGE_SAMPLES + 1)]
+    ring = (
+        [(x, bottom) for x in xs]
+        + [(right, y) for y in ys]
+        + [(x, top) for x in reversed(xs)]
+        + [(left, y) for y in reversed(ys)]
+    )
+    rectangle = {"type": "Polygon", "coordinates": [ring + [ring[0]]]}
+    return shape(transform_geom(src.crs, "EPSG:4326", rectangle))
+
+
 def _footprint(
     src: rasterio.DatasetReader,
 ) -> tuple[dict, list[float], float] | None:
@@ -357,8 +447,10 @@ def _footprint(
         merged = unary_union(polys)
         merged = shape(transform_geom(src.crs, "EPSG:4326", mapping(merged)))
         merged = merged.simplify(1e-5, preserve_topology=True)
+        # Measured before the cut; geodesic area does not care about the seam.
         area = abs(Geod(ellps="WGS84").geometry_area_perimeter(merged)[0])
-        return mapping(merged), list(merged.bounds), area
+        geojson, bbox = _wgs84_geometry(merged)
+        return geojson, bbox, area
     except Exception:
         log.exception("Footprint tracing failed; falling back to bbox")
         return None
@@ -414,7 +506,7 @@ def build_item(
     thumbnail_path = os.path.join(out_dir, "thumbnail.png")
     item_path = os.path.join(out_dir, "metadata.json")
 
-    with rasterio.open(cog_path) as src:
+    with rasterio.open(cog_path, driver=READ_DRIVER) as src:
         product_type, product_type_source = _resolve_product_type(user_md, src)
         bands = _band_info(src)
         idx, colormap, rescale, thumb = _browse(src, product_type, bands)
@@ -426,19 +518,7 @@ def build_item(
             geojson, bbox, footprint_area = fp
             footprint_source = "mask"
         else:
-            bbox = list(transform_bounds(src.crs, "EPSG:4326", *src.bounds))
-            geojson = {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [bbox[0], bbox[1]],
-                        [bbox[2], bbox[1]],
-                        [bbox[2], bbox[3]],
-                        [bbox[0], bbox[3]],
-                        [bbox[0], bbox[1]],
-                    ]
-                ],
-            }
+            geojson, bbox = _wgs84_geometry(_projected_rectangle(src))
             footprint_area = None
             footprint_source = "bbox"
         footprint_wkt = shape(geojson).wkt
@@ -554,6 +634,21 @@ def build_item(
         )
         if PROC_EXT_URI not in item.stac_extensions:
             item.stac_extensions.append(PROC_EXT_URI)
+
+    # Linkage from whatever system requested the upload. Deliberately generic:
+    # a catalogue field per partner would not scale past the first one.
+    external_id = (user_md.get("external_id") or "").strip()
+    if external_id:
+        item.properties["oam:external_id"] = external_id
+    external_url = (user_md.get("external_url") or "").strip()
+    if external_url:
+        item.add_link(
+            Link(
+                rel="via",
+                target=external_url,
+                title="Source record for this imagery",
+            )
+        )
 
     _apply_file_meta(item.assets["visual"], cog_path)
     if original_path and os.path.exists(original_path):

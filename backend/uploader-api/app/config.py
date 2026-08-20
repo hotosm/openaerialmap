@@ -26,6 +26,16 @@ class AuthProvider(str, Enum):
     CUSTOM = "custom"
 
 
+_PLACEHOLDER_COOKIE_SECRET = "change-me-32-characters-long-xxx"
+
+
+class Environment(str, Enum):
+    """Deployment environments. Anything else refuses to boot, see Settings."""
+
+    DEVELOPMENT = "development"
+    PRODUCTION = "production"
+
+
 class MonitoringTypes(str, Enum):
     """Monitoring backends."""
 
@@ -119,8 +129,7 @@ class Settings(BaseSettings):
     OAM_UPLOAD_DEV_PORT: str | None = None
     OAM_FRONTEND_URL: str = "https://imagery.hotosm.org"
     DEBUG: bool = False
-    # Production mode rejects disabled authentication and the default secret.
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: Environment = Environment.DEVELOPMENT
     LOG_LEVEL: str = "INFO"
 
     EXTRA_CORS_ORIGINS: list[str] = Field(default_factory=list)
@@ -197,13 +206,16 @@ class Settings(BaseSettings):
 
     MAX_UPLOAD_BYTES: int = 100 * 1024**3  # 100 GiB
     MAX_ACTIVE_UPLOADS_PER_USER: int = 5
-    ABORT_INCOMPLETE_MULTIPART_DAYS: int = 7
+
+    # Only for setups whose object store is in-network (local compose, Talos
+    # e2e). Anywhere else this makes remote-source ingest an SSRF primitive.
+    FETCH_ALLOW_PRIVATE_HOSTS: bool = False
 
     AUTH_PROVIDER: AuthProvider = AuthProvider.DISABLED
     HANKO_API_URL: str | None = None
     HANKO_PUBLIC_URL: str | None = None
     LOGIN_URL: str | None = None
-    COOKIE_SECRET: SecretStr = SecretStr("change-me-32-characters-long-xxx")
+    COOKIE_SECRET: SecretStr = SecretStr(_PLACEHOLDER_COOKIE_SECRET)
 
     MONITORING: MonitoringTypes | None = None
 
@@ -229,23 +241,26 @@ class Settings(BaseSettings):
     def _fail_closed_in_prod(self) -> "Settings":
         """Refuse to boot a production config that is open or uses dev secrets.
 
-        Defaults ship auth-disabled with a placeholder cookie secret (fine for
-        local dev / compose / tests). Set ENVIRONMENT=production in real
-        deployments; that turns an open or dev-secret config into a hard startup
-        error instead of a silently public, writable service.
+        The defaults are deliberately permissive for local development, so a
+        production deployment has to override them.
         """
-        if self.ENVIRONMENT != "production":
+        if self.ENVIRONMENT is Environment.DEVELOPMENT:
             return self
         problems = []
         if self.AUTH_PROVIDER == AuthProvider.DISABLED:
             problems.append("AUTH_PROVIDER is 'disabled'")
-        if self.COOKIE_SECRET.get_secret_value() == "change-me-32-characters-long-xxx":
+        # auth_deps treats DEBUG as auth-disabled, whatever AUTH_PROVIDER says.
+        if self.DEBUG:
+            problems.append("DEBUG is on, which disables authentication")
+        if self.COOKIE_SECRET.get_secret_value() == _PLACEHOLDER_COOKIE_SECRET:
             problems.append("COOKIE_SECRET is the default placeholder")
+        if self.FETCH_ALLOW_PRIVATE_HOSTS:
+            problems.append("FETCH_ALLOW_PRIVATE_HOSTS is on")
         if problems:
             raise ValueError(
                 "Refusing to start ENVIRONMENT=production with: "
                 + "; ".join(problems)
-                + ". Set a real AUTH_PROVIDER/COOKIE_SECRET."
+                + ". These are development defaults."
             )
         return self
 

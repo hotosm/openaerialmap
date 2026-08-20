@@ -14,9 +14,10 @@ from app.auth.auth_deps import (
     get_user_sub,
     get_user_username,
     login_required,
+    mirror_user,
 )
 from app.db.database import db_conn
-from app.db.models import DbUpload, DbUser
+from app.db.models import DbUpload
 
 
 @get("/")
@@ -45,13 +46,7 @@ async def uploads_partial(auth_user: object, db: AsyncConnection) -> Template:
 @get("/profile", dependencies={"auth_user": Provide(login_required)})
 async def profile_page(auth_user: object, db: AsyncConnection) -> Template:
     """Render the user profile page, syncing the identity into `users`."""
-    user = await DbUser.upsert(
-        db,
-        DbUser(
-            sub=get_user_sub(auth_user),
-            username=get_user_username(auth_user),
-        ),
-    )
+    user = await mirror_user(db, auth_user)
     return HTMXTemplate(
         template_name="profile.html",
         context={"active_nav": "profile", "user": user},
@@ -64,13 +59,7 @@ async def profile_sync(auth_user: object, db: AsyncConnection) -> dict:
 
     This avoids waiting for the user to visit the profile page.
     """
-    user = await DbUser.upsert(
-        db,
-        DbUser(
-            sub=get_user_sub(auth_user),
-            username=get_user_username(auth_user),
-        ),
-    )
+    user = await mirror_user(db, auth_user)
     return {"sub": user.sub, "username": user.username}
 
 
