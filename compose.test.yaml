@@ -7,7 +7,56 @@ services:
       context: backend/uploader-api
       dockerfile: Dockerfile
       target: test
+    environment:
+      # The DB-backed tests skip when nothing answers here.
+      DB_HOST: test-db
+      DB_USER: oam
+      DB_PASSWORD: oam
+      DB_NAME: oam_uploader
+    depends_on:
+      test-migrations:
+        condition: service_completed_successfully
     command: ["pytest", "tests"]
+
+  # Applies the shipping schema with the same runner production uses.
+  test-migrations:
+    build:
+      context: backend/uploader-api
+      dockerfile: Dockerfile
+      # Not the test image; psql and the entrypoint only exist in prod.
+      target: prod
+    environment:
+      DB_HOST: test-db
+      DB_USER: oam
+      DB_PASSWORD: oam
+      DB_NAME: oam_uploader
+    depends_on:
+      test-db:
+        condition: service_healthy
+    entrypoint: ["/migrate-entrypoint.sh"]
+    restart: "no"
+
+  test-db:
+    image: docker.io/postgis/postgis:18-3.6-alpine
+    environment:
+      POSTGRES_USER: oam
+      POSTGRES_PASSWORD: oam
+      POSTGRES_DB: oam_uploader
+    # No volume, CI should start empty every run.
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oam -d oam_uploader"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test-fetch:
+    build:
+      context: backend
+      dockerfile: uploader-api/pipeline/fetch/Dockerfile
+      target: test
+    command: ["pytest", "fetch/tests"]
 
   test-metadata:
     build:

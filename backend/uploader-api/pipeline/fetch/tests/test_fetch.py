@@ -1,0 +1,204 @@
+"""What the fetch step will and will not download.
+
+The server is plain HTTP on loopback, so these run with `allow_private`, the
+same switch local compose uses. Which URLs the rules accept is `url_guard`'s
+own test; what is here is the streaming, the limits, and the fact that every
+redirect goes back through those rules instead of being followed blindly.
+"""
+
+import http.server
+import threading
+
+import httpx
+import pytest
+import url_guard
+from fetch import FetchError, clear_workspace, download, looks_like_tiff, redacted
+
+TIFF = b"II*\x00" + bytes(2048)
+BIG_TIFF_CHUNK = b"II+\x00" + bytes(1024 * 1024)
+HTML = b"<!DOCTYPE html><html><body>Sign in to download this file</body></html>"
+
+
+class _Handler(http.server.BaseHTTPRequestHandler):
+    # Connection-close framing, so a body with no Content-Length still ends.
+    protocol_version = "HTTP/1.0"
+
+    def log_message(self, *args):
+        pass
+
+    def _send(self, status, body=b"", headers=(), length=None):
+        self.send_response(status)
+        for name, value in headers:
+            self.send_header(name, value)
+        self.send_header("Content-Length", str(length if length else len(body)))
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def do_GET(self):  # noqa: N802 - BaseHTTPRequestHandler's interface
+        routes = {
+            "/tif": lambda: self._send(200, TIFF),
+            "/html": lambda: self._send(200, HTML),
+            "/empty": lambda: self._send(200, b""),
+            "/redirect": lambda: self._send(302, headers=[("Location", "/tif")]),
+            "/relative": lambda: self._send(302, headers=[("Location", "tif")]),
+            "/loop": lambda: self._send(302, headers=[("Location", "/loop")]),
+            "/nowhere": lambda: self._send(302),
+            "/to-file": lambda: self._send(
+                302, headers=[("Location", "file:///etc/passwd")]
+            ),
+            "/to-credentials": lambda: self._send(
+                302, headers=[("Location", "http://user:pass@example.org/a.tif")]
+            ),
+            "/lies-about-size": lambda: self._send(200, TIFF, length=100 * 1024**3),
+            "/huge": self._send_huge,
+            "/missing": lambda: self._send(404),
+            "/broken": lambda: self._send(503),
+        }
+        routes.get(self.path, lambda: self._send(404))()
+
+    def _send_huge(self):
+        self.send_response(200)
+        self.end_headers()
+        for _ in range(8):
+            self.wfile.write(BIG_TIFF_CHUNK)
+
+
+class _Server(http.server.HTTPServer):
+    def handle_error(self, *args):
+        # A test that stops reading mid-body is the point, not a failure.
+        pass
+
+
+@pytest.fixture(scope="module")
+def server():
+    """A local HTTP server, returning its base URL."""
+    httpd = _Server(("127.0.0.1", 0), _Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{httpd.server_address[1]}"
+    httpd.shutdown()
+
+
+@pytest.fixture
+def client():
+    with httpx.Client(timeout=10, trust_env=False, follow_redirects=False) as c:
+        yield c
+
+
+def _download(server, client, tmp_path, path, **kwargs):
+    return download(
+        f"{server}{path}",
+        str(tmp_path / "out.tif"),
+        client=client,
+        max_bytes=kwargs.pop("max_bytes", 10 * 1024**2),
+        allow_private=True,
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize("path", ["/tif", "/redirect", "/relative"])
+def test_downloads_a_geotiff(server, client, tmp_path, path):
+    assert _download(server, client, tmp_path, path) == len(TIFF)
+    assert (tmp_path / "out.tif").read_bytes() == TIFF
+
+
+@pytest.mark.parametrize("path", ["/to-file", "/to-credentials"])
+def test_a_redirect_target_goes_back_through_the_rules(server, client, tmp_path, path):
+    """httpx would follow these; the point of the loop is that we do not."""
+    with pytest.raises(FetchError):
+        _download(server, client, tmp_path, path)
+
+
+def test_gives_up_on_a_redirect_loop(server, client, tmp_path):
+    with pytest.raises(FetchError, match="redirected too many times"):
+        _download(server, client, tmp_path, "/loop")
+
+
+def test_rejects_a_redirect_to_nowhere(server, client, tmp_path):
+    with pytest.raises(FetchError, match="redirected to nowhere"):
+        _download(server, client, tmp_path, "/nowhere")
+
+
+def test_rejects_a_download_page_instead_of_a_file(server, client, tmp_path):
+    """The common mistake: a Drive or Dropbox preview link, not the file."""
+    with pytest.raises(FetchError, match="did not return a GeoTIFF"):
+        _download(server, client, tmp_path, "/html")
+
+
+def test_rejects_an_empty_response(server, client, tmp_path):
+    with pytest.raises(FetchError, match="no data"):
+        _download(server, client, tmp_path, "/empty")
+
+
+def test_stops_a_body_that_runs_past_the_limit(server, client, tmp_path):
+    """No Content-Length to go on, so the ceiling has to hold while streaming."""
+    with pytest.raises(FetchError, match="larger than"):
+        _download(server, client, tmp_path, "/huge", max_bytes=2 * 1024**2)
+
+
+def test_refuses_a_declared_size_over_the_limit(server, client, tmp_path):
+    """Cheaper than streaming it, when the server is honest about the size."""
+    with pytest.raises(FetchError, match="larger than"):
+        _download(server, client, tmp_path, "/lies-about-size", max_bytes=1024)
+
+
+def test_a_missing_object_fails_for_good(server, client, tmp_path):
+    with pytest.raises(FetchError) as err:
+        _download(server, client, tmp_path, "/missing")
+    assert not err.value.transient
+
+
+@pytest.mark.parametrize("path", ["/broken"])
+def test_a_server_error_is_worth_retrying(server, client, tmp_path, path):
+    with pytest.raises(FetchError) as err:
+        _download(server, client, tmp_path, path)
+    assert err.value.transient
+
+
+def test_an_unreachable_host_is_worth_retrying(client, tmp_path):
+    with pytest.raises(FetchError) as err:
+        download(
+            "http://127.0.0.1:1/tif",
+            str(tmp_path / "out.tif"),
+            client=client,
+            max_bytes=1024,
+            allow_private=True,
+        )
+    assert err.value.transient
+
+
+@pytest.mark.parametrize("head", [b"II*\x00", b"MM\x00*", b"II+\x00", b"MM\x00+"])
+def test_accepts_every_tiff_flavour(head):
+    assert looks_like_tiff(head + bytes(64))
+
+
+@pytest.mark.parametrize("head", [b"<!DOCTYPE", b"\x89PNG", b"PK\x03\x04", b""])
+def test_rejects_everything_else(head):
+    assert not looks_like_tiff(head)
+
+
+def test_keeps_signatures_out_of_the_logs():
+    url = "https://s3.example.org/o.tif?X-Amz-Signature=deadbeef"
+    assert redacted(url) == "https://s3.example.org/o.tif"
+
+
+def test_clearing_the_workspace_survives_what_it_cannot_delete(tmp_path, monkeypatch):
+    """A retried step gets a used PVC, complete with a root-owned lost+found."""
+    (tmp_path / "input.tif").write_bytes(b"old")
+    (tmp_path / "lost+found").mkdir()
+    real_rmtree = __import__("shutil").rmtree
+
+    def _rmtree(path, *args, **kwargs):
+        if path.endswith("lost+found"):
+            raise OSError(13, "Permission denied")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr("fetch.shutil.rmtree", _rmtree)
+    clear_workspace(str(tmp_path))
+    assert not (tmp_path / "input.tif").exists()
+    assert (tmp_path / "lost+found").exists()
+
+
+def test_the_redirect_limit_is_the_shared_one():
+    """The API's message about too many hops has to mean the same number."""
+    assert url_guard.MAX_REDIRECTS >= 2

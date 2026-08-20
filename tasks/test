@@ -26,13 +26,24 @@ default:
 
 # Run every uploader test suite in its built image (CI entrypoint).
 [no-cd]
-all: uploader metadata
+all: uploader fetch metadata
   {{docker}} compose -f compose.test.yaml down --remove-orphans
+
+# Chart rendering tests on the host, for iterating without a container rebuild.
+# `just test all` covers them too: the test image ships helm.
+[no-cd]
+chart:
+  cd {{justfile_directory()}}/backend/uploader-api && uv run --group test pytest tests/test_chart_rendering.py -q
 
 # Uploader API unit tests (app/tests).
 [no-cd]
 uploader:
   {{docker}} compose -f compose.test.yaml run --rm --build test-app
+
+# Pipeline fetch-step unit tests (fetch/tests).
+[no-cd]
+fetch:
+  {{docker}} compose -f compose.test.yaml run --rm --build test-fetch
 
 # Pipeline metadata-step unit tests (metadata/tests).
 [no-cd]
@@ -400,7 +411,7 @@ _build-pipeline-images: _local-registry
   cd {{justfile_directory()}}
   PORT="${OAM_REGISTRY_PORT:-5005}"
   WS=uploader-api/pipeline
-  for step in validate convert metadata register; do
+  for step in fetch validate convert metadata register; do
       img="ghcr.io/hotosm/openaerialmap/uploader/${step}:latest"
       # Mirror repo path: ghcr.io/<path> is pulled from <registry>/<path>.
       local_img="localhost:${PORT}/hotosm/openaerialmap/uploader/${step}:latest"
@@ -438,10 +449,10 @@ dev-cluster:
   export OAM_WORKFLOW_STAC_URL="http://${GW}:8082"
   export OAM_WORKFLOW_CALLBACK_URL="http://${GW}:8090"
 
-  kubectl create secret generic oam-uploader-s3 -n "$NAMESPACE" \
-      --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-oam}" \
-      --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
-      --from-literal=AWS_DEFAULT_REGION=us-east-1 \
+  # Name and keys must match the WorkflowTemplate and the chart's s3Secret.
+  kubectl create secret generic oam-s3-creds -n "$NAMESPACE" \
+      --from-literal=S3_ACCESS_KEY="${AWS_ACCESS_KEY_ID:-oam}" \
+      --from-literal=S3_SECRET_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
       --dry-run=client -o yaml | kubectl apply -f -
   kubectl config view --raw --minify --flatten > /tmp/oam-kubeconfig
 
@@ -489,10 +500,10 @@ uploader-e2e tif="":
   export OAM_WORKFLOW_CALLBACK_URL="http://${GW}:8090"
   echo "Workflow endpoints: S3=$OAM_WORKFLOW_S3_ENDPOINT STAC=$OAM_WORKFLOW_STAC_URL callback=$OAM_WORKFLOW_CALLBACK_URL"
 
-  kubectl create secret generic oam-uploader-s3 -n "$NAMESPACE" \
-      --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-oam}" \
-      --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
-      --from-literal=AWS_DEFAULT_REGION=us-east-1 \
+  # Name and keys must match the WorkflowTemplate and the chart's s3Secret.
+  kubectl create secret generic oam-s3-creds -n "$NAMESPACE" \
+      --from-literal=S3_ACCESS_KEY="${AWS_ACCESS_KEY_ID:-oam}" \
+      --from-literal=S3_SECRET_KEY="${AWS_SECRET_ACCESS_KEY:-oam}" \
       --dry-run=client -o yaml | kubectl apply -f -
 
   # Minified kubeconfig for the API container (host net reaches 127.0.0.1:6443).

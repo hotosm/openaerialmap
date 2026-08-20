@@ -92,13 +92,7 @@ def main() -> int:
     print("→ completemultipart")
     result = post(
         f"{api}/api/v1/s3/completemultipart",
-        {
-            "key": key,
-            "upload_id": upload_id,
-            "title": title,
-            "filename": filename,
-            "parts": parts,
-        },
+        {"key": key, "upload_id": upload_id, "parts": parts},
     )
     print(f"✓ done: {json.dumps(result)}")
     # Machine-parseable line so callers (e2e) can assert on the exact upload.
