@@ -139,7 +139,7 @@ def create_item(item: Item) -> Item:
         raise ValueError(f"Cannot get parent collection for Item={item.id}")
 
     # Vantor uses absolute HREFs now
-    #oam_item.make_asset_hrefs_absolute()
+    # oam_item.make_asset_hrefs_absolute()
 
     # Add some OAM properties
     oam_item.properties["oam:producer_name"] = "Vantor"
