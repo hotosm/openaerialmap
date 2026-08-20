@@ -18,19 +18,24 @@ metadata, and registers it with the existing `stac-api`.
 ```text
 browser ──multipart PUT──▶ S3 / rustfs
    │                          ▲
-   │ presign / complete       │ download
+   │ presign / complete       │ fetch
    ▼                          │
 uploader-api ──submit──▶ Argo workflow:
-   validate → COG → metadata → register ──▶ stac-api
-   ▲                                             │
-   └──── status callback (X-Internal-Token) ◀────┘
+   fetch → validate → COG → metadata → register ──▶ stac-api
+   ▲                                                    │
+   └──── status callback (X-Internal-Token) ◀───────────┘
 ```
 
-- **`app/uploads/`**: S3 multipart lifecycle, Argo trigger, status callback.
+Browser uploads go directly to S3; remote uploads provide a `source_url` that
+the pipeline fetches. See
+[Integrating an external system](#integrating-an-external-system).
+
+- **`app/uploads/`**: upload lifecycle, storage/catalogue clients, Argo trigger,
+  and workflow callbacks.
 - **`app/htmx/`**: the server-rendered pages (upload, profile).
 - **`app/db/`**: psycopg pool plus `users` / `uploads` models (raw SQL).
 - **`app/auth/`**: thin wrappers over `hotosm-auth[litestar]`.
-- **`pipeline/`**: the four Argo step images (validate, convert, metadata,
+- **`pipeline/`**: the five Argo step images (fetch, validate, convert, metadata,
   register), sharing one uv lockfile so GDAL/rasterio match across them.
 - **`migrations/`**: plain SQL applied by `migrate-entrypoint.sh` (psql), run once
   before the app. Baseline in `migrations/init/0-main.sql`, tracked in a
@@ -103,30 +108,72 @@ uv run uvicorn app.main:app --reload --port 8080
 
 Config is via environment variables. See `.env.example`.
 
+## Integrating an external system
+
+A partner can prefill the upload form without exchanging API tokens: send the
+signed-in user to `/` with values in the URL fragment, for example
+`/#title=Ward+5&source_url=…`. Supported fields are `title`, `provider`,
+`platform`, `license`, `acquisition_start`, `acquisition_end`, `sensor`,
+`contact`, `product_type`, `source_url`, `external_id`, and `external_url`.
+
+Use a fragment rather than a query string so a presigned URL never reaches
+server or ingress logs. The page removes prefill data from the address bar after
+reading it.
+
+`source_url` must be a public HTTPS URL whose expiry covers queueing and
+transfer. After the user confirms, the pipeline downloads the TIFF and clears
+the URL from the database.
+
+Remote fetching is guarded against SSRF and unsafe content:
+
+- every resolved address and redirect must be public;
+- embedded credentials, non-HTTPS URLs, non-TIFF content, and oversized files
+  are rejected;
+- production should enable `workflowNetworkPolicy` as a second layer;
+- `FETCH_ALLOW_PRIVATE_HOSTS=true` is only for local and e2e testing.
+
+`external_id` is an opaque idempotency key, conventionally `<source>:<id>`.
+Active and successful uploads reserve it; failed uploads may be retried. Resolve
+it with `GET /api/v1/uploads/lookup?external_id=…`. `external_url` becomes the
+published STAC `via` link, while `source_url` is never published. The upload ID
+is also the STAC item ID.
+
+The pipeline warns, but does not reject, when the original file's checksum is
+already published.
+
 ## What's done
 
 - The Litestar service: DB layer, auth deps, S3 multipart and Argo routes, upload
   and profile pages.
-- `pipeline/`: the `WorkflowTemplate` and four step images. Metadata uses
+- `pipeline/`: the `WorkflowTemplate` and five step images. Metadata uses
   `stactools-hotosm` from `backend/stactools-hotosm`, the same source tree as
   `backend/stac-ingester`.
 - `chart/`: Helm chart with namespace-scoped Argo RBAC (a Role, no ClusterRole),
   Deployment, Service, and Ingress for `upload.imagery.hotosm.org`.
 - CI: image builds plus a PR gate (`backend-uploader-test.yml`) running
   `just test all` (unit tests per component in their images). Lint is on
-  pre-commit.ci. The chart can provision the workflow S3 secret
-  (`workflowS3Secret.create`).
+  pre-commit.ci. The chart can provision the S3 credentials secret
+  (`s3Secret.create`), which the pipeline steps read too.
+
+## Production bucket setup
+
+Configure these bucket-wide settings outside the application:
+
+- CORS must allow the uploader origin and expose `ETag` for multipart uploads.
+- A lifecycle rule should abort incomplete multipart uploads after seven days.
+
+When updating lifecycle configuration, preserve existing retention and tiering
+rules: `PutBucketLifecycleConfiguration` replaces the complete configuration.
 
 ## Follow-ups
 
 - **Immutable deploy**: set `PIPELINE_IMAGE_TAG` to the built git SHA in prod. The
   `WorkflowTemplate` already reads it via the `image-tag` parameter; the template
-  is still applied separately by the deploy pipeline.
-- **Global workflow concurrency**: the per-user cap is in the API. Set the Argo
-  controller's `parallelism` / `namespaceParallelism` at install time to bound
-  total concurrent workflows, and so PVC usage, across the cluster.
-- **Workflow-pod hardening**: non-root, dropped capabilities, a narrowly scoped
-  ServiceAccount, and NetworkPolicies. Seccomp is already set.
+  is still applied separately by the deploy pipeline. CI must publish SHA tags.
+- **Global workflow concurrency**: set Argo `namespaceParallelism` and a storage
+  `ResourceQuota`; each active workflow can hold a 300Gi volume.
+- **Workflow-pod hardening**: evaluate `readOnlyRootFilesystem` and a sandboxed
+  runtime such as gVisor.
 - **Strict STAC validation**: publish an OAM extension schema for the `oam:*`
   fields, then turn on `STAC_STRICT_EXTENSIONS`.
 - **Integration gate**: run the Talos/Argo/S3/pgstac e2e in CI. It's manual for

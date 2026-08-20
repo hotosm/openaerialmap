@@ -3,8 +3,8 @@
 Processes an uploaded raster into a registered STAC item:
 
 ```text
-download → validate → convert (COG) → metadata ─┐
-                              └→ upload-cog ─────┴→ upload-meta → register
+fetch → validate → convert (COG) → metadata ─┐
+                           └→ upload-cog ─────┴→ upload-meta → register
 ```
 
 Runs in the dedicated, **namespace-scoped `oam` Argo install** (separate from the
@@ -14,8 +14,11 @@ back to `uploader-api` via the per-upload callback token.
 
 ## Steps
 
+- **`fetch`** (`uploader-fetch`): gets the imagery onto the workspace volume and
+  writes `/data/input.tif` and `/data/meta.json`. It copies browser uploads from
+  S3 or downloads a remote `source_url`, then reports the original checksum.
 - **`validate`** (`uploader-validate`): product-type-aware checks for CRS, size,
-  and content versus the declared type (exit 5/6/7).
+  content, and GeoTIFF format (exit 5/6/7/8).
 - **`convert`** (`uploader-convert`): raster to native-dtype lossless COG using
   the GDAL COG driver; verifies losslessness and COG layout.
 - **`metadata`** (`uploader-metadata`): builds the OAM STAC item with
@@ -25,8 +28,12 @@ back to `uploader-api` via the per-upload callback token.
   uploader-api internal register endpoint; the API writes to pgstac without the
   STAC transactions API.
 
-`download` / `upload-*` / `cleanup` use `amazon/aws-cli`; `report-status` uses
-`curlimages/curl`.
+`upload-*` / `cleanup` / `purge-objects` use `amazon/aws-cli`; `report-status`
+uses `curlimages/curl`. Steps run unprivileged without Kubernetes API tokens.
+
+Metadata and source URLs are fetched through the token-guarded API, not exposed
+as workflow parameters. `fetch` validates every redirect and returns 75 only
+for transient errors, which are the only failures Argo retries.
 
 ## Ingestion policy
 
@@ -71,9 +78,11 @@ docker build -f backend/uploader-api/pipeline/metadata/Dockerfile \
 This template is the single source of truth and is applied into the `oam`
 namespace **separately** from the helm chart (the chart deliberately does not
 carry a copy, to avoid drift). The deploy pipeline, or a manual apply, installs
-it. Step images are built + pushed by CI. AWS credentials come from the
-`oam-uploader-s3` Secret; the S3 endpoint is passed per-run via the `awsurl`
-parameter.
+it. Step images are built + pushed by CI.
+
+The `aws-cli` steps read `S3_ACCESS_KEY` / `S3_SECRET_KEY` from the
+`oam-s3-creds` Secret. Keep its name and keys aligned with the chart. The S3
+endpoint and region are workflow parameters.
 
 ```bash
 # manual apply (dev)

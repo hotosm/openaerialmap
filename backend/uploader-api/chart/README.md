@@ -22,8 +22,13 @@ options:
   SA the WorkflowTemplate assigns to step pods, plus minimum executor RBAC
   (workflowtaskresults etc.) in this namespace.
 - **Optional in-cluster Postgres** (`db.enabled`) - `db-statefulset` +
-  `db-service`, for staging / PR previews / local dev. Storage is ephemeral
-  unless `db.primary.persistence.enabled`. Default is an external DB.
+  `db-service` + `db-pvc` + `db-secret`, for staging / PR previews / local dev.
+  Persistent by default; set `db.primary.persistence.enabled=false` for a
+  throwaway environment. Set `db.auth.existingSecret` to provide the password.
+- **Optional workflow egress NetworkPolicy** (`workflowNetworkPolicy.enabled`,
+  off) - blocks workflow access to private ranges. Enabling it requires a CNI
+  that enforces NetworkPolicy and `apiServerCIDRs` for the Kubernetes service
+  and endpoints. Allow in-cluster object storage through `additionalEgress`.
 - **Optional bundled Argo Workflows** (`argo.enabled`) - see above.
 - Service, Ingress (`upload.imagery.hotosm.org`), optional HPA.
 
@@ -53,12 +58,38 @@ namespace):
 - ServiceAccount `argo-odm` - created by this chart
   (`workflowServiceAccount.create=true`, the default). Set it to `false` when
   the Argo install already provisions it (e.g. the local k8s.just test module).
-- Secret `oam-uploader-s3` with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` /
-  `AWS_DEFAULT_REGION`. Set `workflowS3Secret.create=true` to have this chart
-  provision it, or create it out of band.
+- Secret `oam-s3-creds` with `S3_ACCESS_KEY` / `S3_SECRET_KEY`. Set
+  `s3Secret.create=true` to provision it, or create it out of band. The workflow
+  template must use the same name and keys.
 - If the shared controller archives workflow logs to S3 (HOTOSM's does), the
   artifact-repository credentials secret it names (`argo-logs-s3-creds`) is
   resolved in the **workflow's** namespace, so a copy must exist here too.
+
+## Bundled database storage
+
+Only relevant with `db.enabled=true`; production uses an external database.
+
+The chart creates a retained PVC named `<release>-db-data`. Configure it with:
+
+- **`db.primary.persistence.enabled`** defaults to `true`. Set it to `false` only
+  where the namespace is disposable (`values.local.yaml`, PR previews).
+- **`db.primary.persistence.existingClaim`** adopts an existing claim.
+- **`db.primary.persistence.size` / `.storageClassName`** apply when the chart
+  creates the claim.
+
+Check the existing claim before upgrading:
+
+- **0.1.x (Deployment), claim `<release>-db-data`:** Nothing. 0.3.0 uses the
+  same name.
+- **0.2.0 (StatefulSet), claim `data-<release>-db-0`:** Set
+  `db.primary.persistence.existingClaim=data-<release>-db-0` before upgrading.
+
+```bash
+kubectl -n oam get pvc -l app.kubernetes.io/component=db
+```
+
+Changing claim size or storage class requires a manual dump and restore. The old
+claim remains retained until it is deleted explicitly.
 
 Pods run with hardened, non-root security contexts by default (see the
 `*SecurityContext` values). For reproducible deploys, pin the pipeline images by
