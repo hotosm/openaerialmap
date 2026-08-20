@@ -1,0 +1,24 @@
+{{- if and .Values.db.enabled .Values.db.primary.persistence.enabled (not .Values.db.primary.persistence.existingClaim) -}}
+# Standalone, not a volumeClaimTemplate: that names the PVC "data-<sts>-0",
+# which is what 0.2.0 did. Anyone on that needs persistence.existingClaim; see
+# the upgrade table in the chart README.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "chart.dbDataClaimName" . }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db
+  annotations:
+    # So neither uninstall nor a template rename can bin the only copy.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.db.primary.persistence.size }}
+  {{- with .Values.db.primary.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

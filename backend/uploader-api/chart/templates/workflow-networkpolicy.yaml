@@ -1,0 +1,51 @@
+{{- if .Values.workflowNetworkPolicy.enabled }}
+{{- if not .Values.workflowNetworkPolicy.apiServerCIDRs }}
+{{- fail "workflowNetworkPolicy.enabled requires workflowNetworkPolicy.apiServerCIDRs. The Argo executor reaches the Kubernetes API on an address this policy otherwise denies. Get it from `kubectl get svc kubernetes -n default -o jsonpath={.spec.clusterIP}` and `kubectl get endpoints kubernetes -n default`, listing both as /32s." }}
+{{- end }}
+# Backs up the API's source-URL checks by stopping a workflow pod reaching a
+# private address at all. Inert without a CNI that enforces NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "chart.fullname" . }}-workflow-egress
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    {{- toYaml .Values.workflowNetworkPolicy.podSelector | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    # DNS. The resolver sits on a cluster address the rules below exclude.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.workflowNetworkPolicy.dnsNamespace }}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # The Kubernetes API. Without it the executor can't watch its workflow or
+    # report results, and every step just hangs.
+    - to:
+        {{- range .Values.workflowNetworkPolicy.apiServerCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+    # The uploader API: status callbacks, metadata, checksum and STAC register.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "chart.selectorLabels" . | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.service.port }} }
+    # S3, the CDN, and the caller's source URL. The exclusions are the point.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              {{- toYaml .Values.workflowNetworkPolicy.blockedCIDRs | nindent 14 }}
+    {{- with .Values.workflowNetworkPolicy.additionalEgress }}
+    # For an in-cluster object store, which the rule above would block.
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

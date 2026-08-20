@@ -24,7 +24,31 @@ db.enabled=true for an in-cluster PostGIS instead.
 
 {{- if not .Values.existingSecret.name }}
 
-WARNING: existingSecret.name is empty. Create a secret with AWS_ACCESS_KEY_ID,
-AWS_SECRET_ACCESS_KEY, COOKIE_SECRET (and DB_PASSWORD if external) and set
-existingSecret.name to it.
+WARNING: existingSecret.name is empty. Create a secret with COOKIE_SECRET,
+PGSTAC_DB_PASSWORD (and DB_PASSWORD if the database is external) and set
+existingSecret.name to it. S3 credentials come from s3Secret, not this one.
+{{- end }}
+
+Bucket setup is not done by this chart (both settings are bucket-wide, and the
+imagery bucket is shared). Set them once per environment:
+  - CORS exposing the ETag header, or browser uploads fail on completion.
+  - A lifecycle rule aborting incomplete multipart uploads.
+  See "Production bucket setup" in the uploader-api README.
+
+{{- if not .Values.workflowNetworkPolicy.enabled }}
+
+WARNING: workflowNetworkPolicy.enabled=false - pipeline pods may reach private
+addresses. Remote-source ingest (POST /api/v1/uploads with a source_url) fetches
+a URL a caller chose from inside the cluster. The fetch step checks the address
+before it connects and rechecks every redirect, so this policy is the backstop
+rather than the only control - but it is the half that still holds if that code
+is wrong. Turn it on in production:
+
+  workflowNetworkPolicy:
+    enabled: true
+    apiServerCIDRs: ["<kubernetes svc ClusterIP>/32", "<apiserver endpoint>/32"]
+
+  kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}'
+  kubectl get endpoints kubernetes -n default
+  # an in-cluster object store also needs allowing via additionalEgress
 {{- end }}

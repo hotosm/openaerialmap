@@ -9,9 +9,27 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Secret with AWS keys, COOKIE_SECRET, and database passwords.
+# Secret with COOKIE_SECRET and the database passwords. S3 credentials come from
+# `s3Secret` below, not from here.
 existingSecret:
   name: ""
+
+# Secret holding the S3 credentials, read by both this app and the pipeline steps
+# in the separately applied WorkflowTemplate. Referenced by key rather than
+# mounted whole (envFrom), so a secret using HOTOSM's shared S3_* key names can
+# be reused as-is - the app and aws-cli both need the AWS_* names.
+#
+# The WorkflowTemplate hardcodes this name and these keys, so changing them here
+# means changing pipeline/workflow-template.yaml too.
+s3Secret:
+  name: oam-s3-creds
+  accessKeyIdKey: S3_ACCESS_KEY
+  secretAccessKeyKey: S3_SECRET_KEY
+  # Create the secret from the literals below instead of expecting it to exist.
+  # For local / standalone installs only - keep real credentials out of git.
+  create: false
+  accessKeyId: ""
+  secretAccessKey: ""
 
 env:
   LOG_LEVEL: INFO
@@ -83,8 +101,13 @@ db:
     pullPolicy: IfNotPresent
   auth:
     username: oam
+    # Goes into a Secret this chart creates, not into pod env as a plain value.
     password: oam
     database: oam_uploader
+    # Manage the password yourself: name a secret holding it, and the chart
+    # references that instead of creating one.
+    existingSecret: ""
+    passwordKey: password
   command:
     - -c
     - max_connections=200
@@ -109,12 +132,16 @@ db:
     resources:
       requests: { cpu: 250m, memory: 256Mi }
       limits: { cpu: "1", memory: 1Gi }
-    # Off by default: the bundled DB is for staging / PR previews / local dev,
-    # where the namespace is disposable. Enable for a longer-lived install.
+    # On by default; defaulting to off makes a chart upgrade lose the database.
+    # Turn it off explicitly for throwaway environments (see values.local.yaml).
     persistence:
-      enabled: false
+      enabled: true
       size: 10Gi
       storageClassName: ""
+      # Adopt an existing claim (snapshot restore, volume provisioned outside
+      # Helm). Empty means the chart manages "<release>-db-data", the same name
+      # earlier versions used, so upgrades keep their data.
+      existingClaim: ""
 
 resources:
   requests: { cpu: 100m, memory: 256Mi }
@@ -125,8 +152,9 @@ livenessProbe:
     path: /__lbheartbeat__
     port: http
 readinessProbe:
+  # DB-aware: every route that does anything needs the database.
   httpGet:
-    path: /__lbheartbeat__
+    path: /__heartbeat__
     port: http
 
 autoscaling:
@@ -162,13 +190,37 @@ dbCheckSecurityContext:
   capabilities:
     drop: ["ALL"]
 
-# Create the workflow S3 secret here or provide it in the namespace.
-workflowS3Secret:
-  create: false
-  name: oam-uploader-s3
-  accessKeyId: ""
-  secretAccessKey: ""
-  region: us-east-1
+# Egress restrictions for pipeline step pods, behind the API's source-URL
+# checks. Off by default: it only works where everything the pipeline talks to
+# is publicly addressable, so an in-cluster object store needs adding to
+# `additionalEgress` first. Turn it on in production. Needs a CNI that
+# enforces NetworkPolicy, otherwise it does nothing at all.
+workflowNetworkPolicy:
+  enabled: false
+  # Required when enabled; the Argo executor reaches the Kubernetes API on a
+  # private ClusterIP the rules below would otherwise deny. List the ClusterIP
+  # and the apiserver endpoints as /32s, since CNIs disagree about whether
+  # egress is matched before or after the ClusterIP is translated:
+  #   kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}'
+  #   kubectl get endpoints kubernetes -n default
+  apiServerCIDRs: []
+  # Argo sets this on every workflow pod, with the workflow name as the value.
+  podSelector:
+    matchExpressions:
+      - key: workflows.argoproj.io/workflow
+        operator: Exists
+  dnsNamespace: kube-system
+  blockedCIDRs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    # Cloud instance metadata lives in here.
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    - 100.64.0.0/10
+  # Appended verbatim, e.g. an in-cluster object store.
+  additionalEgress: []
+
 # Enable bundled Argo only when the cluster has no workflow controller. HOTOSM
 # production uses its existing cluster-wide controller.
 argo:

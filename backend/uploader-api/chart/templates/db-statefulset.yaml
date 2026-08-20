@@ -45,7 +45,10 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.db.auth.username | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.db.auth.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chart.dbSecretName" . | quote }}
+                  key: {{ .Values.db.auth.passwordKey | quote }}
             - name: POSTGRES_DB
               value: {{ .Values.db.auth.database | quote }}
           resources:
@@ -63,23 +66,13 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.db.primary.dataMountPath | quote }}
-      {{- if not .Values.db.primary.persistence.enabled }}
       volumes:
         - name: data
+          {{- if .Values.db.primary.persistence.enabled }}
+          # The claim from db-pvc.yaml, or an adopted one. See the note there.
+          persistentVolumeClaim:
+            claimName: {{ include "chart.dbDataClaimName" . }}
+          {{- else }}
           emptyDir: {}
-      {{- end }}
-  {{- if .Values.db.primary.persistence.enabled }}
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        {{- with .Values.db.primary.persistence.storageClassName }}
-        storageClassName: {{ . | quote }}
-        {{- end }}
-        resources:
-          requests:
-            storage: {{ .Values.db.primary.persistence.size }}
-  {{- end }}
+          {{- end }}
 {{- end }}

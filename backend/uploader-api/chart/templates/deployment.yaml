@@ -120,6 +120,20 @@ spec:
             - name: WF_CALLBACK_URL
               value: {{ .Values.callbackUrlOverride | default (printf "http://%s.%s.svc.cluster.local:%v" (include "chart.fullname" .) .Release.Namespace .Values.service.port) | quote }}
             {{- include "chart.dbEnv" . | nindent 12 }}
+            {{- if .Values.s3Secret.name }}
+            # By key, not envFrom, so a secret using different key names (e.g.
+            # HOTOSM's shared S3_ACCESS_KEY/S3_SECRET_KEY) can be reused as-is.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret.name | quote }}
+                  key: {{ .Values.s3Secret.accessKeyIdKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret.name | quote }}
+                  key: {{ .Values.s3Secret.secretAccessKeyKey | quote }}
+            {{- end }}
             {{- range $key, $val := .Values.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
