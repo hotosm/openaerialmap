@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "backend/uploader-api/pipeline/**"
+      # The fetch step image ships the API's address-check module, which the
+      # build context has to keep un-ignored.
+      - "backend/uploader-api/app/uploads/url_guard.py"
+      - "backend/.dockerignore"
       - "backend/stactools-hotosm/**"
   workflow_dispatch:
 
@@ -15,6 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - step: fetch
+            context: backend
+            dockerfile: uploader-api/pipeline/fetch/Dockerfile
+            build_args: ""
           - step: validate
             context: backend
             dockerfile: uploader-api/pipeline/validate/Dockerfile

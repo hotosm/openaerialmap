@@ -19,14 +19,17 @@ WORKDIR /app
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --no-install-project --no-editable
+    uv sync --no-install-project --no-editable --no-dev
 
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-editable
+    uv sync --no-editable --no-dev
 
 # Test image (`just test uploader`): builder venv + test group, runs app/tests.
 FROM builder AS test
+# helm, so the chart rendering tests run in CI rather than silently skipping.
+# From the official image so buildx picks the right architecture.
+COPY --from=alpine/helm:3.19.0 /usr/bin/helm /usr/local/bin/helm
 ENV PATH=/app/.venv/bin:$PATH
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-editable --group test

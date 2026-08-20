@@ -22,6 +22,7 @@ COPY stactools-hotosm/ /src/stactools-hotosm/
 
 # Workspace manifests + lock, then a frozen sync of just this member's deps.
 COPY uploader-api/pipeline/pyproject.toml uploader-api/pipeline/uv.lock ./
+COPY uploader-api/pipeline/fetch/pyproject.toml fetch/
 COPY uploader-api/pipeline/validate/pyproject.toml validate/
 COPY uploader-api/pipeline/convert/pyproject.toml convert/
 COPY uploader-api/pipeline/metadata/pyproject.toml metadata/

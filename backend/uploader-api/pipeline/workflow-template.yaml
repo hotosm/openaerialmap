@@ -7,6 +7,10 @@ spec:
   serviceAccountName: argo-odm
   entrypoint: entry
   onExit: exit-handler
+  # Every workflow holds a 300Gi volume until it completes, and volumeClaimGC
+  # only runs when it does. Well above a legitimate run on the largest upload
+  # we accept; anything past it is stuck, not slow.
+  activeDeadlineSeconds: 21600
   ttlStrategy:
     secondsAfterCompletion: 600
     secondsAfterSuccess: 60
@@ -14,10 +18,20 @@ spec:
     strategy: OnPodCompletion
   volumeClaimGC:
     strategy: OnWorkflowCompletion
-  # More container restrictions need testing because GDAL and AWS CLI currently
-  # run as root and write to the workspace.
+  # These pods parse imagery a stranger supplied, through GDAL, which is a large
+  # amount of C reading a format with a long history of parser bugs. Keep the
+  # Kubernetes API token out of the container that does it: the executor needs a
+  # token, the step does not, and this is how Argo separates the two.
+  automountServiceAccountToken: false
+  executor:
+    serviceAccountName: argo-odm
   podSpecPatch: |
     securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      # So the workspace volume is writable without running as root.
+      fsGroup: 1000
       seccompProfile:
         type: RuntimeDefault
 
@@ -33,9 +47,25 @@ spec:
       - name: externalaws # public S3/CDN endpoint used to build asset URLs
       - name: awsurl # S3 endpoint reachable in-cluster
       - name: fronturl # uploader-api base URL for status + register callbacks
+      # "s3" = the bytes are already in our bucket (browser multipart upload);
+      # "url" = fetch them from the caller's source URL first.
+      - name: source-type
+        value: "s3"
+      # Upload size ceiling, enforced while the bytes arrive so a lying or
+      # absent Content-Length cannot fill the workspace volume.
+      - name: max-fetch-bytes
+        value: "107374182400"
+      # Mirrors the API's FETCH_ALLOW_PRIVATE_HOSTS. On for local development,
+      # where the object store is in-network; an SSRF primitive anywhere else.
+      - name: allow-private-hosts
+        value: "false"
       # Production submissions use an immutable image tag.
       - name: image-tag
         value: "latest"
+      # aws-cli needs a region even against non-AWS endpoints. Defaulted so the
+      # uploader does not have to pass it.
+      - name: awsregion
+        value: "us-east-1"
 
   volumeClaimTemplates:
     - metadata:
@@ -51,19 +81,19 @@ spec:
     - name: entry
       dag:
         tasks:
-          - name: download
-            template: s3-download
+          - name: fetch
+            template: fetch-source
             hooks:
               running:
                 expression: "true"
                 template: report-status
                 arguments:
                   parameters:
-                    - { name: step-id, value: "Downloading" }
-                    - { name: message, value: "Downloading file from storage…" }
+                    - { name: step-id, value: "Fetching" }
+                    - { name: message, value: "Retrieving the imagery…" }
 
           - name: validate
-            depends: "download.Succeeded"
+            depends: "fetch.Succeeded"
             template: validate-geotiff
             hooks:
               running:
@@ -118,27 +148,27 @@ spec:
                     - { name: step-id, value: "Registering" }
                     - { name: message, value: "Registering item with STAC catalog…" }
 
+          # Bytes that failed the fetch reached the bucket only if they got as
+          # far as being archived, and bytes that failed validation are not
+          # imagery. Either way they must not sit in a world-readable bucket
+          # under a URL the uploader already knows.
+          - name: cleanup-on-fetch-failure
+            depends: "fetch.Failed"
+            template: purge-objects
+
           - name: cleanup-on-failure
             depends: "validate.Failed"
-            when: >-
-              {{tasks.validate.exitCode}} == 5 ||
-              {{tasks.validate.exitCode}} == 6 ||
-              {{tasks.validate.exitCode}} == 7
             template: cleanup
             arguments:
               parameters:
                 - { name: val-exit-code, value: "{{tasks.validate.exitCode}}" }
 
+    # Only failure. The register step's own API call is what marks an upload
+    # Succeeded, so reporting it again here would be a second message to lose,
+    # against a callback token that terminal status has already expired.
     - name: exit-handler
       steps:
-        - - name: report-success
-            template: report-status
-            when: "{{workflow.status}} == Succeeded"
-            arguments:
-              parameters:
-                - { name: step-id, value: "Succeeded" }
-                - { name: message, value: "Processing finished successfully." }
-          - name: report-failure
+        - - name: report-failure
             template: report-status
             when: "{{workflow.status}} != Succeeded"
             arguments:
@@ -146,44 +176,57 @@ spec:
                 - { name: step-id, value: "Failed" }
                 - { name: message, value: "Workflow ended with a failure." }
 
-    - name: s3-download
+    # Gets the imagery onto the workspace volume, whichever way it arrived, and
+    # leaves /data/input.tif + /data/meta.json for every later step. Everything
+    # downstream reads local files, so this is the only step that knows or cares
+    # where an upload came from - and the only one that talks to an address the
+    # uploader chose. See pipeline/fetch/fetch.py for what it will and will not
+    # fetch; the short version is https, no credentials, public addresses only,
+    # rechecked on every redirect, and TIFF bytes or nothing.
+    - name: fetch-source
       container:
-        image: amazon/aws-cli:2.36.15
-        envFrom:
-          - secretRef: { name: oam-uploader-s3 }
-        command: [sh, -c]
-        args:
-          - |
-            set -eu
-            # Omit endpoint-url for AWS S3; it does not accept an empty value.
-            EP="{{workflow.parameters.awsurl}}"
-            AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
-            SRC="{{workflow.parameters.s3-path}}{{workflow.parameters.filename}}"
-            rm -rf /data/*
-            TOTAL=$($AWS s3api head-object --bucket {{workflow.parameters.bucket}} \
-              --key {{workflow.parameters.key}} --query ContentLength --output text 2>/dev/null || echo 0)
-            [ "$TOTAL" -gt 0 ] 2>/dev/null || TOTAL=1
-            echo "download: starting ($TOTAL bytes)"
-            $AWS s3 cp "$SRC" /data/input.tif --no-progress &
-            DL=$!
-            NEXT=10
-            while kill -0 "$DL" 2>/dev/null; do
-              CUR=$(stat -c %s /data/input.tif 2>/dev/null || echo 0)
-              PCT=$(( CUR * 100 / TOTAL ))
-              while [ "$PCT" -ge "$NEXT" ] && [ "$NEXT" -le 100 ]; do
-                echo "download: ${NEXT}%"; NEXT=$(( NEXT + 10 ))
-              done
-              sleep 2
-            done
-            wait "$DL"
-            echo "download: 100% complete"
-            $AWS s3api head-object --bucket {{workflow.parameters.bucket}} \
-              --key {{workflow.parameters.key}} --query Metadata > /data/meta.json
+        image: ghcr.io/hotosm/openaerialmap/uploader/fetch:{{workflow.parameters.image-tag}}
+        # Avoid Argo's GHCR entrypoint lookup, which bypasses private mirrors.
+        command: ["python", "fetch.py"]
+        securityContext: &stepSecurity
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_ACCESS_KEY }
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_SECRET_KEY }
+          - { name: AWS_DEFAULT_REGION, value: "{{workflow.parameters.awsregion}}" }
+          - { name: S3_ENDPOINT, value: "{{workflow.parameters.awsurl}}" }
+          - { name: S3_BUCKET, value: "{{workflow.parameters.bucket}}" }
+          - { name: S3_KEY, value: "{{workflow.parameters.key}}" }
+          - { name: FRONT_URL, value: "{{workflow.parameters.fronturl}}" }
+          - { name: UPLOAD_ID, value: "{{workflow.parameters.id}}" }
+          # The source URL is deliberately not a parameter: the step reads it
+          # back over this token, so a presigned URL never lands in a Workflow
+          # spec that anyone with Argo read access can see.
+          - { name: INTERNAL_TOKEN, value: "{{workflow.parameters.state}}" }
+          - { name: SOURCE_TYPE, value: "{{workflow.parameters.source-type}}" }
+          - { name: MAX_FETCH_BYTES, value: "{{workflow.parameters.max-fetch-bytes}}" }
+          - name: ALLOW_PRIVATE_HOSTS
+            value: "{{workflow.parameters.allow-private-hosts}}"
         volumeMounts:
           - { name: workspace, mountPath: /data }
+        resources:
+          # Streams to disk, so this is buffers and a multipart upload. Written
+          # in the same shape as the other steps so `just test` can downscale it.
+          requests: {memory: "512Mi", cpu: "500m"}
+          limits: {memory: "1Gi", cpu: "1"}
       retryStrategy:
         limit: "3"
         retryPolicy: "OnFailure"
+        # Only retry what a retry could fix. A 404, a rejected host or bytes
+        # that are not a GeoTIFF fail identically every time, and the uploader
+        # has already been told which of those it was.
+        expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) == 75"
 
     - name: validate-geotiff
       container:
@@ -191,6 +234,12 @@ spec:
         # Avoid Argo's GHCR entrypoint lookup, which bypasses private mirrors.
         command: ["python", "validate.py"]
         args: ["/data/input.tif", "/data/meta.json"]
+        securityContext: *stepSecurity
+        env:
+          # Stop GDAL listing the directory to find sidecar files. Nothing here
+          # ships an .aux.xml or an .ovr, and an upload should not get to
+          # introduce one.
+          - { name: GDAL_DISABLE_READDIR_ON_OPEN, value: "EMPTY_DIR" }
         volumeMounts:
           - { name: workspace, mountPath: /data }
         resources:
@@ -202,9 +251,11 @@ spec:
         image: ghcr.io/hotosm/openaerialmap/uploader/convert:{{workflow.parameters.image-tag}}
         command: ["python", "convert.py"]
         args: ["/data/input.tif", "/data/output.tif"]
+        securityContext: *stepSecurity
         env:
           - { name: GDAL_CACHEMAX, value: "512" }
           - { name: TMPDIR, value: "/data/tmp" }
+          - { name: GDAL_DISABLE_READDIR_ON_OPEN, value: "EMPTY_DIR" }
           # Local Talos misreports capacity, so tests disable this production guard.
           - { name: CHECK_DISK_FREE_SPACE, value: "TRUE" }
         volumeMounts:
@@ -230,6 +281,9 @@ spec:
           - "{{workflow.parameters.bucket}}"
           - "{{workflow.parameters.key}}"
           - "/data/input.tif"
+        securityContext: *stepSecurity
+        env:
+          - { name: GDAL_DISABLE_READDIR_ON_OPEN, value: "EMPTY_DIR" }
         volumeMounts:
           - { name: workspace, mountPath: /data }
         resources:
@@ -242,8 +296,16 @@ spec:
     - name: s3-upload-cog
       container:
         image: amazon/aws-cli:2.36.15
-        envFrom:
-          - secretRef: { name: oam-uploader-s3 }
+        securityContext: *stepSecurity
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_ACCESS_KEY }
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_SECRET_KEY }
+          - name: AWS_DEFAULT_REGION
+            value: "{{workflow.parameters.awsregion}}"
         command: [sh, -c]
         args:
           - |
@@ -261,8 +323,16 @@ spec:
     - name: s3-upload-meta
       container:
         image: amazon/aws-cli:2.36.15
-        envFrom:
-          - secretRef: { name: oam-uploader-s3 }
+        securityContext: *stepSecurity
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_ACCESS_KEY }
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_SECRET_KEY }
+          - name: AWS_DEFAULT_REGION
+            value: "{{workflow.parameters.awsregion}}"
         command: [sh, -c]
         args:
           - |
@@ -282,6 +352,7 @@ spec:
         image: ghcr.io/hotosm/openaerialmap/uploader/register:{{workflow.parameters.image-tag}}
         command: ["python", "register.py"]
         args: ["/data/metadata.json"]
+        securityContext: *stepSecurity
         env:
           # Keep pgstac credentials in the token-guarded API, not this pod.
           - { name: FRONT_URL, value: "{{workflow.parameters.fronturl}}" }
@@ -292,14 +363,25 @@ spec:
         limit: "3"
         retryPolicy: "OnFailure"
 
+    # Validation failed, whatever the reason: say which one, and take the
+    # rejected bytes back out of the bucket. Runs for every non-zero exit, not
+    # just the mapped ones - an unmapped failure still leaves objects behind.
     - name: cleanup
       inputs:
         parameters:
           - name: val-exit-code
       container:
         image: amazon/aws-cli:2.36.15
-        envFrom:
-          - secretRef: { name: oam-uploader-s3 }
+        securityContext: *stepSecurity
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_ACCESS_KEY }
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_SECRET_KEY }
+          - name: AWS_DEFAULT_REGION
+            value: "{{workflow.parameters.awsregion}}"
         command: [sh, -c]
         args:
           - |
@@ -312,6 +394,7 @@ spec:
             [ "$CODE" = "5" ] && MSG="Invalid raster: not georeferenced (no CRS)."
             [ "$CODE" = "6" ] && MSG="Invalid raster: image is too large."
             [ "$CODE" = "7" ] && MSG="Invalid raster: content does not match the declared product type."
+            [ "$CODE" = "8" ] && MSG="This file is not a GeoTIFF."
             cat <<EOF > /tmp/payload.json
             {"id": "{{workflow.parameters.id}}", "status": "Failed", "message": "$MSG"}
             EOF
@@ -321,6 +404,33 @@ spec:
               -d @/tmp/payload.json
             exit 1
 
+    # The same purge with no status report, for a step that has already sent its
+    # own. The fetch step knows whether the URL 404'd or served a login page;
+    # this would only overwrite that with something vaguer.
+    - name: purge-objects
+      container:
+        image: amazon/aws-cli:2.36.15
+        securityContext: *stepSecurity
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_ACCESS_KEY }
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: { name: oam-s3-creds, key: S3_SECRET_KEY }
+          - name: AWS_DEFAULT_REGION
+            value: "{{workflow.parameters.awsregion}}"
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            EP="{{workflow.parameters.awsurl}}"
+            AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
+            # The upload ID in this prefix prevents deletion of sibling uploads.
+            $AWS s3 rm {{workflow.parameters.s3-path}} --recursive
+            # Keep the workflow failed; the step that failed said why.
+            exit 1
+
     - name: report-status
       inputs:
         parameters:
@@ -328,6 +438,7 @@ spec:
           - name: message
       container:
         image: curlimages/curl:8.21.0
+        securityContext: *stepSecurity
         command: [sh, -c]
         args:
           - |
@@ -335,3 +446,8 @@ spec:
               -H "Content-Type: application/json" \
               -H "X-Internal-Token: {{workflow.parameters.state}}" \
               -d '{"id":"{{workflow.parameters.id}}","status":"{{inputs.parameters.step-id}}","message":"{{inputs.parameters.message}}"}'
+      # A dropped status message leaves the upload showing the previous stage,
+      # and for the exit handler it is the only report the uploader gets.
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"

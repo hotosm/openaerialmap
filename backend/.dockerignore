@@ -4,6 +4,8 @@ stac-api
 tilepack-api
 
 uploader-api/app
+# Except the address rules, which the fetch step image ships.
+!uploader-api/app/uploads/url_guard.py
 uploader-api/chart
 uploader-api/migrations
 uploader-api/scripts

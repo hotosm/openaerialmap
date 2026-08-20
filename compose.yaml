@@ -199,6 +199,10 @@ services:
       OAM_UPLOAD_DOMAIN: upload.imagery.localhost
       OAM_UPLOAD_DEV_PORT: "8080"
       OAM_FRONTEND_URL: http://imagery.localhost:8080
+      # Remote-source ingest fetches a caller-supplied URL. Locally that means
+      # in-network hosts (RustFS, a partner service on the compose network),
+      # which the production SSRF guard rejects. Never set this in production.
+      FETCH_ALLOW_PRIVATE_HOSTS: "true"
     depends_on:
       uploader-db:
         condition: service_healthy

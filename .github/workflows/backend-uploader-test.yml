@@ -6,6 +6,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "backend/uploader-api/**"
+      # Gates what the fetch step image can COPY.
+      - "backend/.dockerignore"
       - "compose.test.yaml"
       - "tasks/test"
       - ".github/workflows/backend-uploader-test.yml"
