@@ -3,7 +3,6 @@
 import datetime as dt
 import logging
 from typing import Iterator
-from urllib.parse import urljoin
 
 import pystac
 import requests
@@ -38,7 +37,6 @@ def new_stac_items(
     events = r.json().get("links", [])
 
     for e in events:
-
         # pull the href from the event json
         ev = session.get(e["href"])
         ev.raise_for_status()
