@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - staging
     paths:
       - "backend/uploader-api/pipeline/**"
       # The fetch step image ships the API's address-check module, which the
@@ -40,7 +41,7 @@ jobs:
             context: backend/uploader-api/pipeline/register
             dockerfile: Dockerfile
             build_args: ""
-    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
     with:
       context: ${{ matrix.context }}
       image_name: ghcr.io/${{ github.repository }}/uploader/${{ matrix.step }}

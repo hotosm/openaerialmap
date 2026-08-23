@@ -12,4 +12,4 @@ on:
 
 jobs:
   publish_docs:
-    uses: hotosm/gh-workflows/.github/workflows/mkdocs_build.yml@3.6.0
+    uses: hotosm/gh-workflows/.github/workflows/mkdocs_build.yml@4.1.0

@@ -10,7 +10,7 @@ on:
 
 jobs:
   image-build-and-push:
-    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@3.6.0
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
     with:
       context: backend/tilepack-api/worker/
       image_name: ghcr.io/${{ github.repository }}/tilepack/worker
