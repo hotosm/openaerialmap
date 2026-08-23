@@ -9,24 +9,18 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Secret with COOKIE_SECRET and the database passwords. S3 credentials come from
-# `s3Secret` below, not from here.
+# COOKIE_SECRET and the database passwords. S3 credentials live in `s3Secret`.
 existingSecret:
   name: ""
 
-# Secret holding the S3 credentials, read by both this app and the pipeline steps
-# in the separately applied WorkflowTemplate. Referenced by key rather than
-# mounted whole (envFrom), so a secret using HOTOSM's shared S3_* key names can
-# be reused as-is - the app and aws-cli both need the AWS_* names.
-#
-# The WorkflowTemplate hardcodes this name and these keys, so changing them here
-# means changing pipeline/workflow-template.yaml too.
+# S3 credentials for the app and the pipeline steps. Read by key, so a secret
+# with any key names works. pipeline/workflow-template.yaml repeats these three.
 s3Secret:
   name: oam-s3-creds
   accessKeyIdKey: S3_ACCESS_KEY
   secretAccessKeyKey: S3_SECRET_KEY
-  # Create the secret from the literals below instead of expecting it to exist.
-  # For local / standalone installs only - keep real credentials out of git.
+  # Create the secret from the literals below. Local installs only - real keys
+  # do not belong in git.
   create: false
   accessKeyId: ""
   secretAccessKey: ""
@@ -51,8 +45,7 @@ env:
   # Pipeline step image tag; pin an immutable git SHA for reproducible deploys.
   PIPELINE_IMAGE_TAG: main
   STAC_COLLECTION: openaerialmap
-  # Registration writes directly to pgstac. Put PGSTAC_DB_PASSWORD in the
-  # configured secret.
+  # Registration writes straight to pgstac; PGSTAC_DB_PASSWORD goes in the secret.
   PGSTAC_DB_HOST: ""
   PGSTAC_DB_PORT: "5432"
   PGSTAC_DB_USER: ""
@@ -104,16 +97,14 @@ db:
     # Goes into a Secret this chart creates, not into pod env as a plain value.
     password: oam
     database: oam_uploader
-    # Manage the password yourself: name a secret holding it, and the chart
-    # references that instead of creating one.
+    # Name a secret holding the password and the chart uses it instead.
     existingSecret: ""
     passwordKey: password
   command:
     - -c
     - max_connections=200
   primary:
-    # The postgres image runs as uid/gid 999; running as that user directly
-    # skips the entrypoint's gosu step, and fsGroup makes PGDATA writable.
+    # The image runs as 999; matching it skips the entrypoint's gosu step.
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 999
@@ -125,22 +116,20 @@ db:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ["ALL"]
-    # Postgres 18 images put PGDATA in a subdirectory of this path
-    # (/var/lib/postgresql/18/docker), so lost+found on a fresh PVC does not
-    # trip the "directory not empty" init check.
+    # Postgres 18 puts PGDATA one level below this, so lost+found on a fresh
+    # PVC does not trip the "directory not empty" check.
     dataMountPath: /var/lib/postgresql
     resources:
       requests: { cpu: 250m, memory: 256Mi }
       limits: { cpu: "1", memory: 1Gi }
-    # On by default; defaulting to off makes a chart upgrade lose the database.
-    # Turn it off explicitly for throwaway environments (see values.local.yaml).
+    # On by default, or an upgrade would lose the database. Off for throwaway
+    # environments - see values.local.yaml.
     persistence:
       enabled: true
       size: 10Gi
       storageClassName: ""
-      # Adopt an existing claim (snapshot restore, volume provisioned outside
-      # Helm). Empty means the chart manages "<release>-db-data", the same name
-      # earlier versions used, so upgrades keep their data.
+      # Adopt an existing claim, e.g. a restored snapshot. Empty means the
+      # chart manages "<release>-db-data", so upgrades keep their data.
       existingClaim: ""
 
 resources:
@@ -190,17 +179,16 @@ dbCheckSecurityContext:
   capabilities:
     drop: ["ALL"]
 
-# Egress restrictions for pipeline step pods, behind the API's source-URL
-# checks. Off by default: it only works where everything the pipeline talks to
-# is publicly addressable, so an in-cluster object store needs adding to
-# `additionalEgress` first. Turn it on in production. Needs a CNI that
-# enforces NetworkPolicy, otherwise it does nothing at all.
+# Stops pipeline pods reaching private addresses, so a hostile source URL cannot
+# probe the cluster. Recommended in production; an in-cluster object store has to
+# be allowed back in via `additionalEgress`.
+# WARNING: this does nothing at all unless your CNI enforces NetworkPolicy, and
+# it still applies and reports healthy where it does not. See the README, and
+# test it by watching a step fail to reach a private address.
 workflowNetworkPolicy:
   enabled: false
-  # Required when enabled; the Argo executor reaches the Kubernetes API on a
-  # private ClusterIP the rules below would otherwise deny. List the ClusterIP
-  # and the apiserver endpoints as /32s, since CNIs disagree about whether
-  # egress is matched before or after the ClusterIP is translated:
+  # Required when enabled, or the Argo executor cannot reach the Kubernetes API
+  # and every step hangs. Both of these, as /32s (CNIs match one or the other):
   #   kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}'
   #   kubectl get endpoints kubernetes -n default
   apiServerCIDRs: []
@@ -221,8 +209,7 @@ workflowNetworkPolicy:
   # Appended verbatim, e.g. an in-cluster object store.
   additionalEgress: []
 
-# Enable bundled Argo only when the cluster has no workflow controller. HOTOSM
-# production uses its existing cluster-wide controller.
+# Only for clusters with no Argo controller; HOTOSM uses its cluster-wide one.
 argo:
   enabled: false
   singleNamespace: true

@@ -26,9 +26,10 @@ options:
   Persistent by default; set `db.primary.persistence.enabled=false` for a
   throwaway environment. Set `db.auth.existingSecret` to provide the password.
 - **Optional workflow egress NetworkPolicy** (`workflowNetworkPolicy.enabled`,
-  off) - blocks workflow access to private ranges. Enabling it requires a CNI
-  that enforces NetworkPolicy and `apiServerCIDRs` for the Kubernetes service
-  and endpoints. Allow in-cluster object storage through `additionalEgress`.
+  off) - blocks workflow access to private ranges. Needs `apiServerCIDRs`, and
+  `additionalEgress` for an in-cluster object store. Only enforced by some CNIs
+  (Calico, Cilium; on EKS the VPC CNI addon needs `enableNetworkPolicy: "true"`)
+  - elsewhere it applies and looks healthy while doing nothing, so test it.
 - **Optional bundled Argo Workflows** (`argo.enabled`) - see above.
 - Service, Ingress (`upload.imagery.hotosm.org`), optional HPA.
 
