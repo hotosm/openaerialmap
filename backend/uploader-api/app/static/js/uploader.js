@@ -122,12 +122,88 @@ function externalLink(form) {
   };
 }
 
+// Advisory only: the server decides, in `app/uploads/source_links.py`. Keep these
+// hosts in step with it so the form never promises a rewrite it will not do.
+const DRIVE_HOSTS = ["drive.google.com", "docs.google.com", "drive.usercontent.google.com"];
+const DROPBOX_HOSTS = ["www.dropbox.com", "dropbox.com"];
+const ONEDRIVE_HOSTS = ["1drv.ms", "onedrive.live.com"];
+const ODM_ASSET_PATH = /^\/task\/[\w-]+\/download\/([^/]+)$/;
+const WEBODM_ASSET_PATH = /^\/api\/projects\/\d+\/tasks\/[^/]+\/download\/([^/]+)\/?$/;
+
+function sourceHint(raw) {
+  const value = raw.trim();
+  if (!value) return "";
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return "";
+  }
+  if (parsed.protocol !== "https:") {
+    return "The link has to start with https:// to be imported.";
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (DRIVE_HOSTS.includes(host)) {
+    return (
+      "Google Drive link. We will rewrite it to Drive's download endpoint. " +
+      "If Drive refuses to serve the file, upload it instead."
+    );
+  }
+  if (DROPBOX_HOSTS.includes(host)) {
+    return "Dropbox link. We will switch it to a direct download.";
+  }
+  if (ONEDRIVE_HOSTS.includes(host) || host.endsWith(".sharepoint.com")) {
+    return "OneDrive link. We will switch it to a direct download.";
+  }
+  const webodmAsset = parsed.pathname.match(WEBODM_ASSET_PATH);
+  if (webodmAsset) {
+    const asset = webodmAsset[1].toLowerCase();
+    if (asset === "orthophoto.tif") return "Public WebODM orthophoto link.";
+    if (asset === "all.zip") {
+      return "Public WebODM assets archive. We will safely extract only the orthophoto.";
+    }
+    return `We cannot use '${webodmAsset[1]}'. Link to orthophoto.tif or all.zip instead.`;
+  }
+  const asset = parsed.pathname.match(ODM_ASSET_PATH);
+  if (asset) {
+    const name = asset[1].toLowerCase();
+    if (name === "orthophoto.tif" || name === "all.zip") {
+      return "NodeODM link. We will download all.zip and safely extract only the orthophoto.";
+    }
+    return `We can only read the orthophoto, not '${asset[1]}'. Use the all.zip download link.`;
+  }
+  return "";
+}
+
+function currentMode(form) {
+  const picked = form.querySelector('input[name="source_mode"]:checked');
+  return picked ? picked.value : "file";
+}
+
+// `required` has to come off the input the user cannot see, or submit blocks silently.
+function applySourceMode(form) {
+  const mode = currentMode(form);
+  const fileInput = document.getElementById("file-input");
+  const urlInput = document.getElementById("source-url");
+  document.getElementById("file-picker").hidden = mode !== "file";
+  document.getElementById("url-picker").hidden = mode !== "url";
+  if (fileInput) fileInput.required = mode === "file";
+  if (urlInput) urlInput.required = mode === "url";
+  const submit = document.getElementById("submit-btn");
+  if (submit) submit.textContent = mode === "url" ? "Import imagery" : "Start upload";
+}
+
 // Switch the form from "pick a file" to "confirm this source".
 function enterRemoteSourceMode(sourceUrl) {
-  const picker = document.getElementById("file-picker");
   const fileInput = document.getElementById("file-input");
   if (fileInput) fileInput.required = false;
-  if (picker) picker.hidden = true;
+  const urlInput = document.getElementById("source-url");
+  if (urlInput) urlInput.required = false;
+  // The source is already decided, so the choice would only be misleading.
+  for (const id of ["source-choice", "file-picker", "url-picker"]) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  }
 
   let host = sourceUrl;
   try {
@@ -233,29 +309,65 @@ async function uploadFile(form, file) {
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
 }
 
+function showError(message) {
+  const errBox = document.getElementById("upload-error");
+  errBox.innerHTML = '<wa-callout variant="danger"><span></span></wa-callout>';
+  // textContent prevents server messages from injecting HTML.
+  errBox.querySelector("span").textContent = message;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("upload-form");
   if (!form) return;
-  const sourceUrl = applyPrefill(form);
-  if (sourceUrl) enterRemoteSourceMode(sourceUrl);
+  // A prefilled URL is a partner handoff: it answers this form's first question.
+  const prefilledUrl = applyPrefill(form);
+  if (prefilledUrl) {
+    enterRemoteSourceMode(prefilledUrl);
+  } else {
+    applySourceMode(form);
+    for (const radio of form.querySelectorAll('input[name="source_mode"]')) {
+      radio.addEventListener("change", () => applySourceMode(form));
+    }
+    const urlInput = document.getElementById("source-url");
+    const note = document.getElementById("source-url-note");
+    if (urlInput && note) {
+      const showHint = () => {
+        const hint = sourceHint(urlInput.value || "");
+        note.textContent = hint;
+        note.hidden = !hint;
+      };
+      // Which event a wa-input re-emits varies by version; the handler is idempotent.
+      for (const name of ["input", "wa-input", "change"]) {
+        urlInput.addEventListener(name, showHint);
+      }
+    }
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const submit = document.getElementById("submit-btn");
-    const file = sourceUrl ? null : document.getElementById("file-input").files[0];
-    if (!sourceUrl && !file) return;
+    document.getElementById("upload-error").innerHTML = "";
+    const urlInput = document.getElementById("source-url");
+    const typedUrl = urlInput && !prefilledUrl ? (urlInput.value || "").trim() : "";
+    const remoteMode = Boolean(prefilledUrl) || currentMode(form) === "url";
+    const sourceUrl = prefilledUrl || typedUrl;
+    const file = remoteMode ? null : document.getElementById("file-input").files[0];
+
+    if (remoteMode && !sourceUrl) {
+      showError("Paste a link to the orthophoto, or upload a file instead.");
+      return;
+    }
+    if (!remoteMode && !file) return;
+
     submit.disabled = true;
     try {
-      if (sourceUrl) {
+      if (remoteMode) {
         await submitRemoteSource(form, sourceUrl);
       } else {
         await uploadFile(form, file);
       }
     } catch (err) {
-      // textContent prevents server messages from injecting HTML.
-      const errBox = document.getElementById("upload-error");
-      errBox.innerHTML = '<wa-callout variant="danger"><span></span></wa-callout>';
-      errBox.querySelector("span").textContent = err.message;
+      showError(err.message);
     } finally {
       submit.disabled = false;
     }

@@ -18,6 +18,7 @@ PUBLIC = ["93.184.216.34"]
         "http://example.org/a.tif",  # plaintext
         "https://user:pass@example.org/a.tif",
         "https:///a.tif",
+        "https://[not-an-ipv6-address/a.tif",
         "https://example.org:notaport/a.tif",
         "https://example.org/" + "a" * MAX_SOURCE_URL_LENGTH,
     ],

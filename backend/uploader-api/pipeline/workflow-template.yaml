@@ -182,7 +182,8 @@ spec:
     # where an upload came from - and the only one that talks to an address the
     # uploader chose. See pipeline/fetch/fetch.py for what it will and will not
     # fetch; the short version is https, no credentials, public addresses only,
-    # rechecked on every redirect, and TIFF bytes or nothing.
+    # rechecked on every redirect, and TIFF bytes or a narrowly handled ODM
+    # all.zip archive containing that TIFF.
     - name: fetch-source
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/fetch:{{workflow.parameters.image-tag}}

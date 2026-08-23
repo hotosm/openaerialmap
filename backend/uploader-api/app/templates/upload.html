@@ -9,6 +9,107 @@ content %}
   </wa-callout>
   {% else %}
   <form id="upload-form" class="oam-form" onsubmit="return false;">
+    <!-- Replaces the choice below when a prefill link already carries a source URL. -->
+    <div id="remote-source" hidden>
+      <wa-callout variant="neutral">
+        <strong>Imagery will be fetched for you</strong>
+        <p id="remote-source-detail"></p>
+      </wa-callout>
+    </div>
+
+    <!-- Both branches end in the same form; only the way the bytes arrive differs. -->
+    <fieldset id="source-choice" class="oam-source">
+      <legend>Where is the imagery?</legend>
+      <label class="oam-source__option">
+        <input type="radio" name="source_mode" value="file" checked />
+        <span>
+          <strong>Upload a file</strong>
+          <small>A GeoTIFF on this computer.</small>
+        </span>
+      </label>
+      <label class="oam-source__option">
+        <input type="radio" name="source_mode" value="url" />
+        <span>
+          <strong>Import from a link</strong>
+          <small>We download it for you, so you do not have to first.</small>
+        </span>
+      </label>
+    </fieldset>
+
+    <div id="file-picker" class="oam-source__panel">
+      <input type="file" id="file-input" accept=".tif,.tiff" required />
+    </div>
+
+    <div id="url-picker" class="oam-source__panel" hidden>
+      <wa-input
+        id="source-url"
+        type="url"
+        label="Link to the orthophoto"
+        placeholder="https://..."
+        hint="A public direct download. ODM all.zip links are also supported."
+      ></wa-input>
+      <!-- Filled in as the user types, when we recognise the host. -->
+      <p id="source-url-note" class="oam-source__note" hidden></p>
+
+      <wa-details summary="Where do I find that link?">
+        <div class="oam-source__help">
+          <p>
+            Any host works if the link is reachable over public HTTPS and returns the
+            <code>.tif</code> itself. Preview pages, folders and unrelated archives are
+            refused; the ODM archive case is handled below.
+          </p>
+
+          <h4>NodeODM</h4>
+          <p>
+            <code>https://your-node/task/&lt;task-uuid&gt;/download/all.zip</code>,
+            plus <code>?token=&lt;token&gt;</code> if the node was started with one. The
+            node has to be reachable from the internet. We extract only
+            <code>odm_orthophoto/odm_orthophoto.tif</code> from the archive. An old
+            <code>orthophoto.tif</code> NodeODM link is upgraded automatically.
+          </p>
+
+          <h4>WebODM</h4>
+          <p>
+            Make the task public, then paste its <code>orthophoto.tif</code> or
+            <code>all.zip</code> download URL. Private API links still need a login token
+            that OpenAerialMap does not collect.
+          </p>
+
+          <h4>ScaleODM, S3 and other object storage</h4>
+          <p>
+            Paste the presigned or public URL as it is. S3, Google Cloud Storage, Azure
+            Blob, R2, B2 and MinIO all serve the file directly, so we change nothing.
+            Start the import while the signature is still valid.
+          </p>
+
+          <h4>OneDrive and SharePoint</h4>
+          <p>
+            Share the file itself, not its folder, and copy the link. Paste it as it
+            came: we switch it to a direct download.
+          </p>
+
+          <h4>Dropbox</h4>
+          <p>Same again - share the file, copy the link, paste it as it came.</p>
+
+          <h4>Google Drive</h4>
+          <p>
+            Set access to <em>Anyone with the link</em>, copy it, and paste it as it
+            came. Drive is the least reliable of these: it sometimes shows a "can't scan
+            this file" page for a large file, which we cannot click through. If the
+            import fails, download the file and upload it instead.
+          </p>
+
+          <h4>What will not work</h4>
+          <p>
+            Private WebODM downloads, MEGA, WeTransfer and iCloud Drive need a login, a
+            POST, or in-browser decryption before any bytes appear. Download the
+            orthophoto and upload it as a file instead.
+          </p>
+        </div>
+      </wa-details>
+    </div>
+
+    <h2 class="oam-form__heading">Describe the imagery</h2>
     <wa-input name="title" label="Dataset title" required></wa-input>
     <wa-select name="platform" label="Platform type" value="uav" required>
       <wa-option value="uav">UAV / drone</wa-option>
@@ -63,21 +164,9 @@ content %}
       </wa-select>
     </wa-details>
 
-    <!-- Shown instead of the file picker when the prefill link carries a
-         source URL, naming the host the imagery will come from. -->
-    <div id="remote-source" hidden>
-      <wa-callout variant="neutral">
-        <strong>Imagery will be fetched for you</strong>
-        <p id="remote-source-detail"></p>
-      </wa-callout>
-    </div>
-
-    <div id="file-picker">
-      <input type="file" id="file-input" accept=".tif,.tiff" required />
-    </div>
     <wa-button type="submit" variant="brand" id="submit-btn">Start upload</wa-button>
 
-    <!-- Carried through from the prefill link. -->
+    <!-- From the prefill link. Hidden: a presigned URL should not reach a screenshot. -->
     <input type="hidden" name="external_id" />
     <input type="hidden" name="external_url" />
     <input type="hidden" name="source_url" />

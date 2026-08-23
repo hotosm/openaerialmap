@@ -21,9 +21,11 @@ fails once, immediately, with a message the uploader can read.
 import hashlib
 import logging
 import os
+import re
 import shutil
 import sys
-from urllib.parse import urljoin
+import zipfile
+from urllib.parse import urljoin, urlsplit
 
 import boto3
 import botocore.exceptions
@@ -42,6 +44,21 @@ EXIT_TRANSIENT = 75
 
 # Classic and BigTIFF, little and big endian.
 TIFF_MAGIC = (b"II*\x00", b"MM\x00*", b"II+\x00", b"MM\x00+")
+ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
+
+# NodeODM 2 exposes only all.zip. WebODM can expose either the TIFF itself or
+# all.zip for a public task. Archive handling is deliberately limited to these
+# URL shapes and these exact members; arbitrary ZIP URLs are still rejected.
+_NODEODM_ARCHIVE_PATH = re.compile(
+    r"^/task/[A-Za-z0-9_-]+/download/all\.zip$", re.IGNORECASE
+)
+_WEBODM_ARCHIVE_PATH = re.compile(
+    r"^/api/projects/\d+/tasks/[^/]+/download/all\.zip/?$", re.IGNORECASE
+)
+ODM_ORTHOPHOTO_MEMBERS = (
+    "odm_orthophoto/odm_orthophoto.tif",
+    "orthophoto.tif",
+)
 
 SNIFF_BYTES = 64
 CHUNK_BYTES = 1024 * 1024
@@ -72,6 +89,17 @@ def looks_like_tiff(head: bytes) -> bool:
     return head.startswith(TIFF_MAGIC)
 
 
+def looks_like_zip(head: bytes) -> bool:
+    """Return whether these first bytes have a ZIP signature."""
+    return head.startswith(ZIP_MAGIC)
+
+
+def is_odm_archive_url(url: str) -> bool:
+    """Return whether `url` is a documented NodeODM/WebODM all.zip route."""
+    path = urlsplit(url).path
+    return bool(_NODEODM_ARCHIVE_PATH.match(path) or _WEBODM_ARCHIVE_PATH.match(path))
+
+
 def clear_workspace(data_dir: str) -> None:
     """Empty the workspace without failing on what we may not delete.
 
@@ -89,17 +117,27 @@ def clear_workspace(data_dir: str) -> None:
             log.info("fetch: leaving %s in place (%s)", path, err)
 
 
-def _stream_to_file(response: httpx.Response, dest: str, max_bytes: int) -> int:
-    """Write a response body to disk, checking the first bytes and the size."""
+def _stream_to_file(
+    response: httpx.Response,
+    dest: str,
+    max_bytes: int,
+    *,
+    expected: str = "tiff",
+) -> int:
+    """Write a response body to disk, checking its magic and size."""
     written = 0
     head = b""
+    expected_magic = looks_like_zip if expected == "zip" else looks_like_tiff
     with open(dest, "wb") as out:
         for chunk in response.iter_bytes(CHUNK_BYTES):
             if len(head) < SNIFF_BYTES:
                 head = (head + chunk)[:SNIFF_BYTES]
-                if len(head) >= 4 and not looks_like_tiff(head):
+                if len(head) >= 4 and not expected_magic(head):
+                    label = (
+                        "an ODM assets archive" if expected == "zip" else "a GeoTIFF"
+                    )
                     raise FetchError(
-                        "The source URL did not return a GeoTIFF. Link straight "
+                        f"The source URL did not return {label}. Link straight "
                         "to the file rather than to a preview or download page."
                     )
             written += len(chunk)
@@ -110,8 +148,9 @@ def _stream_to_file(response: httpx.Response, dest: str, max_bytes: int) -> int:
             out.write(chunk)
     if written == 0:
         raise FetchError("The source URL returned no data.")
-    if not looks_like_tiff(head):
-        raise FetchError("The source URL did not return a GeoTIFF.")
+    if not expected_magic(head):
+        label = "an ODM assets archive" if expected == "zip" else "a GeoTIFF"
+        raise FetchError(f"The source URL did not return {label}.")
     return written
 
 
@@ -123,6 +162,7 @@ def download(
     max_bytes: int,
     allow_private: bool = False,
     max_redirects: int = url_guard.MAX_REDIRECTS,
+    expected: str = "tiff",
 ) -> int:
     """Fetch a source URL to `dest`, rechecking every redirect it follows.
 
@@ -161,7 +201,7 @@ def download(
                 )
             log.info("fetch: downloading from %s", redacted(url))
             try:
-                return _stream_to_file(response, dest, max_bytes)
+                return _stream_to_file(response, dest, max_bytes, expected=expected)
             except httpx.TransportError as err:
                 raise FetchError(
                     f"The transfer failed part way through ({err}).", transient=True
@@ -170,6 +210,60 @@ def download(
             response.close()
 
     raise FetchError("The source URL redirected too many times.")
+
+
+def extract_odm_orthophoto(archive: str, dest: str, max_bytes: int) -> int:
+    """Extract only ODM's orthophoto from all.zip, without extracting paths.
+
+    Reading one named member avoids path traversal and ignores every sidecar or
+    unrelated asset. The member gets the same byte ceiling and TIFF sniff as a
+    direct download, so compression cannot bypass either guard.
+    """
+    try:
+        with zipfile.ZipFile(archive) as zipped:
+            member = next(
+                (name for name in ODM_ORTHOPHOTO_MEMBERS if name in zipped.NameToInfo),
+                None,
+            )
+            if member is None:
+                raise FetchError(
+                    "The ODM assets archive does not contain an orthophoto GeoTIFF."
+                )
+            info = zipped.getinfo(member)
+            if info.flag_bits & 0x1:
+                raise FetchError("The orthophoto in the ODM archive is encrypted.")
+            if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+                raise FetchError(
+                    "The ODM archive uses an unsupported compression method."
+                )
+            if info.file_size > max_bytes:
+                raise FetchError(
+                    f"The orthophoto is larger than the {max_bytes}-byte limit."
+                )
+
+            written = 0
+            head = b""
+            with zipped.open(info) as source, open(dest, "wb") as out:
+                for chunk in iter(lambda: source.read(CHUNK_BYTES), b""):
+                    if len(head) < SNIFF_BYTES:
+                        head = (head + chunk)[:SNIFF_BYTES]
+                        if len(head) >= 4 and not looks_like_tiff(head):
+                            raise FetchError(
+                                "The orthophoto in the ODM archive is not a GeoTIFF."
+                            )
+                    written += len(chunk)
+                    if written > max_bytes:
+                        raise FetchError(
+                            f"The orthophoto is larger than the {max_bytes}-byte limit."
+                        )
+                    out.write(chunk)
+            if not looks_like_tiff(head):
+                raise FetchError("The orthophoto in the ODM archive is not a GeoTIFF.")
+            return written
+    except zipfile.BadZipFile as err:
+        raise FetchError(
+            "The source URL returned a damaged ODM assets archive."
+        ) from err
 
 
 class _Progress:
@@ -293,6 +387,8 @@ def _fetch_from_url(
     s3, url: str, *, dest: str, bucket: str, key: str, max_bytes: int
 ) -> None:
     """Download the caller's source URL and archive the bytes we accepted."""
+    archive_source = is_odm_archive_url(url)
+    download_dest = f"{dest}.zip" if archive_source else dest
     with httpx.Client(
         timeout=httpx.Timeout(READ_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
         trust_env=False,
@@ -300,12 +396,22 @@ def _fetch_from_url(
     ) as fetcher:
         size = download(
             url,
-            dest,
+            download_dest,
             client=fetcher,
             max_bytes=max_bytes,
             allow_private=_env_flag("ALLOW_PRIVATE_HOSTS"),
+            expected="zip" if archive_source else "tiff",
         )
     log.info("fetch: retrieved %s bytes", size)
+    if archive_source:
+        try:
+            size = extract_odm_orthophoto(download_dest, dest, max_bytes)
+        finally:
+            try:
+                os.unlink(download_dest)
+            except FileNotFoundError:
+                pass
+        log.info("fetch: extracted %s orthophoto bytes from the ODM archive", size)
     # Archive under this upload's key, and only now that the bytes have been
     # checked: this bucket is world-readable.
     log.info("fetch: archiving the original")

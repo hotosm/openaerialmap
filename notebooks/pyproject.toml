@@ -22,3 +22,5 @@ dev = ["ruff>=0.11.11"]
 # Important to skip intentional misspelling checks! E.g. API has both 'unknown' and 'unknow'
 skip = "notebooks/*,*pnpm-lock.yaml,*package-lock.json,*CHANGELOG.md,*/tests/data/*"
 write-changes = true
+# For uploader-api
+ignore-words-list = "fo"

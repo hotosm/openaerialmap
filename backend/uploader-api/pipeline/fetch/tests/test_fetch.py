@@ -7,16 +7,38 @@ redirect goes back through those rules instead of being followed blindly.
 """
 
 import http.server
+import io
 import threading
+import zipfile
+from pathlib import Path
 
 import httpx
 import pytest
 import url_guard
-from fetch import FetchError, clear_workspace, download, looks_like_tiff, redacted
+from fetch import (
+    FetchError,
+    _fetch_from_url,
+    clear_workspace,
+    download,
+    extract_odm_orthophoto,
+    is_odm_archive_url,
+    looks_like_tiff,
+    redacted,
+)
 
 TIFF = b"II*\x00" + bytes(2048)
 BIG_TIFF_CHUNK = b"II+\x00" + bytes(1024 * 1024)
 HTML = b"<!DOCTYPE html><html><body>Sign in to download this file</body></html>"
+
+
+def _archive(member="odm_orthophoto/odm_orthophoto.tif", content=TIFF):
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zipped:
+        zipped.writestr(member, content)
+    return output.getvalue()
+
+
+ODM_ARCHIVE = _archive()
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
@@ -39,6 +61,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         routes = {
             "/tif": lambda: self._send(200, TIFF),
             "/html": lambda: self._send(200, HTML),
+            "/all.zip": lambda: self._send(200, ODM_ARCHIVE),
+            "/task/abc/download/all.zip": lambda: self._send(200, ODM_ARCHIVE),
             "/empty": lambda: self._send(200, b""),
             "/redirect": lambda: self._send(302, headers=[("Location", "/tif")]),
             "/relative": lambda: self._send(302, headers=[("Location", "tif")]),
@@ -100,6 +124,13 @@ def _download(server, client, tmp_path, path, **kwargs):
 def test_downloads_a_geotiff(server, client, tmp_path, path):
     assert _download(server, client, tmp_path, path) == len(TIFF)
     assert (tmp_path / "out.tif").read_bytes() == TIFF
+
+
+def test_downloads_an_expected_odm_archive(server, client, tmp_path):
+    assert _download(server, client, tmp_path, "/all.zip", expected="zip") == len(
+        ODM_ARCHIVE
+    )
+    assert (tmp_path / "out.tif").read_bytes() == ODM_ARCHIVE
 
 
 @pytest.mark.parametrize("path", ["/to-file", "/to-credentials"])
@@ -175,6 +206,85 @@ def test_accepts_every_tiff_flavour(head):
 @pytest.mark.parametrize("head", [b"<!DOCTYPE", b"\x89PNG", b"PK\x03\x04", b""])
 def test_rejects_everything_else(head):
     assert not looks_like_tiff(head)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://node.example/task/abc/download/all.zip?token=secret",
+        "https://webodm.example/api/projects/1/tasks/abc/download/all.zip/",
+    ],
+)
+def test_recognises_only_odm_archive_routes(url):
+    assert is_odm_archive_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example/all.zip",
+        "https://node.example/task/abc/download/orthophoto.tif",
+        "https://webodm.example/api/projects/1/tasks/abc/download/textured.zip",
+    ],
+)
+def test_does_not_extract_arbitrary_archive_urls(url):
+    assert not is_odm_archive_url(url)
+
+
+def test_extracts_only_the_odm_orthophoto(tmp_path):
+    archive = tmp_path / "all.zip"
+    archive.write_bytes(ODM_ARCHIVE)
+    dest = tmp_path / "input.tif"
+    assert extract_odm_orthophoto(str(archive), str(dest), len(TIFF)) == len(TIFF)
+    assert dest.read_bytes() == TIFF
+
+
+def test_nodeodm_archive_flow_stores_only_the_extracted_tiff(
+    server, tmp_path, monkeypatch
+):
+    class _S3:
+        uploaded = b""
+
+        def upload_file(self, source, bucket, key, ExtraArgs):
+            self.uploaded = Path(source).read_bytes()
+            assert (bucket, key) == ("oam", "user/id/orthophoto.tif")
+            assert ExtraArgs == {"ContentType": "image/tiff"}
+
+    monkeypatch.setenv("ALLOW_PRIVATE_HOSTS", "true")
+    s3 = _S3()
+    dest = tmp_path / "input.tif"
+    _fetch_from_url(
+        s3,
+        f"{server}/task/abc/download/all.zip",
+        dest=str(dest),
+        bucket="oam",
+        key="user/id/orthophoto.tif",
+        max_bytes=1024**2,
+    )
+    assert dest.read_bytes() == TIFF
+    assert s3.uploaded == TIFF
+    assert not (tmp_path / "input.tif.zip").exists()
+
+
+@pytest.mark.parametrize(
+    ("member", "content", "message"),
+    [
+        ("etc/passwd", TIFF, "does not contain"),
+        ("odm_orthophoto/odm_orthophoto.tif", HTML, "not a GeoTIFF"),
+    ],
+)
+def test_rejects_an_unsafe_or_wrong_archive(tmp_path, member, content, message):
+    archive = tmp_path / "all.zip"
+    archive.write_bytes(_archive(member, content))
+    with pytest.raises(FetchError, match=message):
+        extract_odm_orthophoto(str(archive), str(tmp_path / "out.tif"), 1024**2)
+
+
+def test_archive_member_cannot_expand_past_the_limit(tmp_path):
+    archive = tmp_path / "all.zip"
+    archive.write_bytes(_archive(content=TIFF + bytes(4096)))
+    with pytest.raises(FetchError, match="larger than"):
+        extract_odm_orthophoto(str(archive), str(tmp_path / "out.tif"), len(TIFF))
 
 
 def test_keeps_signatures_out_of_the_logs():
