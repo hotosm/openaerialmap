@@ -34,8 +34,10 @@ def test_generate_mbtiles_raises_on_unexpected_failures(
     monkeypatch, tmp_mbtiles_path: Path
 ):
     monkeypatch.setattr(generate, "Reader", FakeReader)
+    render_calls = []
 
     def fake_render_tile(cog_url: str, x: int, y: int, z: int):
+        render_calls.append((x, y, z))
         if (x, y, z) == (0, 0, 0):
             return "failed", None
         return "ok", b"png-bytes"
@@ -44,22 +46,54 @@ def test_generate_mbtiles_raises_on_unexpected_failures(
     monkeypatch.setattr(
         generate,
         "tile_ranges",
-        # x=0..1 and y=0 yields two tiles total for this mocked range.
-        lambda bounds, min_z, max_z: [(0, 0, 1, 0, 0)],
+        lambda bounds, min_z, max_z: [
+            (0, 0, 0, 0, 0),
+            (1, 0, 0, 0, 0),
+        ],
     )
 
-    with pytest.raises(RuntimeError, match="unexpected tile render failures"):
+    with pytest.raises(RuntimeError, match="unexpected tile render failure"):
         generate.generate_mbtiles(
             "https://example.test/cog.tif", tmp_mbtiles_path, 0, 0
         )
 
+    assert render_calls == [(0, 0, 0), (0, 0, 0)]
     assert not tmp_mbtiles_path.exists()
+
+
+def test_generate_mbtiles_retries_failed_tile_and_writes_on_success(
+    monkeypatch, tmp_mbtiles_path: Path
+):
+    monkeypatch.setattr(generate, "Reader", FakeReader)
+    render_calls = []
+
+    def fake_render_tile(cog_url: str, x: int, y: int, z: int):
+        render_calls.append((x, y, z))
+        if len(render_calls) == 1:
+            return "failed", None
+        return "ok", b"png-bytes"
+
+    monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
+    monkeypatch.setattr(
+        generate,
+        "tile_ranges",
+        lambda bounds, min_z, max_z: [(0, 0, 0, 0, 0)],
+    )
+
+    generate.generate_mbtiles("https://example.test/cog.tif", tmp_mbtiles_path, 0, 0)
+
+    assert render_calls == [(0, 0, 0), (0, 0, 0)]
+    with sqlite3.connect(tmp_mbtiles_path) as conn:
+        rows = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
+    assert rows == 1
 
 
 def test_generate_mbtiles_skips_outside_bounds(monkeypatch, tmp_mbtiles_path: Path):
     monkeypatch.setattr(generate, "Reader", FakeReader)
+    render_calls = []
 
     def fake_render_tile(cog_url: str, x: int, y: int, z: int):
+        render_calls.append((x, y, z))
         if (x, y, z) == (0, 0, 0):
             return "outside", None
         return "ok", b"png-bytes"
@@ -74,6 +108,8 @@ def test_generate_mbtiles_skips_outside_bounds(monkeypatch, tmp_mbtiles_path: Pa
 
     generate.generate_mbtiles("https://example.test/cog.tif", tmp_mbtiles_path, 0, 0)
 
+    assert len(render_calls) == 2
+    assert sorted(render_calls) == [(0, 0, 0), (1, 0, 0)]
     with sqlite3.connect(tmp_mbtiles_path) as conn:
         rows = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
     assert rows == 1

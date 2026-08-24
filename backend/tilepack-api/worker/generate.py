@@ -218,8 +218,6 @@ def generate_mbtiles(
         )
 
     conn = sqlite3.connect(out_path)
-    total_failures = 0
-    failure_samples: list[tuple[int, int]] = []
     should_cleanup = False
     try:
         cur = conn.cursor()
@@ -256,8 +254,6 @@ def generate_mbtiles(
                         futures[fut] = (x, y)
                 written = 0
                 outside = 0
-                failures = 0
-                z_failure_samples: list[tuple[int, int]] = []
                 for fut in as_completed(futures):
                     x, y = futures[fut]
                     status, png = fut.result()
@@ -265,13 +261,16 @@ def generate_mbtiles(
                         outside += 1
                         continue
                     if status == "failed":
-                        failures += 1
-                        total_failures += 1
-                        if len(z_failure_samples) < 5:
-                            z_failure_samples.append((x, y))
-                        if len(failure_samples) < 10:
-                            failure_samples.append((x, y))
-                        continue
+                        status, png = _render_tile(cog_url, x, y, z)
+                        if status == "outside":
+                            outside += 1
+                            continue
+                        if status == "failed":
+                            should_cleanup = True
+                            raise RuntimeError(
+                                f"unexpected tile render failure for z={z}, "
+                                f"x={x}, y={y}"
+                            )
                     tms_y = (1 << z) - 1 - y
                     cur.execute(
                         "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
@@ -285,17 +284,7 @@ def generate_mbtiles(
                 )
                 if outside > 0:
                     msg += f", outside={outside}"
-                if failures > 0:
-                    msg += f", failed={failures}"
-                    if z_failure_samples:
-                        msg += f", sample={z_failure_samples}"
                 print(msg, flush=True)
-            if total_failures > 0:
-                should_cleanup = True
-                raise RuntimeError(
-                    "unexpected tile render failures encountered during generation: "
-                    f"{total_failures} failed tiles, sample={failure_samples}"
-                )
             _close_thread_readers(pool, cog_url)
         finally:
             pool.shutdown(wait=True)
