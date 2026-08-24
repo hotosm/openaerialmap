@@ -56,9 +56,7 @@ def test_generate_mbtiles_raises_on_unexpected_failures(
     assert not tmp_mbtiles_path.exists()
 
 
-def test_generate_mbtiles_skips_outside_bounds(
-    monkeypatch, tmp_mbtiles_path: Path
-):
+def test_generate_mbtiles_skips_outside_bounds(monkeypatch, tmp_mbtiles_path: Path):
     monkeypatch.setattr(generate, "Reader", FakeReader)
 
     def fake_render_tile(cog_url: str, x: int, y: int, z: int):
