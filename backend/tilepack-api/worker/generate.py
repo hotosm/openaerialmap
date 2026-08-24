@@ -218,6 +218,9 @@ def generate_mbtiles(
         )
 
     conn = sqlite3.connect(out_path)
+    total_failures = 0
+    failure_samples: list[tuple[int, int]] = []
+    should_cleanup = False
     try:
         cur = conn.cursor()
         cur.executescript(
@@ -254,7 +257,7 @@ def generate_mbtiles(
                 written = 0
                 outside = 0
                 failures = 0
-                failure_samples: list[tuple[int, int]] = []
+                z_failure_samples: list[tuple[int, int]] = []
                 for fut in as_completed(futures):
                     x, y = futures[fut]
                     status, png = fut.result()
@@ -263,7 +266,10 @@ def generate_mbtiles(
                         continue
                     if status == "failed":
                         failures += 1
-                        if len(failure_samples) < 5:
+                        total_failures += 1
+                        if len(z_failure_samples) < 5:
+                            z_failure_samples.append((x, y))
+                        if len(failure_samples) < 10:
                             failure_samples.append((x, y))
                         continue
                     tms_y = (1 << z) - 1 - y
@@ -281,14 +287,27 @@ def generate_mbtiles(
                     msg += f", outside={outside}"
                 if failures > 0:
                     msg += f", failed={failures}"
-                    if failure_samples:
-                        msg += f", sample={failure_samples}"
+                    if z_failure_samples:
+                        msg += f", sample={z_failure_samples}"
                 print(msg, flush=True)
+            if total_failures > 0:
+                should_cleanup = True
+                raise RuntimeError(
+                    "unexpected tile render failures encountered during generation: "
+                    f"{total_failures} failed tiles, sample={failure_samples}"
+                )
             _close_thread_readers(pool, cog_url)
         finally:
             pool.shutdown(wait=True)
+    except Exception:
+        should_cleanup = True
+        raise
     finally:
-        conn.close()
+        try:
+            conn.close()
+        finally:
+            if should_cleanup and out_path.exists():
+                out_path.unlink(missing_ok=True)
 
 
 def convert_to_pmtiles(mbtiles: Path, pmtiles: Path) -> None:
