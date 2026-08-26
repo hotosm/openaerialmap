@@ -8,6 +8,7 @@ processing the same imagery.
 import pytest
 from kubernetes.client.exceptions import ApiException
 
+from app.config import settings
 from app.uploads import argo
 
 SUBMIT = dict(
@@ -67,3 +68,36 @@ def test_a_real_rejection_is_not_swallowed(api):
     api(on_create=ApiException(status=403))
     with pytest.raises(ApiException):
         argo.submit_geotiff_workflow(**SUBMIT)
+
+
+def params(call) -> dict:
+    """The workflow parameters as a name -> value map."""
+    return {
+        p["name"]: p["value"] for p in call["body"]["spec"]["arguments"]["parameters"]
+    }
+
+
+def test_the_asset_base_url_names_the_bucket_once(api, monkeypatch):
+    """
+    The metadata step hangs asset hrefs straight off this value. It used to
+    append the bucket itself, which doubled it for every base that already
+    addressed one - which is every base the charts produce.
+    """
+    monkeypatch.setattr(
+        settings, "PUBLIC_ASSET_BASE_URL", "https://s3.example.org/oam/"
+    )
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT)
+    (call,) = fake.created
+    assert params(call)["externalaws"] == "https://s3.example.org/oam"
+
+
+def test_a_bare_endpoint_gets_the_bucket_appended(api, monkeypatch):
+    """Without a public base the store's own address has to name the bucket."""
+    monkeypatch.setattr(settings, "PUBLIC_ASSET_BASE_URL", None)
+    monkeypatch.setattr(settings, "S3_EXTERNAL_ENDPOINT", "http://localhost:9000")
+    monkeypatch.setattr(settings, "S3_BUCKET", "oam")
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT)
+    (call,) = fake.created
+    assert params(call)["externalaws"] == "http://localhost:9000/oam"

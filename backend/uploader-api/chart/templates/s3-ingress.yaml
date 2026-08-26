@@ -1,0 +1,40 @@
+{{- if and .Values.s3.rustfs.enabled .Values.s3.rustfs.ingress.enabled -}}
+{{- $ing := .Values.s3.rustfs.ingress -}}
+{{- $host := required "s3.rustfs.ingress.host is required when s3.rustfs.ingress.enabled=true" $ing.host -}}
+# The store's S3 API, public because the browser PUTs straight to it and STAC
+# asset URLs are fetched from outside the cluster. The subchart's own ingress
+# backs onto the console port, so it cannot serve this.
+#
+# No CORS annotations: RustFS answers preflights from the bucket configuration
+# bucket-init applies, and duplicate headers make browsers reject the response.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-s3" (include "chart.fullname" .) }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3
+  {{- with $ing.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $ing.className }}
+  {{- if $ing.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ $ing.tls.secretName | default (printf "%s-tls" $host) | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "chart.rustfsServiceName" . }}
+                port:
+                  name: endpoint
+{{- end }}

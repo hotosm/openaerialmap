@@ -3,7 +3,7 @@ name: uploader-api
 description: OpenAerialMap imagery uploader API + htmx UI (Litestar), triggering Argo processing
 type: application
 icon: https://raw.githubusercontent.com/hotosm/openaerialmap/refs/heads/main/docs/images/favicon.svg
-version: 0.3.0
+version: 0.5.0
 appVersion: "main"
 home: https://github.com/hotosm/openaerialmap/tree/main/backend/uploader-api
 maintainers:
@@ -18,3 +18,10 @@ dependencies:
     repository: https://argoproj.github.io/argo-helm
     condition: argo.enabled
     alias: argo
+  # Optional in-cluster S3, so the chart is installable without an AWS account.
+  # Off by default: production stores imagery in the real OIN buckets.
+  - name: rustfs
+    version: 1.0.0-rc.3
+    repository: https://charts.rustfs.com
+    condition: s3.rustfs.enabled
+    alias: rustfs

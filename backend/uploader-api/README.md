@@ -225,6 +225,12 @@ Configure these bucket-wide settings outside the application:
 When updating lifecycle configuration, preserve existing retention and tiering
 rules: `PutBucketLifecycleConfiguration` replaces the complete configuration.
 
+None of this applies to a bundled in-cluster store (`s3.rustfs.enabled` in the
+chart): `scripts/init_bucket.py` sets the bucket up on every deploy, and the
+store's volume goes when the environment does, so there is nothing to expire. The
+same script backs `rustfs-init` in `compose.yaml`, so local, CI and cluster
+installs agree on what a ready bucket looks like.
+
 ## Follow-ups
 
 - **Immutable deploy**: set `PIPELINE_IMAGE_TAG` to the built git SHA in prod. The

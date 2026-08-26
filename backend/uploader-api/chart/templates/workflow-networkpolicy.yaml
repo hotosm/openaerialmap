@@ -38,6 +38,18 @@ spec:
               {{- include "chart.selectorLabels" . | nindent 14 }}
       ports:
         - { protocol: TCP, port: {{ .Values.service.port }} }
+    {{- if .Values.s3.rustfs.enabled }}
+    # The bundled store. It sits on a cluster address, which the
+    # 0.0.0.0/0-minus-private rule below denies, and the steps read and write
+    # imagery there.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rustfs
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - { protocol: TCP, port: {{ include "chart.rustfsPort" . }} }
+    {{- end }}
     # S3, the CDN, and the caller's source URL. The exclusions are the point.
     - to:
         - ipBlock:

@@ -29,8 +29,17 @@ func New(ctx context.Context, bucket, publicBaseURL string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// AWS_ENDPOINT_URL lands in cfg.BaseEndpoint. An S3-compatible store
+	// reached that way (an in-cluster one, say) has no wildcard DNS, so
+	// virtual-hosted addressing resolves nowhere - address it by path, as
+	// worker/generate.py does for the same reason.
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		if o.BaseEndpoint != nil && *o.BaseEndpoint != "" {
+			o.UsePathStyle = true
+		}
+	})
 	return &Client{
-		s3:            s3.NewFromConfig(cfg),
+		s3:            client,
 		bucket:        bucket,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
 	}, nil

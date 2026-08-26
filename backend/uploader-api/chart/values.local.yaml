@@ -16,10 +16,12 @@ env:
   # Override production mode because Helm merges this map with values.yaml.
   ENVIRONMENT: development
   AUTH_PROVIDER: disabled
-  S3_ENDPOINT: http://rustfs:9000
-  S3_EXTERNAL_ENDPOINT: http://localhost:9000
-  PUBLIC_ASSET_BASE_URL: http://localhost:9000
   S3_BUCKET: oam
+  # S3_ENDPOINT is derived from the bundled store below. The browser reaches it
+  # through a port-forward rather than an ingress, so these two are set by hand:
+  #   kubectl -n oam port-forward svc/uploader-api-rustfs-svc 9000:9000
+  S3_EXTERNAL_ENDPOINT: http://localhost:9000
+  PUBLIC_ASSET_BASE_URL: http://localhost:9000/oam
   ARGO_NAMESPACE: oam
   # This chart does not deploy pgstac. Point these settings at the local catalog
   # database and put PGSTAC_DB_PASSWORD in the secret.
@@ -44,6 +46,24 @@ s3Secret:
   create: true
   accessKeyId: oam
   secretAccessKey: oam
+
+# In-cluster S3, so a local install needs no AWS account. The store reads its
+# credentials from the s3Secret above, so there is nothing else to set here.
+s3:
+  rustfs:
+    enabled: true
+    bucketInit:
+      # No ingress locally, so nothing can be derived; the browser talks to the
+      # port-forward and that is the origin the presigned PUT comes from.
+      corsAllowedOrigins:
+        - http://localhost:8080
+        - http://imagery.localhost:8080
+
+rustfs:
+  storageclass:
+    # Whatever the local cluster provides; Talos and k3s default to local-path.
+    name: local-path
+    dataStorageSize: 5Gi
 
 # In-cluster PostGIS. Recreated per run, so keep storage ephemeral rather than
 # leaving PVCs behind (the chart default is persistent).

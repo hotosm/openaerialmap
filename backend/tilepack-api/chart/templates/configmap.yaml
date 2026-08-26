@@ -9,6 +9,7 @@ data:
   S3_BUCKET: {{ .Values.config.s3Bucket | quote }}
   S3_PUBLIC_BASE_URL: {{ .Values.config.s3PublicBaseURL | quote }}
   AWS_REGION: {{ .Values.s3Credentials.region | quote }}
+  AWS_ENDPOINT_URL: {{ .Values.config.s3Endpoint | quote }}
   LOCK_TTL_SECONDS: {{ .Values.config.lockTTLSeconds | quote }}
   MAX_CONCURRENT_JOBS: {{ .Values.config.maxConcurrentJobs | quote }}
   PER_IP_RATE_PER_SECOND: {{ .Values.config.perIpRatePerSecond | quote }}

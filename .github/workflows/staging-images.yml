@@ -1,0 +1,52 @@
+name: Build Staging Images
+
+# Staging pins every image to each commit SHA, so every push builds all images.
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+jobs:
+  uploader-api:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/uploader-api/
+      image_name: ghcr.io/${{ github.repository }}/uploader-api
+      build_target: prod
+      dockerfile: Dockerfile
+
+  stac-api:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/stac-api/
+      image_name: ghcr.io/${{ github.repository }}/stac-api
+      build_target: prod
+      dockerfile: Dockerfile
+
+  frontend:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: frontend/
+      image_name: ghcr.io/${{ github.repository }}/frontend
+      build_target: serve
+      dockerfile: Dockerfile
+
+  tilepack-api:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/tilepack-api/
+      image_name: ghcr.io/${{ github.repository }}/tilepack/api
+      dockerfile: Dockerfile
+
+  tilepack-worker:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/tilepack-api/worker/
+      image_name: ghcr.io/${{ github.repository }}/tilepack/worker
+      dockerfile: Dockerfile
+      # For https://github.com/protomaps/go-pmtiles/pull/275
+      scan_image: false
+
+  pipeline-images:
+    uses: ./.github/workflows/_uploader-pipeline-images.yml

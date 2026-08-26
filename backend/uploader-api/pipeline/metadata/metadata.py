@@ -493,14 +493,22 @@ def build_item(
     key: str,
     original_path: str | None = None,
 ) -> None:
-    """Assemble OamMetadata, create the STAC item, and write outputs."""
+    """Assemble OamMetadata, create the STAC item, and write outputs.
+
+    `bucket` is unused. The WorkflowTemplate is applied outside the chart, so it
+    and this image can be at different versions; dropping the positional would
+    shift `key` on any cluster running the older template.
+    """
     os.makedirs(out_dir, exist_ok=True)
     with open(user_meta_json) as f:
         user_md = json.load(f)
 
     folder = "/".join(key.split("/")[:-1])
     filename = key.rsplit("/", maxsplit=1)[-1]
-    asset_base_url = f"{public_endpoint.rstrip('/')}/{bucket}/{folder}"
+    # public_endpoint already addresses the bucket: it is either a virtual-hosted
+    # bucket host, a path-style endpoint with the bucket on the end, or a CDN
+    # mapped to the bucket root. Appending `bucket` here would name it twice.
+    asset_base_url = f"{public_endpoint.rstrip('/')}/{folder}"
     cog_filename = f"cog-{filename}"
 
     thumbnail_path = os.path.join(out_dir, "thumbnail.png")

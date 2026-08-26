@@ -369,11 +369,18 @@ def download(bucket: str, key: str, path: Path) -> None:
 
 
 def upload(bucket: str, key: str, path: Path, content_type: str) -> None:
+    extra = {"ContentType": content_type}
+    # S3-compatible stores need not implement ACL authorization, and RustFS
+    # rejects a canned ACL with InvalidArgument rather than ignoring it. Those
+    # buckets are made anonymously readable by bucket policy instead, so the ACL
+    # is redundant there; on real AWS it is what makes the tilepack public.
+    if not os.environ.get("AWS_ENDPOINT_URL"):
+        extra["ACL"] = "public-read"
     _s3_client().upload_file(
         Filename=str(path),
         Bucket=bucket,
         Key=key,
-        ExtraArgs={"ContentType": content_type, "ACL": "public-read"},
+        ExtraArgs=extra,
     )
 
 

@@ -233,11 +233,14 @@ deploy-frontend:
   just get-aws-creds
 
   echo "Uploading to dist to aws:oam-frontend/${GIT_BRANCH}..."
+  # Generate config.js before uploading the static S3 deployment.
   docker run --rm \
     --entrypoint /bin/sh \
+    --env-file .env \
     --env-file .aws.env \
     ghcr.io/hotosm/openaerialmap/frontend:${GIT_BRANCH} \
-    -c "rclone config create aws s3 \
+    -c "/gen-config.sh /app \
+        && rclone config create aws s3 \
           provider=AWS \
           env_auth=true \
           region=${AWS_REGION} \

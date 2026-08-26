@@ -36,6 +36,7 @@ func main() {
 		S3CredsAccessKey:     cfg.S3CredsAccessKey,
 		S3CredsSecretKey:     cfg.S3CredsSecretKey,
 		AWSRegion:            cfg.AWSRegion,
+		AWSEndpointURL:       cfg.AWSEndpointURL,
 		WorkerCPURequest:     cfg.WorkerCPURequest,
 		WorkerMemoryRequest:  cfg.WorkerMemoryRequest,
 		WorkerCPULimit:       cfg.WorkerCPULimit,

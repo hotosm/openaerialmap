@@ -30,6 +30,20 @@ def workflow_name_for(upload_id: str) -> str:
     return f"geotiff-{upload_id}"
 
 
+def _public_asset_base_url() -> str:
+    """Absolute base the pipeline hangs STAC asset hrefs off, bucket included.
+
+    Every other consumer of a public base URL - the seed job, the tilepack API -
+    treats it as addressing the bucket already, so a bare endpoint has to have
+    the bucket appended here rather than in the metadata step.
+    """
+    if settings.PUBLIC_ASSET_BASE_URL:
+        return settings.PUBLIC_ASSET_BASE_URL.rstrip("/")
+    if settings.S3_EXTERNAL_ENDPOINT:
+        return f"{settings.S3_EXTERNAL_ENDPOINT.rstrip('/')}/{settings.S3_BUCKET}"
+    return ""
+
+
 def submit_geotiff_workflow(
     *,
     s3_path: str,
@@ -65,11 +79,7 @@ def submit_geotiff_workflow(
                     {"name": "state", "value": callback_token},
                     {
                         "name": "externalaws",
-                        "value": (
-                            settings.PUBLIC_ASSET_BASE_URL
-                            or settings.S3_EXTERNAL_ENDPOINT
-                            or ""
-                        ),
+                        "value": _public_asset_base_url(),
                     },
                     {"name": "awsurl", "value": settings.S3_ENDPOINT or ""},
                     {"name": "fronturl", "value": settings.WF_CALLBACK_URL},

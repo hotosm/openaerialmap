@@ -29,11 +29,56 @@ PGSTAC_DB_PASSWORD (and DB_PASSWORD if the database is external) and set
 existingSecret.name to it. S3 credentials come from s3Secret, not this one.
 {{- end }}
 
+{{- if .Values.s3.rustfs.enabled }}
+
+Object storage: bundled in-cluster RustFS.
+  Internal endpoint: {{ include "chart.rustfsInternalEndpoint" . }}
+{{- $external := include "chart.rustfsExternalEndpoint" . }}
+{{- if $external }}
+  Public endpoint:   {{ $external }}
+{{- else }}
+
+  WARNING: s3.rustfs.ingress.enabled=false, so the store has no public address.
+  Presigned uploads and STAC asset URLs both need one. Enable that ingress, or
+  set env.S3_EXTERNAL_ENDPOINT and env.PUBLIC_ASSET_BASE_URL to however you
+  expose it (a port-forward, locally).
+{{- end }}
+{{- if .Values.s3.rustfs.bucketInit.enabled }}
+  The bucket-init job sets the bucket up on every sync - nothing to do per
+  environment.
+{{- else }}
+
+  WARNING: s3.rustfs.bucketInit.enabled=false. RustFS starts with no buckets, so
+  create {{ get (include "chart.envMap" . | fromYaml) "S3_BUCKET" }} yourself,
+  make its objects public-read, and set CORS exposing the ETag header.
+{{- end }}
+
+{{- $mapped := false }}
+{{- range $e := dig "extraEnv" (list) (.Values.rustfs | default dict) }}
+{{-   if eq (dig "name" "" $e) "RUSTFS_ACCESS_KEY" }}{{ $mapped = true }}{{ end }}
+{{- end }}
+{{- if $mapped }}
+  Credentials come from secret '{{ .Values.s3Secret.name }}', same as the app.
+{{- else }}
+
+  WARNING: rustfs.extraEnv maps no credentials, so
+  '{{ dig "secret" "existingSecret" "" (.Values.rustfs | default dict) }}' must
+  itself carry RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY matching what
+  {{ .Values.s3Secret.name }} gives the app, or every S3 call 403s.
+{{- end }}
+
+  Imagery lives on the store's PVC. ArgoCD prunes it with everything else;
+  `helm uninstall` keeps it (helm.sh/resource-policy: keep), so delete it by
+  hand when you meant to throw the environment away.
+{{- else }}
+
 Bucket setup is not done by this chart (both settings are bucket-wide, and the
 imagery bucket is shared). Set them once per environment:
   - CORS exposing the ETag header, or browser uploads fail on completion.
   - A lifecycle rule aborting incomplete multipart uploads.
   See "Production bucket setup" in the uploader-api README.
+  Or set s3.rustfs.enabled=true for a bundled store that does this itself.
+{{- end }}
 
 {{- if not .Values.workflowNetworkPolicy.enabled }}
 
@@ -50,5 +95,6 @@ is wrong. Turn it on in production:
 
   kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}'
   kubectl get endpoints kubernetes -n default
-  # an in-cluster object store also needs allowing via additionalEgress
+  # the bundled store is allowed automatically; an external in-cluster one
+  # still needs allowing via additionalEgress
 {{- end }}

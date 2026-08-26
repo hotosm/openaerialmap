@@ -27,6 +27,7 @@ type Client struct {
 	s3CredsAccessKey     string
 	s3CredsSecretKey     string
 	awsRegion            string
+	awsEndpointURL       string
 	workerResources      corev1.ResourceRequirements
 }
 
@@ -45,6 +46,7 @@ type NewOpts struct {
 	S3CredsAccessKey     string
 	S3CredsSecretKey     string
 	AWSRegion            string
+	AWSEndpointURL       string
 	WorkerCPURequest     string
 	WorkerMemoryRequest  string
 	WorkerCPULimit       string
@@ -71,6 +73,7 @@ func New(opts NewOpts) (*Client, error) {
 		s3CredsAccessKey:     opts.S3CredsAccessKey,
 		s3CredsSecretKey:     opts.S3CredsSecretKey,
 		awsRegion:            opts.AWSRegion,
+		awsEndpointURL:       opts.AWSEndpointURL,
 		workerResources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse(opts.WorkerCPURequest),
@@ -212,6 +215,15 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 				},
 			},
 		},
+	}
+	// Only when set: an empty AWS_ENDPOINT_URL in the worker's environment
+	// reads as "no endpoint" to boto3 anyway, but leaving it out keeps a plain
+	// AWS deployment's Job spec free of settings that do nothing.
+	if c.awsEndpointURL != "" {
+		container := &job.Spec.Template.Spec.Containers[0]
+		container.Env = append(container.Env, corev1.EnvVar{
+			Name: "AWS_ENDPOINT_URL", Value: c.awsEndpointURL,
+		})
 	}
 	_, err := c.cs.BatchV1().Jobs(c.namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {

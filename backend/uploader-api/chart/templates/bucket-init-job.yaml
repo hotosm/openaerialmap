@@ -1,0 +1,91 @@
+{{- if and .Values.s3.rustfs.enabled .Values.s3.rustfs.bucketInit.enabled }}
+{{- $env := include "chart.envMap" . | fromYaml }}
+{{- $origins := .Values.s3.rustfs.bucketInit.corsAllowedOrigins }}
+{{- if not $origins }}
+{{-   $appOrigin := include "chart.appOrigin" . }}
+{{-   if $appOrigin }}
+{{-     $origins = list $appOrigin }}
+{{-   end }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "chart.fullname" . }}-bucket-init
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bucket-init
+  annotations:
+    # ArgoCD maps this to PostSync. Not pre-install: the store does not exist
+    # yet on a first install, so the job waits for it to answer instead.
+    helm.sh/hook: post-install,post-upgrade
+    # Ahead of the seed job, which copies into the bucket this creates.
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.s3.rustfs.bucketInit.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.s3.rustfs.bucketInit.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bucket-init
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: bucket-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command: ["python", "/app/scripts/init_bucket.py"]
+          env:
+            - name: S3_BUCKET
+              value: {{ required "env.S3_BUCKET is required" (get $env "S3_BUCKET") | quote }}
+            - name: S3_ENDPOINT
+              value: {{ get $env "S3_ENDPOINT" | quote }}
+            - name: S3_REGION
+              value: {{ get $env "S3_REGION" | default "us-east-1" | quote }}
+            - name: INIT_PUBLIC_READ
+              value: {{ .Values.s3.rustfs.bucketInit.publicRead | quote }}
+            # Empty leaves CORS alone - with no API ingress, nothing is
+            # making a cross-origin request.
+            - name: INIT_CORS_ORIGINS
+              value: {{ join "," $origins | quote }}
+            {{- if .Values.s3Secret.name }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret.name | quote }}
+                  key: {{ .Values.s3Secret.accessKeyIdKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret.name | quote }}
+                  key: {{ .Values.s3Secret.secretAccessKeyKey | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.s3.rustfs.bucketInit.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

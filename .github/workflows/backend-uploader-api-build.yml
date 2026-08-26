@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - staging
     paths:
       # Rebuild for uploader changes, including migrations and the chart.
       - "backend/uploader-api/**"

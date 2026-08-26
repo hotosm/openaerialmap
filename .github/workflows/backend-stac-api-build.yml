@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - staging
     paths:
       - "backend/stac-api/**"
   workflow_dispatch:

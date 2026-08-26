@@ -30,6 +30,11 @@ config:
   stacCollection: "openaerialmap"
   s3Bucket: "oin-hotosm-temp"
   s3PublicBaseURL: "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com"
+  # Leave empty for real AWS S3. Point it at an S3-compatible store (e.g. the
+  # one the uploader-api chart can bundle) to read imagery and write tilepacks
+  # there instead. The API passes it to each worker Job, and both halves switch
+  # to path-style addressing, which a store without wildcard DNS needs.
+  s3Endpoint: ""
   lockTTLSeconds: 1800
   maxConcurrentJobs: 5
   perIpRatePerSecond: "0.1"

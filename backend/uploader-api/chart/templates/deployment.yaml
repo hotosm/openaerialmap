@@ -4,8 +4,15 @@
 {{- if not .Values.env.PGSTAC_DB_USER }}
 {{-   fail "values.env.PGSTAC_DB_USER is required." }}
 {{- end }}
-{{- if not (or .Values.env.PUBLIC_ASSET_BASE_URL .Values.env.S3_EXTERNAL_ENDPOINT) }}
-{{-   fail "Set values.env.PUBLIC_ASSET_BASE_URL (or S3_EXTERNAL_ENDPOINT): STAC asset URLs need an absolute public base." }}
+{{- $env := include "chart.envMap" . | fromYaml }}
+{{- if not (or (get $env "PUBLIC_ASSET_BASE_URL") (get $env "S3_EXTERNAL_ENDPOINT")) }}
+{{-   fail "Set values.env.PUBLIC_ASSET_BASE_URL (or S3_EXTERNAL_ENDPOINT): STAC asset URLs need an absolute public base. With s3.rustfs.enabled it is derived from s3.rustfs.ingress, so enable that instead." }}
+{{- end }}
+{{- if .Values.s3.rustfs.enabled }}
+{{- include "chart.validateRustfsCredentialMapping" . }}
+{{- if .Values.env.S3_ENDPOINT }}
+{{-   fail "s3.rustfs.enabled=true with an explicit env.S3_ENDPOINT: the bundled store would be deployed but unused, and the bucket-init hook would create a bucket and replace its bucket policy on whatever that endpoint points at. Serve assets from a CDN with env.PUBLIC_ASSET_BASE_URL, or set s3.rustfs.enabled=false to use an external store." }}
+{{- end }}
 {{- end }}
 {{- if and (not .Values.db.enabled) (not .Values.existingSecret.name) }}
 {{-   fail "External DB selected (db.enabled=false) but existingSecret.name is empty: supply DB_HOST/DB_USER/DB_PASSWORD/DB_NAME and PGSTAC_DB_PASSWORD via a secret, or set db.enabled=true." }}
@@ -80,10 +87,7 @@ spec:
           {{- end }}
           env:
             {{- include "chart.dbEnv" . | nindent 12 }}
-            {{- range $key, $val := .Values.env }}
-            - name: {{ $key }}
-              value: {{ $val | quote }}
-            {{- end }}
+            {{- include "chart.envVars" . | nindent 12 }}
           {{- if .Values.existingSecret.name }}
           envFrom:
             - secretRef:
@@ -134,10 +138,7 @@ spec:
                   name: {{ .Values.s3Secret.name | quote }}
                   key: {{ .Values.s3Secret.secretAccessKeyKey | quote }}
             {{- end }}
-            {{- range $key, $val := .Values.env }}
-            - name: {{ $key }}
-              value: {{ $val | quote }}
-            {{- end }}
+            {{- include "chart.envVars" . | nindent 12 }}
           {{- if .Values.existingSecret.name }}
           envFrom:
             - secretRef:

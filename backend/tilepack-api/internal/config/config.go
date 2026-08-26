@@ -72,6 +72,9 @@ type Config struct {
 	S3CredsAccessKey string
 	S3CredsSecretKey string
 	AWSRegion        string
+	// Empty means real AWS S3. Set to reach an S3-compatible store instead;
+	// the worker Job inherits it so both halves talk to the same place.
+	AWSEndpointURL string
 
 	// Worker pod resource requests/limits (Kubernetes quantity strings).
 	WorkerCPURequest    string
@@ -103,6 +106,7 @@ func Load() (*Config, error) {
 		S3CredsAccessKey:     getenv("S3_CREDS_ACCESS_KEY_KEY", "S3_ACCESS_KEY"),
 		S3CredsSecretKey:     getenv("S3_CREDS_SECRET_KEY_KEY", "S3_SECRET_KEY"),
 		AWSRegion:            getenv("AWS_REGION", "us-east-1"),
+		AWSEndpointURL:       getenv("AWS_ENDPOINT_URL", ""),
 		WorkerCPURequest:     getenv("WORKER_CPU_REQUEST", "500m"),
 		WorkerMemoryRequest:  getenv("WORKER_MEMORY_REQUEST", "768Mi"),
 		WorkerCPULimit:       getenv("WORKER_CPU_LIMIT", "2"),
