@@ -174,7 +174,8 @@ build-frontend branch="main":
   source .env
 
   GIT_BRANCH="{{ branch }}"
-  docker build ./frontend --tag "ghcr.io/hotosm/openaerialmap/frontend:${GIT_BRANCH}" \
+  docker build ./frontend --target prod \
+    --tag "ghcr.io/hotosm/openaerialmap/frontend:${GIT_BRANCH}" \
     --build-arg VITE_PMTILES_URL=${VITE_PMTILES_URL} \
     --build-arg VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL} \
     --build-arg VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL} \
