@@ -25,7 +25,7 @@ function tmsTemplate(p: ImageFeature["properties"]): string {
   if (!p.id) return "";
   const base =
     `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${p.id}` +
-    `/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?assets=${p.assetName}`;
+    `/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=${p.assetName}`;
   return p.renderParams ? `${base}&${p.renderParams}` : `${base}&nodata=0`;
 }
 
