@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json",
+  "$id": "https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json",
   "title": "OAM Extension",
   "description": "STAC Extension for HOT OAM for STAC Items.",
   "oneOf": [
@@ -48,7 +48,7 @@
         "stac_extensions": {
           "type": "array",
           "contains": {
-            "const": "https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json"
+            "const": "https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json"
           }
         }
       }
@@ -64,6 +64,45 @@
         },
         "oam:producer_name": {
           "description": "The data producer's name. This should match an entry in the Providers object.",
+          "type": "string"
+        },
+        "oam:product_type": {
+          "description": "The kind of imagery the data asset holds, which determines how it is displayed.",
+          "type": "string",
+          "enum": [
+            "visual",
+            "multispectral",
+            "sar",
+            "elevation",
+            "pseudocolor"
+          ]
+        },
+        "oam:product_type_source": {
+          "description": "Whether the product type was declared by a person or detected from the raster.",
+          "type": "string",
+          "enum": ["declared", "detected"]
+        },
+        "oam:footprint_source": {
+          "description": "Whether the Item geometry traces the valid pixels of the raster, or is its bounding rectangle.",
+          "type": "string",
+          "enum": ["mask", "bbox"]
+        },
+        "oam:footprint_area": {
+          "description": "Area covered by the Item geometry, in square metres.",
+          "type": "number",
+          "minimum": 0
+        },
+        "oam:acquisition_time_estimated": {
+          "description": "True when the acquisition datetime was estimated rather than supplied by the data provider.",
+          "type": "boolean"
+        },
+        "oam:acquisition_source": {
+          "description": "Where the acquisition datetime came from. Omitted when supplied by the data provider.",
+          "type": "string",
+          "enum": ["user", "file-tags", "ingest"]
+        },
+        "oam:external_id": {
+          "description": "Identifier for this imagery in the external system that submitted it.",
           "type": "string"
         },
         "license": {

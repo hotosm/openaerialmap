@@ -10,5 +10,6 @@ COLLECTION_DESCRIPTION = (
 OAM_EXTENSION_SCHEMA_URI_PATTERN: str = (
     "https://docs.imagery.hotosm.org/oam/v{version}/schema.json"
 )
-OAM_EXTENSION_DEFAULT_VERSION: str = "0.1.0"
-OAM_EXTENSION_SUPPORTED_VERSIONS: list[str] = ["0.1.0"]
+OAM_EXTENSION_DEFAULT_VERSION: str = "0.2.0"
+# Older versions stay listed so Items already carrying them still validate.
+OAM_EXTENSION_SUPPORTED_VERSIONS: list[str] = ["0.1.0", "0.2.0"]
