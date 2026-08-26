@@ -1,12 +1,10 @@
 import "@unocss/reset/tailwind.css";
 import "virtual:uno.css";
-import "@hotosm/ui/dist/style-core.css";
+import "@hotosm/ui/dist/style.css";
+// register all wa-* elements before first render (avoids FOUCE)
+import "@hotosm/ui/dist/webawesome-all.js";
 import "@hotosm/ui/dist/components/header/header.js";
 import "@hotosm/ui/dist/components/tool-menu/tool-menu.js";
-import "@awesome.me/webawesome/dist/components/button/button.js";
-import "@awesome.me/webawesome/dist/components/card/card.js";
-import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
-import "@awesome.me/webawesome/dist/components/icon/icon.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";

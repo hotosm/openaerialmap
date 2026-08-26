@@ -1,15 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
-// Browse-only WebAwesome elements. Imported for their side effect
-// (custom-element registration) so they land in the lazy Browse chunk
-// rather than the landing bundle. wa-button/card/icon are registered
-// globally in main.tsx because the landing page uses them too.
-import "@awesome.me/webawesome/dist/components/callout/callout.js";
-import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
-import "@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js";
-import "@awesome.me/webawesome/dist/components/input/input.js";
-import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
-import "@awesome.me/webawesome/dist/components/tag/tag.js";
 import SiteHeader from "../SiteHeader";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";

@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en" class="hot-theme-light wa-theme-default wa-palette-hotosm">
+<!-- wa-cloak: FOUCE backstop, hides page until all custom elements are defined (2s max) -->
+<html lang="en" class="hot-theme-light wa-theme-default wa-palette-hotosm wa-cloak">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/openaerialmap.svg" />
@@ -11,32 +12,17 @@
       :root {
         --header-height: 56px;
       }
-      hot-header:not(:defined) {
-        visibility: hidden;
-      }
     </style>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- HOT fonts (not bundled in @hotosm/ui) -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700&family=Barlow:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700&family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;500;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
     />
 
-    <!-- WebAwesome base styles (palette + utilities for the html element) -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/native.css"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/utilities.css"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/themes/default.css"
-    />
     <!-- Runtime config must load before JS modules -->
     <script src="/config.js"></script>
   </head>
