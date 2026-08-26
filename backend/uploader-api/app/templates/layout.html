@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en" class="hot-theme-light wa-theme-default wa-palette-hotosm">
+<!-- wa-cloak: FOUCE, hides the page until every custom element is defined (2s max) -->
+<html lang="en" class="hot-theme-light wa-theme-default wa-palette-hotosm wa-cloak">
   <head>
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
     <meta charset="UTF-8" />
@@ -58,57 +59,39 @@
       }
     </style>
 
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/native.css"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/utilities.css"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist/styles/themes/default.css"
-    />
+    <!-- HOT UI theme, self-contained: it carries the Web Awesome base styles, so
+         this app no longer loads @awesome.me/webawesome separately. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/style.css" />
+
+    <!-- webawesome-all.js is a barrel of bare `@awesome.me/webawesome/...` imports, so the
+         browser needs this map to resolve them. dist-cdn is the pre-bundled build; the pin
+         must match the @awesome.me/webawesome version @hotosm/ui 1.0.0 was built against. -->
     <script type="importmap">
       {
         "imports": {
-          "@awesome.me/webawesome/dist/components/": "https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/components/"
+          "@awesome.me/webawesome/dist/components/": "https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.11.0/dist-cdn/components/"
         }
       }
     </script>
 
+    <!-- Register every wa-* element up front, then the hot-* ones. Raw dist files, NOT
+         jsdelivr's /+esm (it duplicates wa-* registrations and most elements never register). -->
     <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/style-core.css"
+      rel="modulepreload"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/webawesome-all.js"
     />
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/hotosm-ui.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/hotosm-ui.js"
     />
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@0.10.1/dist/hotosm-ui.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/webawesome-all.js"
     ></script>
-
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/tool-menu@0.2.7/dist/tool-menu.esm.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/hotosm-ui.js"
     ></script>
-
-    <!-- Import the Web Awesome components used only by this app. -->
-    <script type="module">
-      import "@awesome.me/webawesome/dist/components/button/button.js";
-      import "@awesome.me/webawesome/dist/components/callout/callout.js";
-      import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
-      import "@awesome.me/webawesome/dist/components/input/input.js";
-      import "@awesome.me/webawesome/dist/components/select/select.js";
-      import "@awesome.me/webawesome/dist/components/option/option.js";
-      import "@awesome.me/webawesome/dist/components/progress-bar/progress-bar.js";
-      import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
-      import "@awesome.me/webawesome/dist/components/tag/tag.js";
-      import "@awesome.me/webawesome/dist/components/details/details.js";
-    </script>
     {% if auth_enabled %}
     <link
       rel="modulepreload"

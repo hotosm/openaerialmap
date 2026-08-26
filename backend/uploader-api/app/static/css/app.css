@@ -22,24 +22,23 @@
   --wa-color-brand-fill-loud: var(--oam-red);
   --wa-color-brand-border-loud: #ed5c5e;
   --wa-color-brand-on-loud: #ffffff;
-}
 
-/* Archivo drives body text and all hotosm-ui / WebAwesome components. */
-html,
-body {
-  font-family: "Archivo", sans-serif;
+  /* Archivo drives body text, headings and all hotosm-ui / WebAwesome components.
+     The theme sets these on `:root, :host, .hot-theme-light`, so the override has
+     to match that specificity and win on order - this sheet loads after it. A
+     weaker selector leaves headings on the theme default, Barlow Condensed, which
+     this app does not load at all. */
   --hot-font-sans: "Archivo", sans-serif;
   --hot-font-sans-variant: "Archivo";
   --hot-font-sans-variant-condensed: "Archivo";
+}
+
+html,
+body {
+  font-family: "Archivo", sans-serif;
   color: var(--oam-bluedark);
   background: var(--oam-grey-50);
   margin: 0;
-}
-
-/* Any author `display` rule outranks the UA sheet's `[hidden] { display: none }`,
-   so the panels this app toggles with `hidden` stayed on screen. */
-[hidden] {
-  display: none !important;
 }
 
 /* Login / account button sizing (mirrors Drone-TM). */
@@ -245,7 +244,11 @@ hotosm-auth {
   color: var(--oam-bluegrey);
 }
 
-.oam-source__panel {
+/* `:not([hidden])` so the flex layout is never applied to a panel the toggle has
+   hidden. An author `display` rule beats the UA sheet's `[hidden] { display: none }`
+   at any specificity, so an unqualified `display: flex` here left both panels on
+   screen at once. Scoping it keeps the UA rule in charge of the hidden state. */
+.oam-source__panel:not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -285,8 +288,12 @@ hotosm-auth {
   background: var(--oam-grey-100);
 }
 
+/* Same as the source panels: this one is toggled with `hidden` too. */
 .oam-progress {
   margin-top: 1rem;
+}
+
+.oam-progress:not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
