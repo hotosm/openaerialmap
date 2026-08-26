@@ -49,4 +49,27 @@ LABEL org.hotosm.openaerialmap.app-name="frontend" \
       org.hotosm.openaerialmap.stac-browser-url="${VITE_STAC_BROWSER_URL}" \
       org.hotosm.openaerialmap.packager-url="${VITE_PACKAGER_URL}"
 WORKDIR /app
+COPY gen-config.sh /gen-config.sh
+RUN chmod +x /gen-config.sh
 COPY --from=build /app/dist .
+
+
+# Serves the SPA in-cluster. The `prod` stage above is rclone, for the S3 sync.
+FROM docker.io/nginx:1.31-alpine AS serve
+ARG APP_VERSION
+ARG COMMIT_REF
+LABEL org.hotosm.openaerialmap.app-name="frontend" \
+      org.hotosm.openaerialmap.app-version="${APP_VERSION}" \
+      org.hotosm.openaerialmap.git-commit-ref="${COMMIT_REF:-none}" \
+      org.hotosm.openaerialmap.maintainer="sysadmin@hotosm.org"
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY gen-config.sh /gen-config.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY --from=build /app/dist /usr/share/nginx/html
+# Make config.js and nginx runtime paths writable by uid 101.
+RUN chmod +x /gen-config.sh /docker-entrypoint.sh \
+    && sed -i 's|^pid .*|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
+    && chown -R 101:101 /usr/share/nginx/html /var/cache/nginx
+USER 101
+EXPOSE 8080
+ENTRYPOINT ["/docker-entrypoint.sh"]
