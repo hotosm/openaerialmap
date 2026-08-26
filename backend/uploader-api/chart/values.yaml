@@ -132,6 +132,31 @@ db:
       # chart manages "<release>-db-data", so upgrades keep their data.
       existingClaim: ""
 
+# Optionally seed the catalogue from a public STAC API after installation.
+seed:
+  enabled: false
+  stacUrl: https://api.imagery.hotosm.org/stac
+  srcBucket: oin-hotosm-temp
+  srcAssetBaseUrl: https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
+  collection: ""
+  # 0 creates the collection without copying imagery.
+  maxItems: 0
+  # A ceiling on copied bytes, not a target. Sized for the bundled store's
+  # volume - raise both together, or freely when seeding into real S3.
+  maxGiB: 10
+  # Skip items missing any of these assets.
+  requiredAssets: [visual]
+  concurrency: 8
+  dryRun: false
+  reseed: false
+  backoffLimit: 2
+  # Keep the Helm or ArgoCD timeout at least this high.
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 3600
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { cpu: "1", memory: 512Mi }

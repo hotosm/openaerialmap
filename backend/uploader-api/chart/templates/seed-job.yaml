@@ -1,0 +1,108 @@
+{{- if .Values.seed.enabled }}
+{{- $collection := .Values.seed.collection | default .Values.env.STAC_COLLECTION }}
+{{- if not $collection }}
+{{-   fail "seed.enabled=true needs a collection: set seed.collection or env.STAC_COLLECTION." }}
+{{- end }}
+{{- if not (and .Values.seed.stacUrl .Values.seed.srcBucket .Values.seed.srcAssetBaseUrl) }}
+{{-   fail "seed.enabled=true needs seed.stacUrl, seed.srcBucket and seed.srcAssetBaseUrl: the public STAC API and bucket to seed from." }}
+{{- end }}
+{{- if not (get (include "chart.envMap" . | fromYaml) "PUBLIC_ASSET_BASE_URL") }}
+{{-   fail "seed.enabled=true needs env.PUBLIC_ASSET_BASE_URL: the seeder rewrites copied asset hrefs onto it, and an empty one writes relative hrefs into the catalogue. S3_EXTERNAL_ENDPOINT alone is not enough here." }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "chart.fullname" . }}-seed
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seed
+  annotations:
+    # ArgoCD maps this Helm hook to PostSync.
+    helm.sh/hook: post-install,post-upgrade
+    # Runs after bucket-init, which creates the bucket this copies into.
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.seed.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.seed.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.seed.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: seed
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: seed
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command: ["python", "/app/scripts/seed_catalog.py"]
+          env:
+            - name: SEED_STAC_URL
+              value: {{ .Values.seed.stacUrl | quote }}
+            - name: SEED_SRC_BUCKET
+              value: {{ .Values.seed.srcBucket | quote }}
+            - name: SEED_SRC_ASSET_BASE_URL
+              value: {{ .Values.seed.srcAssetBaseUrl | quote }}
+            - name: SEED_COLLECTION
+              value: {{ $collection | quote }}
+            - name: SEED_MAX_ITEMS
+              value: {{ .Values.seed.maxItems | quote }}
+            - name: SEED_MAX_GIB
+              value: {{ .Values.seed.maxGiB | quote }}
+            - name: SEED_REQUIRED_ASSETS
+              value: {{ join "," .Values.seed.requiredAssets | quote }}
+            - name: SEED_WORKERS
+              value: {{ .Values.seed.concurrency | quote }}
+            - name: SEED_DRY_RUN
+              value: {{ .Values.seed.dryRun | quote }}
+            - name: SEED_RESEED
+              value: {{ .Values.seed.reseed | quote }}
+            {{- if .Values.s3Secret.name }}
+            # Source reads are anonymous; these credentials write the destination.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret.name | quote }}
+                  key: {{ .Values.s3Secret.accessKeyIdKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret.name | quote }}
+                  key: {{ .Values.s3Secret.secretAccessKeyKey | quote }}
+            {{- end }}
+            {{- include "chart.envVars" . | nindent 12 }}
+          {{- if .Values.existingSecret.name }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret.name | quote }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.seed.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
