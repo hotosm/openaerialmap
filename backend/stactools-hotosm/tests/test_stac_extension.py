@@ -10,6 +10,7 @@ from pystac.validation import JsonSchemaSTACValidator
 from stactools.hotosm.constants import (
     OAM_EXTENSION_DEFAULT_VERSION,
     OAM_EXTENSION_SCHEMA_URI_PATTERN,
+    OAM_EXTENSION_SUPPORTED_VERSIONS,
 )
 from stactools.hotosm.oam_extension import load_oam_extension_schema
 from stactools.hotosm.oam_metadata import OamMetadata
@@ -40,6 +41,18 @@ def test_stac_extension_is_published_through_docs():
     published = DOCS_DIR.joinpath(OAM_EXT_SCHEMA.removeprefix(DOCS_SITE_URL))
     assert published.is_file()
     assert published.read_bytes() == OAM_STAC_EXTENSION_PATH.read_bytes()
+
+
+@pytest.mark.parametrize("version", OAM_EXTENSION_SUPPORTED_VERSIONS)
+def test_published_versions_are_frozen(version: str):
+    """Ensure older schema versions don't accidentally change."""
+    schema_uri = OAM_EXTENSION_SCHEMA_URI_PATTERN.format(version=version)
+    schema = load_oam_extension_schema(version)
+
+    assert schema["$id"] == schema_uri
+    published = DOCS_DIR.joinpath(schema_uri.removeprefix(DOCS_SITE_URL))
+    assert published.is_file()
+    assert json.loads(published.read_text()) == schema
 
 
 def test_stac_extension_is_bundled_in_package():

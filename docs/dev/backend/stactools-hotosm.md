@@ -88,12 +88,18 @@ run every 30 minutes, consider running with `--uploaded-since=2100`
 Every Item we create lists the OAM STAC extension in `stac_extensions`:
 
 ```text
-https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json
+https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 ```
 
-That URL is this site. `docs/oam/v0.1.0/schema.json` is a symlink to
+That URL is this site. `docs/oam/v0.2.0/schema.json` is a symlink to
 `backend/stactools-hotosm/stac-extension/json-schema/schema.json`, which is the
-source of truth, so publishing a schema change is just a push to `main`.
+source of truth for the current version, so publishing a schema change is just
+a push to `main`.
+
+Older versions stay published at their own URL with their original definition,
+so Items created before v0.2.0 keep validating unchanged. See the package
+[README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md)
+for how to create a new version.
 
 Validation during Item creation does not fetch it - the same schema is shipped
 inside the package and registered with `pystac` before `Item.validate()`, so

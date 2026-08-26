@@ -27,8 +27,9 @@ uploader-api ──submit──▶ Argo workflow:
 ```
 
 Browser uploads go directly to S3; remote uploads provide a `source_url` that
-the pipeline fetches. See
-[Integrating an external system](#integrating-an-external-system).
+the pipeline fetches, either pasted into the form (see
+[Importing from a link](#importing-from-a-link)) or handed over by a partner
+system (see [Integrating an external system](#integrating-an-external-system)).
 
 - **`app/uploads/`**: upload lifecycle, storage/catalogue clients, Argo trigger,
   and workflow callbacks.
@@ -108,6 +109,63 @@ uv run uvicorn app.main:app --reload --port 8080
 
 Config is via environment variables. See `.env.example`.
 
+## Importing from a link
+
+The upload form takes either a GeoTIFF from the computer or a link we fetch it
+from. The second exists because the imagery is usually already on a server, and
+downloading it only to upload it again is the expensive part for anyone on a thin
+connection.
+
+A link has to be reachable over public HTTPS and has to return the GeoTIFF
+itself. `app/uploads/source_links.py` rewrites the share links that have a direct
+equivalent and rejects the rest with a message naming the fix; whatever comes out
+goes through `url_guard` like any other URL.
+
+- **Object storage**: paste presigned or public URLs as they are. S3 and
+  S3-compatible (MinIO, R2, B2, Wasabi, Spaces), Google Cloud Storage and Azure
+  Blob all serve bytes directly, so nothing is rewritten. This is the ScaleODM
+  path.
+- **NodeODM**: `https://your-node/task/<uuid>/download/all.zip`, with `?token=…`
+  if the node has one. NodeODM 2 removed direct asset downloads, so the fetch
+  step reads only `odm_orthophoto/odm_orthophoto.tif` from the archive. Legacy
+  `orthophoto.tif` links are rewritten to `all.zip`.
+- **WebODM**: a public task's `orthophoto.tif` or `all.zip` download URL. Private
+  tasks still require the JWT header we deliberately do not collect.
+- **OneDrive / SharePoint**: the file's share link as it came. A
+  `*.sharepoint.com` link gets `download=1`; a consumer `1drv.ms` or
+  `onedrive.live.com` link is resolved through `api.onedrive.com/v1.0/shares`.
+- **Dropbox**: the file's share link as it came; we force `dl=1`.
+- **Google Drive**: the file's share link as it came; we rewrite it to
+  `drive.usercontent.google.com/download?…&confirm=t`.
+
+One shape we handle narrowly and one we refuse on purpose:
+
+- **ODM archives.** NodeODM exposes only `all.zip`, so fetch streams that archive
+  under the normal size ceiling and reads one exact member without extracting
+  paths or sidecars. Arbitrary archive URLs and unrelated ODM assets are refused.
+- **Anything needing a login credential.** Private WebODM tasks, and Drive or
+  OneDrive files that are not shared publicly, need an `Authorization` header we
+  do not send: a capability URL that expires is a very different thing to store
+  than a partner's login token.
+
+And four we cannot support at all, so the form says so rather than failing
+obscurely: MEGA (client-side decryption), WeTransfer and similar (ephemeral,
+POST-gated), iCloud Drive (JavaScript share pages), and chat apps (no stable
+URL). All of them mean downloading the file and uploading it as a file.
+
+Two rewrites are undocumented and have moved before, so treat a failure as the
+recipe going stale rather than user error - the fetch step's TIFF sniff catches
+it and tells the user to link straight to the file:
+
+- Drive's `confirm=t`, which suppresses the "can't scan this file" page. A
+  `resourcekey` carried by the shared link is retained.
+- The unauthenticated `api.onedrive.com` shares endpoint. Both it and SharePoint's
+  `download=1` want checking against a live tenant.
+
+A platform that holds its own auth should use the prefill handoff below instead:
+it mints the presigned URL and fills in the metadata it already knows, so we
+never store its credentials.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the
@@ -145,6 +203,8 @@ already published.
 
 - The Litestar service: DB layer, auth deps, S3 multipart and Argo routes, upload
   and profile pages.
+- Both ingest paths in the form: a file picker and a link box, with share links
+  normalised in `app/uploads/source_links.py`.
 - `pipeline/`: the `WorkflowTemplate` and five step images. Metadata uses
   `stactools-hotosm` from `backend/stactools-hotosm`, the same source tree as
   `backend/stac-ingester`.

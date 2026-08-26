@@ -19,7 +19,7 @@ from app.auth.auth_deps import get_user_display_name, mirror_user
 from app.blocking import run_blocking
 from app.config import settings
 from app.db.models import DbUpload, UploadStatus
-from app.uploads import argo, url_guard
+from app.uploads import argo, source_links, url_guard
 from app.uploads.s3 import build_key, safe_filename
 from app.uploads.schemas import (
     CreateMultipartBody,
@@ -71,11 +71,19 @@ def _external_id_conflict(external_id: str, existing: DbUpload | None) -> HTTPEx
 
 
 async def _checked_source_url(source_url: str) -> str:
-    """Resolve and vet a caller-supplied source URL, off the event loop."""
+    """Rewrite a share link to its direct form, then resolve and vet it.
+
+    Normalising first means a share link is vetted as the host it will really be
+    fetched from. It does no I/O, so it stays on the event loop; the DNS does not.
+    """
     try:
+        direct = source_links.normalise(source_url)
+        if direct != source_url.strip():
+            # The host only: a query string is where a signature or a token is.
+            log.info("Rewrote a share link to fetch from %s", urlsplit(direct).hostname)
         return await run_blocking(
             url_guard.check_url,
-            source_url,
+            direct,
             allow_private=settings.FETCH_ALLOW_PRIVATE_HOSTS,
         )
     except url_guard.UrlRejected as err:
@@ -198,7 +206,11 @@ async def create_upload_row(
         source_url = await _checked_source_url(source_url)
         # Fall back to the URL's own basename so the archived original keeps a
         # recognisable name.
-        filename = filename or urlsplit(source_url).path
+        filename = filename or (
+            source_links.ODM_ORTHO_ASSET
+            if source_links.is_odm_archive(source_url)
+            else urlsplit(source_url).path
+        )
     filename = safe_filename(filename)
 
     upload_id = str(uuid.uuid4())

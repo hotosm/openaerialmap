@@ -47,24 +47,12 @@ repos:
       - id: oxfmt
         name: oxfmt
         files: ^
-        entry: bash -c 'test "$#" -gt 0 && oxfmt --write "$@" || exit 0' --
+        # oxfmt batches it's runs, so using !/path/to/file in args can cause issues
+        exclude: ^(?:CHANGELOG\.md|frontend/pnpm-lock\.yaml|backend/(?:global-tms|tilepack-api|stac-ingester|stac-api|global-mosaic|uploader-api|stactools-hotosm)/|docs/oam/|notebooks/)
+        entry: oxfmt --write
         language: node
         "types": [text]
         additional_dependencies: ["oxfmt@0.35.0"]
-        args:
-          [
-            "!CHANGELOG.md",
-            "!frontend/pnpm-lock.yaml",
-            "!backend/global-tms/**",
-            "!backend/tilepack-api/**",
-            "!backend/stac-ingester/**",
-            "!backend/stac-api/**",
-            "!backend/global-mosaic/**",
-            "!backend/uploader-api/**",
-            "!backend/stactools-hotosm/**",
-            "!docs/oam/**",
-            "!notebooks/**",
-          ]
 
   # # Lint: Dockerfile (disabled until binary is bundled)
   # - repo: https://github.com/hadolint/hadolint.git

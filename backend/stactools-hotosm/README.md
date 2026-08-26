@@ -57,21 +57,39 @@ The `__version__` is kept only as a static string for STAC provenance.
 `stac-extension/` defines the OpenAerialMap STAC extension - see its
 [README](./stac-extension/README.md).
 
-`json-schema/schema.json` is the source of truth, both for editing and for the
-local validation in `tests/test_stac_extension.py`. It is published at
+`json-schema/schema.json` is the source of truth for the **current** version,
+both for editing and for the local validation in `tests/test_stac_extension.py`.
+It is published at
 
 ```text
-https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json
+https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 ```
 
 which is its `$id`, and the URI `create_item` puts in `stac_extensions`.
 
-Publishing happens through the mkdocs site: `docs/oam/v0.1.0/schema.json` is a
-symlink to this file, so every push that changes it redeploys the schema along
-with the docs. To cut a new extension version, copy the symlink to
-`docs/oam/v{version}/schema.json`, bump `$id` and
-`OAM_EXTENSION_DEFAULT_VERSION`, and leave the older paths in place - Items
-already in pgstac keep pointing at them.
+Publishing happens through the mkdocs site: `docs/oam/v{version}/schema.json`
+symlinks to the schema for that version, so every push that changes one
+redeploys it along with the docs. Superseded versions are frozen as real files
+under `src/stactools/hotosm/schemas/oam/v{version}/`, with the `docs/oam`
+symlink pointing at the frozen copy.
+
+To create a new version:
+
+1. Freeze the outgoing one: copy `json-schema/schema.json` over
+   `src/stactools/hotosm/schemas/oam/v{old}/schema.json` and point
+   `docs/oam/v{old}/schema.json` at it. Its URI must keep serving the old
+   definition, which names itself in `$id` and in the `stac_extensions`
+   `contains` check - serve the new schema there and every Item using it stops
+   validating.
+2. Bump `$id` in `json-schema/schema.json`, then symlink `docs/oam/v{new}/` and
+   `schemas/oam/v{new}/` to it.
+3. Add the version to `OAM_EXTENSION_SUPPORTED_VERSIONS` and set
+   `OAM_EXTENSION_DEFAULT_VERSION`.
+4. Update `stac-extension/package.json`, the example Item, and the extension
+   README and CHANGELOG.
+
+`test_published_versions_are_frozen` checks steps 1-3 for every supported
+version.
 
 The schema was previously served from GitHub Pages on the standalone repo, at
 `https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`. That URL is

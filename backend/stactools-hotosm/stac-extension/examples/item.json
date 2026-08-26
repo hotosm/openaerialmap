@@ -5,7 +5,7 @@
     "https://stac-extensions.github.io/file/v2.1.0/schema.json",
     "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
     "https://stac-extensions.github.io/alternate-assets/v1.2.0/schema.json",
-    "https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json"
+    "https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json"
   ],
   "id": "59e62b903d6412ef7220a02f",
   "geometry": {
@@ -51,7 +51,7 @@
     "title": "Pisgah Crater Cinder Cone",
     "oam:producer_name": "redacted",
     "oam:platform_type": "uav",
-    "gsd": 2.990237944881498e-7,
+    "gsd": 2.990237944881498e-07,
     "license": "CC-BY-4.0",
     "instruments": [
       "Phantom 3 Pro"
@@ -67,7 +67,11 @@
           "licensor"
         ]
       }
-    ]
+    ],
+    "oam:product_type": "visual",
+    "oam:product_type_source": "declared",
+    "oam:footprint_source": "mask",
+    "oam:footprint_area": 812345.6
   },
   "assets": {
     "image": {
@@ -114,11 +118,11 @@
         30505
       ],
       "proj:transform": [
-        3.276234535837461e-7,
+        3.276234535837461e-07,
         0,
         -116.38018350872744,
         0,
-        -2.704241353925534e-7,
+        -2.704241353925534e-07,
         34.75077985936304,
         0,
         0,

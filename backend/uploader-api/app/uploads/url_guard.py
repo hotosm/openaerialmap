@@ -43,7 +43,10 @@ def check_url(url: str, *, allow_private: bool = False, resolver=_resolve) -> st
     if len(candidate) > MAX_SOURCE_URL_LENGTH:
         raise UrlRejected("The source URL is too long.")
 
-    parts = urlsplit(candidate)._replace(fragment="")
+    try:
+        parts = urlsplit(candidate)._replace(fragment="")
+    except ValueError as err:
+        raise UrlRejected("The source URL is malformed.") from err
     try:
         parts.port
     except ValueError as err:
