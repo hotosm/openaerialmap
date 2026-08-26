@@ -36,6 +36,12 @@ body {
   margin: 0;
 }
 
+/* Any author `display` rule outranks the UA sheet's `[hidden] { display: none }`,
+   so the panels this app toggles with `hidden` stayed on screen. */
+[hidden] {
+  display: none !important;
+}
+
 /* Login / account button sizing (mirrors Drone-TM). */
 hotosm-auth {
   --font-family: var(--hot-font-sans);
