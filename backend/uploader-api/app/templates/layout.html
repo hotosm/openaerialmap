@@ -61,11 +61,11 @@
 
     <!-- HOT UI theme, self-contained: it carries the Web Awesome base styles, so
          this app no longer loads @awesome.me/webawesome separately. -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/style.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/style.css" />
 
     <!-- webawesome-all.js is a barrel of bare `@awesome.me/webawesome/...` imports, so the
          browser needs this map to resolve them. dist-cdn is the pre-bundled build; the pin
-         must match the @awesome.me/webawesome version @hotosm/ui 1.0.0 was built against. -->
+         must match the @awesome.me/webawesome version @hotosm/ui 1.0.1 was built against. -->
     <script type="importmap">
       {
         "imports": {
@@ -78,19 +78,19 @@
          jsdelivr's /+esm (it duplicates wa-* registrations and most elements never register). -->
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/webawesome-all.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/webawesome-all.js"
     />
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/hotosm-ui.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/hotosm-ui.js"
     />
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/webawesome-all.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/webawesome-all.js"
     ></script>
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.0/dist/hotosm-ui.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/hotosm-ui.js"
     ></script>
     {% if auth_enabled %}
     <link
@@ -172,7 +172,7 @@
             clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
           },
         ];
-        // The header does not select the Upload tab for the root path.
+        // Keep the Upload tab active if its href is omitted.
         const activeLabel = window.location.pathname.startsWith("/profile") ? "Profile" : "Upload";
         const activeIndex = header.tabs.findIndex((t) => t.label === activeLabel);
         if (activeIndex >= 0) {

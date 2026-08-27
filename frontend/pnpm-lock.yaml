@@ -12,8 +12,8 @@ importers:
         specifier: 3.11.0
         version: 3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14)
       '@hotosm/ui':
-        specifier: ^1.0.0
-        version: 1.0.0(@awesome.me/webawesome@3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14))
+        specifier: ^1.0.1
+        version: 1.0.1(@awesome.me/webawesome@3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14))
       '@turf/bbox':
         specifier: ^7.3.1
         version: 7.3.5
@@ -372,8 +372,8 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@hotosm/ui@1.0.0':
-    resolution: {integrity: sha512-l5MXyrqDvdYDAzd4FWZ2SFS+DDrrPZgkkA1qkmROLZV7rHSLQEnHSe53Dx/V3p/GXjlpi1ZOMIyISFbTyMJYPQ==}
+  '@hotosm/ui@1.0.1':
+    resolution: {integrity: sha512-IWyVscZ0PsEb057Eijs592ILYOS+SYUCSolhz1eVirCN+2TpoJELcOKLNyODUvVV5zoNDkLIaITjUUE3h07nog==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@awesome.me/webawesome': 3.11.0
@@ -1987,7 +1987,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hotosm/ui@1.0.0(@awesome.me/webawesome@3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14))':
+  '@hotosm/ui@1.0.1(@awesome.me/webawesome@3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14))':
     dependencies:
       '@awesome.me/webawesome': 3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14)
 
