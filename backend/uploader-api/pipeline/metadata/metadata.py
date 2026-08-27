@@ -240,9 +240,29 @@ def _paletted_thumb(src: rasterio.DatasetReader, palette: dict) -> np.ndarray:
     return thumb
 
 
+def _alpha_mask(src: rasterio.DatasetReader, h: int, w: int) -> np.ndarray | None:
+    """Valid-pixel mask at thumbnail size, or None when every pixel is valid.
+
+    Nearest resampling keeps the mask binary, so the edge stays hard rather than
+    fading out through the nodata collar.
+    """
+    try:
+        mask = src.dataset_mask(out_shape=(h, w))
+    except Exception:
+        log.warning("Could not read dataset mask; thumbnail will be fully opaque")
+        return None
+    return None if mask.all() else mask.astype("uint8")
+
+
 def _browse(
     src: rasterio.DatasetReader, product_type: str, bands: list[dict]
-) -> tuple[list[int], str | dict | None, list[list[float]] | None, np.ndarray]:
+) -> tuple[
+    list[int],
+    str | dict | None,
+    list[list[float]] | None,
+    np.ndarray,
+    np.ndarray | None,
+]:
     """Build render parameters and a small browse image.
 
     Keep RGB uint8 unchanged. Stretch other data with the same percentile ranges
@@ -252,7 +272,8 @@ def _browse(
     if product_type == "pseudocolor":
         palette = _read_color_table(src)
         if palette:
-            return idx, palette, None, _paletted_thumb(src, palette)
+            thumb = _paletted_thumb(src, palette)
+            return idx, palette, None, thumb, _alpha_mask(src, *thumb.shape[1:])
     colormap: str | dict | None = None
     if product_type == "elevation":
         colormap = "terrain"
@@ -265,8 +286,13 @@ def _browse(
     arr = src.read(
         indexes=idx, out_shape=(len(idx), h, w), resampling=Resampling.bilinear
     ).astype("float64")
+    alpha = _alpha_mask(src, h, w)
     if src.nodata is not None:
         arr[arr == src.nodata] = np.nan
+    if alpha is not None:
+        # Masked pixels must not skew the stretch: an alpha collar of zeros
+        # would otherwise anchor the low end at black.
+        arr[:, alpha == 0] = np.nan
 
     rescale: list[list[float]] | None = None
     if src.dtypes[0] != "uint8" or product_type in ("elevation", "sar"):
@@ -284,22 +310,39 @@ def _browse(
         lo, hi = rescale[i] if rescale else (0.0, 255.0)
         scaled = (band - lo) / (hi - lo) * 255.0 if hi > lo else band
         thumb[i] = np.clip(np.nan_to_num(scaled, nan=0.0), 0, 255).astype("uint8")
-    return idx, colormap, rescale, thumb
+    return idx, colormap, rescale, thumb, alpha
 
 
-def _write_thumbnail(thumb: np.ndarray, out_path: str) -> None:
-    """Write the browse array as a 1- or 3-band 8-bit PNG."""
+def _write_thumbnail(
+    thumb: np.ndarray, alpha: np.ndarray | None, out_path: str
+) -> None:
+    """Write the browse array as an 8-bit PNG, with alpha when pixels are masked.
+
+    Transparent nodata keeps a rotated ortho's collar from blanking its
+    neighbours, since viewers drape the thumbnail over the item's bounding box.
+    """
     count = 3 if thumb.shape[0] >= 3 else 1
+    out = list(thumb[:count])
+    colors = (
+        [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
+        if count == 3
+        else [ColorInterp.gray]
+    )
+    if alpha is not None:
+        out.append(alpha)
+        colors.append(ColorInterp.alpha)
     with rasterio.open(
         out_path,
         "w",
         driver="PNG",
         height=thumb.shape[1],
         width=thumb.shape[2],
-        count=count,
+        count=len(out),
         dtype="uint8",
     ) as dst:
-        dst.write(thumb[:count])
+        for i, band in enumerate(out, start=1):
+            dst.write(band, i)
+        dst.colorinterp = colors
 
 
 def _renders(
@@ -517,9 +560,9 @@ def build_item(
     with rasterio.open(cog_path, driver=READ_DRIVER) as src:
         product_type, product_type_source = _resolve_product_type(user_md, src)
         bands = _band_info(src)
-        idx, colormap, rescale, thumb = _browse(src, product_type, bands)
+        idx, colormap, rescale, thumb, alpha = _browse(src, product_type, bands)
         src_nodata = src.nodata
-        _write_thumbnail(thumb, thumbnail_path)
+        _write_thumbnail(thumb, alpha, thumbnail_path)
 
         fp = _footprint(src)
         if fp:
