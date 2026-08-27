@@ -260,7 +260,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           </button>
           {p.uuid && (
             <wa-button
-              size="small"
+              size="s"
               variant="brand"
               appearance="filled"
               class="flex-1"
@@ -280,17 +280,17 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           <div className="mb-4 pb-3 border-b border-gray-200 space-y-2">
             <div className="flex gap-2">
               <wa-button
-                size="small"
+                size="s"
                 appearance="outlined"
                 class="flex-1"
                 onClick={(e) => handleCopy(e, tmsTemplate(p), "tms")}
               >
                 {copyFeedback === "tms" ? "Copied!" : "Copy TMS"}
               </wa-button>
-              <wa-button size="small" appearance="outlined" class="flex-1" onClick={handleOpenId}>
+              <wa-button size="s" appearance="outlined" class="flex-1" onClick={handleOpenId}>
                 Open iD
               </wa-button>
-              <wa-button size="small" appearance="outlined" class="flex-1" onClick={handleOpenJosm}>
+              <wa-button size="s" appearance="outlined" class="flex-1" onClick={handleOpenJosm}>
                 Open JOSM
               </wa-button>
             </div>
@@ -313,12 +313,12 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               </p>
             )}
             {pmtilesState.kind === "error" && (
-              <wa-callout variant="danger" size="small" class="text-[11px] leading-snug">
+              <wa-callout variant="danger" size="s" class="text-[11px] leading-snug">
                 PMTiles: {pmtilesState.message}
               </wa-callout>
             )}
             {mbtilesState.kind === "error" && (
-              <wa-callout variant="danger" size="small" class="text-[11px] leading-snug">
+              <wa-callout variant="danger" size="s" class="text-[11px] leading-snug">
                 MBTiles: {mbtilesState.message}
               </wa-callout>
             )}
@@ -402,7 +402,7 @@ function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
   if (state.kind === "ready") {
     return (
       <wa-button
-        size="small"
+        size="s"
         variant="brand"
         appearance="filled"
         class="flex-1"
@@ -423,7 +423,7 @@ function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
     const disabled = state.kind === "working";
     return (
       <wa-button
-        size="small"
+        size="s"
         variant="warning"
         appearance="outlined"
         class="flex-1"
@@ -446,7 +446,7 @@ function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
   const errored = state.kind === "error";
   return (
     <wa-button
-      size="small"
+      size="s"
       variant={errored ? "danger" : "neutral"}
       appearance="outlined"
       class="flex-1"

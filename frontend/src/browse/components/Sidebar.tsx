@@ -90,7 +90,7 @@ export default function Sidebar({ features, onSelect, selectedFeature }: Props) 
             {visibleCount < features.length && (
               <wa-button
                 appearance="outlined"
-                size="small"
+                size="s"
                 class="w-full"
                 onClick={() =>
                   setVisibleCount((prev) => Math.min(prev + SIDEBAR_PAGE_SIZE, features.length))

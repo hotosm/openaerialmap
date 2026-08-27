@@ -52,12 +52,12 @@ export default function SiteHeader() {
         ref={headerRef}
         title="OpenAerialMap"
         logo="/openaerialmap.svg"
-        size="small"
+        size="s"
         tabs-center-align
       >
         <div slot="auth" className="oam-header-controls">
           <wa-dropdown class="oam-locale">
-            <wa-button slot="trigger" appearance="plain" size="small" with-caret>
+            <wa-button slot="trigger" appearance="plain" size="s" with-caret>
               EN
             </wa-button>
             <div className="oam-locale-menu">

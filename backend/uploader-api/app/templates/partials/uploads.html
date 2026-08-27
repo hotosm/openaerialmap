@@ -26,11 +26,11 @@
       <td role="cell" data-label="File">{{ u.filename }}</td>
       <td role="cell" data-label="Status">
         {% if u.status in ("Failed", "Error") %}
-        <wa-tag variant="danger" size="small">{{ u.status }}</wa-tag>
+        <wa-tag variant="danger" size="s">{{ u.status }}</wa-tag>
         {% elif u.status == "Succeeded" %}
-        <wa-tag variant="success" size="small">{{ u.status }}</wa-tag>
+        <wa-tag variant="success" size="s">{{ u.status }}</wa-tag>
         {% else %}
-        <wa-tag variant="neutral" size="small">{{ u.status }}</wa-tag>
+        <wa-tag variant="neutral" size="s">{{ u.status }}</wa-tag>
         {% endif %}
       </td>
       <td role="cell" data-label="Message" class="oam-muted">
@@ -38,7 +38,7 @@
         <!-- A duplicate is a warning, not a rejection: re-publishing the same
              bytes is sometimes deliberate. -->
         {% if u.warning %}
-        <p><wa-tag variant="warning" size="small">Warning</wa-tag> {{ u.warning }}</p>
+        <p><wa-tag variant="warning" size="s">Warning</wa-tag> {{ u.warning }}</p>
         {% endif %}
       </td>
       <td role="cell" data-label="Started" class="oam-muted">

@@ -81,7 +81,7 @@ function FilterDropdown<V extends string>({
         wa-button's `with-caret` renders the chevron inside the button's
         own shadow DOM at ::part(caret), spaced by WA's own tokens - no
         outer wa-icon means no 1.25em host-box slack that we had to
-        chase manually before. `pill` + `size="small"` gives the chip
+        chase manually before. `pill` + `size="s"` gives the chip
         shape. Variant/appearance toggle sets the HOT brand colours via
         the wa-color-brand-* theme layer.
       */}
@@ -89,7 +89,7 @@ function FilterDropdown<V extends string>({
         slot="trigger"
         pill
         with-caret
-        size="small"
+        size="s"
         variant={active ? "brand" : "neutral"}
         appearance={active ? "filled" : "outlined"}
       >
@@ -165,7 +165,7 @@ export default function MapFilterBar({ filters, onChange }: Props) {
           // "Clear" plus the danger colour is enough affordance.
           <wa-button
             pill
-            size="small"
+            size="s"
             variant="danger"
             appearance="filled"
             onClick={() =>

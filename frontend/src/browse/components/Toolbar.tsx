@@ -81,13 +81,13 @@ export default function Toolbar({
             <form onSubmit={handleSearch} className="flex gap-1 w-full">
               <wa-input
                 autoFocus
-                size="small"
+                size="s"
                 value={query}
                 placeholder="City, Country..."
                 class="flex-1"
                 onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
               />
-              <wa-button type="submit" size="small" variant="brand" disabled={isSearching}>
+              <wa-button type="submit" size="s" variant="brand" disabled={isSearching}>
                 {isSearching ? "…" : "Go"}
               </wa-button>
             </form>

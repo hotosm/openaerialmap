@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <!-- HOT UI theme, self-contained: it carries the Web Awesome base styles, so
          this app no longer loads @awesome.me/webawesome separately. -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/style.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/style.css" />
 
     <!-- After the theme: hot.css declares --hot-color-neutral-* unlayered on
          `:root`, so an earlier block loses on source order. -->
@@ -52,19 +52,19 @@
          jsdelivr's /+esm (it duplicates wa-* registrations and most elements never register). -->
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/webawesome-all.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/webawesome-all.js"
     />
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/hotosm-ui.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/hotosm-ui.js"
     />
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/webawesome-all.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/webawesome-all.js"
     ></script>
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/hotosm-ui.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/hotosm-ui.js"
     ></script>
     {% if auth_enabled %}
     <link
@@ -95,12 +95,12 @@
       id="oam-header"
       title="OpenAerialMap"
       logo="/static/openaerialmap.svg"
-      size="small"
+      size="s"
       tabs-center-align
     >
       <div slot="auth" class="oam-header-controls">
         <wa-dropdown class="oam-locale">
-          <wa-button slot="trigger" appearance="plain" size="small" with-caret>EN</wa-button>
+          <wa-button slot="trigger" appearance="plain" size="s" with-caret>EN</wa-button>
           <div class="oam-locale-menu">
             <button type="button" class="oam-locale-option oam-locale-option--active">
               English
