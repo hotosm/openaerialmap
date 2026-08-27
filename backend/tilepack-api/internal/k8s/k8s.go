@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log"
 
@@ -125,19 +126,11 @@ type JobSpec struct {
 	GSD float64
 }
 
-// CreateJob launches a one-shot worker Job. The Job is named
-// deterministically from the stac id + format so that two simultaneous
-// requests for the same artifact race on Job creation rather than
-// producing two duplicate workers - the second creation fails with
-// AlreadyExists, which the handler treats as "already in progress".
+// CreateJob launches a one-shot worker Job. The Job name is deterministic so
+// that two simultaneous requests for the same artifact race on Job creation
+// rather than producing two duplicate workers.
 func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
-	name := fmt.Sprintf("tilepack-%s-%s", sanitize(spec.StacID), spec.Format)
-	if !spec.Canonical {
-		name = fmt.Sprintf("%s-z%d-%d", name, spec.MinZoom, spec.MaxZoom)
-	}
-	if len(name) > 63 {
-		name = name[:63]
-	}
+	name := jobName(spec)
 
 	ttl := int32(3600)
 	deadline := int64(1800)
@@ -231,6 +224,16 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 		return err
 	}
 	return nil
+}
+
+func jobName(spec JobSpec) string {
+	identity := fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%t", spec.StacID, spec.Format, spec.MinZoom, spec.MaxZoom, spec.Canonical)
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(identity)))[:32]
+	prefix := sanitize(spec.StacID)
+	if len(prefix) > 21 {
+		prefix = prefix[:21]
+	}
+	return fmt.Sprintf("tilepack-%s-%s", prefix, hash)
 }
 
 func sanitize(s string) string {
