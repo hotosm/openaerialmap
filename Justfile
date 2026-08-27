@@ -182,7 +182,6 @@ build-frontend branch="main":
     --build-arg VITE_STAC_URL=${VITE_STAC_URL} \
     --build-arg VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL} \
     --build-arg VITE_PACKAGER_URL=${VITE_PACKAGER_URL} \
-    --build-arg VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-} \
     --build-arg VITE_UPLOADER_URL=${VITE_UPLOADER_URL:-}
 
 # Get temp AWS credentials using CI/CD OIDC

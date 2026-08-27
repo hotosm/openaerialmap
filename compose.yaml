@@ -213,7 +213,6 @@ services:
       - VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL:-https://api.imagery.hotosm.org/browser}
       - VITE_UPLOADER_URL=${VITE_UPLOADER_URL:-http://upload.imagery.localhost:8080}
       - VITE_PACKAGER_URL=${VITE_PACKAGER_URL:-https://packager.imagery.hotosm.org}
-      - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
