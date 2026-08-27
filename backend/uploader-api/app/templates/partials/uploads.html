@@ -1,39 +1,47 @@
 {% if not uploads %}
 <p class="oam-muted">No uploads yet.</p>
 {% else %}
-<table class="oam-table">
+<!-- app.css stacks these rows on phones, which drops the implicit table roles. -->
+<table class="oam-table" role="table">
+  <colgroup>
+    <col class="oam-col--title" />
+    <col class="oam-col--file" />
+    <col class="oam-col--status" />
+    <col class="oam-col--message" />
+    <col class="oam-col--started" />
+  </colgroup>
   <thead>
-    <tr>
-      <th>Title</th>
-      <th>File</th>
-      <th>Status</th>
-      <th>Message</th>
-      <th>Started</th>
+    <tr role="row">
+      <th role="columnheader">Title</th>
+      <th role="columnheader">File</th>
+      <th role="columnheader">Status</th>
+      <th role="columnheader">Message</th>
+      <th role="columnheader">Started</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody role="rowgroup">
     {% for u in uploads %}
-    <tr>
-      <td>{{ u.title }}</td>
-      <td>{{ u.filename }}</td>
-      <td>
+    <tr role="row">
+      <td role="cell" data-label="Title">{{ u.title }}</td>
+      <td role="cell" data-label="File">{{ u.filename }}</td>
+      <td role="cell" data-label="Status">
         {% if u.status in ("Failed", "Error") %}
-        <wa-tag variant="danger">{{ u.status }}</wa-tag>
+        <wa-tag variant="danger" size="small">{{ u.status }}</wa-tag>
         {% elif u.status == "Succeeded" %}
-        <wa-tag variant="success">{{ u.status }}</wa-tag>
+        <wa-tag variant="success" size="small">{{ u.status }}</wa-tag>
         {% else %}
-        <wa-tag variant="neutral">{{ u.status }}</wa-tag>
+        <wa-tag variant="neutral" size="small">{{ u.status }}</wa-tag>
         {% endif %}
       </td>
-      <td class="oam-muted">
+      <td role="cell" data-label="Message" class="oam-muted">
         {{ u.message }}
         <!-- A duplicate is a warning, not a rejection: re-publishing the same
              bytes is sometimes deliberate. -->
         {% if u.warning %}
-        <p><wa-tag variant="warning">Warning</wa-tag> {{ u.warning }}</p>
+        <p><wa-tag variant="warning" size="small">Warning</wa-tag> {{ u.warning }}</p>
         {% endif %}
       </td>
-      <td class="oam-muted">
+      <td role="cell" data-label="Started" class="oam-muted">
         {{ u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "" }}
       </td>
     </tr>

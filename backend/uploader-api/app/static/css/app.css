@@ -1,5 +1,4 @@
-/* App styles. Look comes from @hotosm/ui + WebAwesome; the palette and type
-   below match the Drone-TM design system (Archivo + Manrope, brand red). */
+/* Look comes from @hotosm/ui + WebAwesome; palette and type match Drone-TM. */
 
 :root {
   /* Drone-TM palette */
@@ -16,18 +15,29 @@
   --oam-grey-800: #484848;
   --oam-grey-900: #212121;
 
-  --oam-shadow-light: 0px 2px 20px 4px rgba(0, 0, 0, 0.12);
+  /* Stays one device pixel at any text size. */
+  --oam-border-hairline: 1px;
+
+  --oam-radius-card: 0.75rem;
+  --oam-radius-control: 0.5rem;
+  --oam-radius-inline: 0.25rem;
+
+  --oam-shadow-light: 0 0.125rem 1.25rem 0.25rem rgba(0, 0, 0, 0.12);
+
+  /* The rem term is what keeps a vw clamp honouring the reader's font size. */
+  --oam-text-title: clamp(1.375rem, 1.15rem + 1.1vw, 1.75rem);
+  --oam-text-subtitle: clamp(1.125rem, 1.06rem + 0.31vw, 1.25rem);
+  --oam-text-small: 0.875rem;
+  --oam-text-x-small: 0.8125rem;
+  --oam-text-label: 0.72rem;
 
   /* Brand red into WebAwesome so hotosm-ui buttons/tags match Drone-TM. */
   --wa-color-brand-fill-loud: var(--oam-red);
   --wa-color-brand-border-loud: #ed5c5e;
   --wa-color-brand-on-loud: #ffffff;
 
-  /* Archivo drives body text, headings and all hotosm-ui / WebAwesome components.
-     The theme sets these on `:root, :host, .hot-theme-light`, so the override has
-     to match that specificity and win on order - this sheet loads after it. A
-     weaker selector leaves headings on the theme default, Barlow Condensed, which
-     this app does not load at all. */
+  /* Archivo everywhere. Anything weaker than `:root` loses to the theme and
+     headings fall back to Barlow Condensed, which this app never loads. */
   --hot-font-sans: "Archivo", sans-serif;
   --hot-font-sans-variant: "Archivo";
   --hot-font-sans-variant-condensed: "Archivo";
@@ -39,74 +49,14 @@ body {
   color: var(--oam-bluedark);
   background: var(--oam-grey-50);
   margin: 0;
+  /* iOS inflates text in landscape; the viewport meta tag alone won't stop it. */
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Login / account button sizing (mirrors Drone-TM). */
 hotosm-auth {
   --font-family: var(--hot-font-sans);
   --login-btn-text-size: var(--hot-font-size-x-small);
-}
-
-/* Header nav (Drone-TM layout) */
-.oam-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 3.5rem;
-  padding: 0.5rem 1.5rem 0;
-  border-bottom: 1px solid var(--oam-grey-300);
-  background: #ffffff;
-}
-
-.oam-nav__left,
-.oam-nav__right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.oam-nav__brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  text-decoration: none;
-}
-
-.oam-nav__logo {
-  height: 2rem;
-  width: 2rem;
-}
-
-.oam-nav__title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--oam-bluedark);
-}
-
-.oam-nav__divider {
-  width: 1px;
-  height: 1.25rem;
-  background: var(--oam-grey-300);
-}
-
-.oam-nav__link {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  color: var(--oam-grey-800);
-  text-decoration: none;
-  letter-spacing: 0.04em;
-}
-
-.oam-nav__link:hover {
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.oam-nav__link--active {
-  font-weight: 700;
-  letter-spacing: 0;
-  color: var(--oam-red);
 }
 
 /* Locale switcher (English only for now). */
@@ -137,7 +87,7 @@ hotosm-auth {
 
 /* Page content */
 .oam-main {
-  max-width: 820px;
+  max-width: 50rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
   display: flex;
@@ -147,8 +97,8 @@ hotosm-auth {
 
 .oam-card {
   background: #ffffff;
-  border: 1px solid var(--oam-greylight);
-  border-radius: 12px;
+  border: var(--oam-border-hairline) solid var(--oam-greylight);
+  border-radius: var(--oam-radius-card);
   padding: 1.5rem 1.75rem;
   box-shadow: var(--oam-shadow-light);
 }
@@ -161,19 +111,31 @@ hotosm-auth {
   letter-spacing: -0.01em;
 }
 
+/* WA's native typography sizes a page h1 at 3rem, far too loud here. `>` keeps
+   this off `.oam-form__heading`, the h2 that labels a step. */
+.oam-card > h1 {
+  font-size: var(--oam-text-title);
+}
+
+.oam-card > h2 {
+  font-size: var(--oam-text-subtitle);
+}
+
+/* No max-width: a cap narrower than the card strands the fields inside it. */
 .oam-form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-width: 480px;
 }
 
 .oam-form input[type="file"] {
+  box-sizing: border-box;
+  max-width: 100%;
   font-family: "Manrope", sans-serif;
-  font-size: 0.875rem;
+  font-size: var(--oam-text-small);
   color: var(--oam-bluegrey);
-  border: 1px dashed var(--oam-greylight);
-  border-radius: 8px;
+  border: var(--oam-border-hairline) dashed var(--oam-greylight);
+  border-radius: var(--oam-radius-control);
   padding: 0.75rem;
   background: var(--oam-grey-50);
 }
@@ -186,6 +148,8 @@ hotosm-auth {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  /* Undo the UA `min-content`, which lets a long child push past the form. */
+  min-inline-size: 0;
 }
 
 /* The form reads as two steps; a legend and an h2 have to be made to match. */
@@ -201,16 +165,19 @@ hotosm-auth {
 
 .oam-form__heading {
   padding-top: 1.25rem;
-  border-top: 1px solid var(--oam-greylight);
+  border-top: var(--oam-border-hairline) solid var(--oam-greylight);
 }
 
+/* width, not align-self: a fieldset's anonymous content box is sized to fit. */
 .oam-source__option {
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
   align-items: flex-start;
   gap: 0.625rem;
   padding: 0.75rem;
-  border: 1px solid var(--oam-greylight);
-  border-radius: 8px;
+  border: var(--oam-border-hairline) solid var(--oam-greylight);
+  border-radius: var(--oam-radius-control);
   background: #ffffff;
   cursor: pointer;
 }
@@ -228,6 +195,7 @@ hotosm-auth {
 
 .oam-source__option input {
   margin: 0.2rem 0 0;
+  flex: none;
   accent-color: var(--oam-red);
 }
 
@@ -240,14 +208,11 @@ hotosm-auth {
 .oam-source__option small {
   display: block;
   font-family: "Manrope", sans-serif;
-  font-size: 0.8125rem;
+  font-size: var(--oam-text-x-small);
   color: var(--oam-bluegrey);
 }
 
-/* `:not([hidden])` so the flex layout is never applied to a panel the toggle has
-   hidden. An author `display` rule beats the UA sheet's `[hidden] { display: none }`
-   at any specificity, so an unqualified `display: flex` here left both panels on
-   screen at once. Scoping it keeps the UA rule in charge of the hidden state. */
+/* Scoped: an author `display` beats the UA `[hidden]` rule at any specificity. */
 .oam-source__panel:not([hidden]) {
   display: flex;
   flex-direction: column;
@@ -257,13 +222,13 @@ hotosm-auth {
 .oam-source__note {
   margin: 0;
   font-family: "Manrope", sans-serif;
-  font-size: 0.8125rem;
+  font-size: var(--oam-text-x-small);
   color: var(--oam-bluegrey);
 }
 
 .oam-source__help {
   font-family: "Manrope", sans-serif;
-  font-size: 0.8125rem;
+  font-size: var(--oam-text-x-small);
   line-height: 1.5;
   color: var(--oam-grey-800);
 }
@@ -271,7 +236,7 @@ hotosm-auth {
 .oam-source__help h4 {
   margin: 1rem 0 0.25rem;
   font-family: "Archivo", sans-serif;
-  font-size: 0.875rem;
+  font-size: var(--oam-text-small);
   color: var(--oam-bluedark);
 }
 
@@ -284,7 +249,7 @@ hotosm-auth {
   overflow-wrap: anywhere;
   font-size: 0.78125rem;
   padding: 0.05rem 0.25rem;
-  border-radius: 4px;
+  border-radius: var(--oam-radius-inline);
   background: var(--oam-grey-100);
 }
 
@@ -303,6 +268,29 @@ hotosm-auth {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  /* Fixed, else the column with the longest filename starves the rest. */
+  table-layout: fixed;
+}
+
+/* Shares of the card width, set on the colgroup. */
+.oam-col--title {
+  width: 22%;
+}
+
+.oam-col--file {
+  width: 24%;
+}
+
+.oam-col--status {
+  width: 17%;
+}
+
+.oam-col--message {
+  width: 22%;
+}
+
+.oam-col--started {
+  width: 15%;
 }
 
 .oam-table th {
@@ -312,14 +300,20 @@ hotosm-auth {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-size: 0.72rem;
-  border-bottom: 2px solid var(--oam-greylight);
+  font-size: var(--oam-text-label);
+  border-bottom: 0.125rem solid var(--oam-greylight);
 }
 
 .oam-table td {
   text-align: left;
   padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--oam-grey-100);
+  border-bottom: var(--oam-border-hairline) solid var(--oam-grey-100);
+  overflow-wrap: break-word;
+}
+
+/* A filename is one unbroken token; `anywhere` stops it setting the min width. */
+.oam-table td[data-label="File"] {
+  overflow-wrap: anywhere;
 }
 
 .oam-table tbody tr:hover {
@@ -328,7 +322,7 @@ hotosm-auth {
 
 .oam-profile {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: minmax(0, 8.75rem) minmax(0, 1fr);
   gap: 0.6rem 1rem;
 }
 
@@ -340,9 +334,89 @@ hotosm-auth {
 .oam-profile dd {
   margin: 0;
   color: var(--oam-bluedark);
+  /* The identity claim is an unbroken UUID. */
+  overflow-wrap: anywhere;
 }
 
 .oam-muted {
   color: var(--oam-bluegrey);
   font-family: "Manrope", sans-serif;
+}
+
+/* Phones. */
+@media (max-width: 40rem) {
+  .oam-main {
+    padding: 1rem 0.75rem 2rem;
+    gap: 1rem;
+  }
+
+  .oam-card {
+    padding: 1.25rem 1rem;
+  }
+
+  /* Five columns will not fit, so each row becomes a `data-label` card. */
+  .oam-table thead {
+    display: none;
+  }
+
+  .oam-table,
+  .oam-table tbody,
+  .oam-table tr,
+  .oam-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .oam-table tr {
+    box-sizing: border-box;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: var(--oam-border-hairline) solid var(--oam-greylight);
+    border-radius: var(--oam-radius-control);
+  }
+
+  .oam-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .oam-table td {
+    display: grid;
+    grid-template-columns: minmax(0, 5.5rem) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: baseline;
+    padding: 0.35rem 0;
+    border-bottom: none;
+  }
+
+  /* Auto placement would drop element children into the next row's label column. */
+  .oam-table td > * {
+    grid-column: 2;
+  }
+
+  .oam-table td > p {
+    margin: 0.25rem 0 0;
+  }
+
+  /* A grid item fills its column, turning a tag into a full-width bar. */
+  .oam-table td > wa-tag {
+    justify-self: start;
+  }
+
+  .oam-table td::before {
+    content: attr(data-label);
+    color: var(--oam-bluegrey);
+    font-weight: 600;
+    font-size: var(--oam-text-label);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .oam-profile {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.125rem;
+  }
+
+  .oam-profile dd:not(:last-child) {
+    margin-bottom: 0.75rem;
+  }
 }
