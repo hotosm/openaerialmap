@@ -241,11 +241,7 @@ def _paletted_thumb(src: rasterio.DatasetReader, palette: dict) -> np.ndarray:
 
 
 def _alpha_mask(src: rasterio.DatasetReader, h: int, w: int) -> np.ndarray | None:
-    """Valid-pixel mask at thumbnail size, or None when every pixel is valid.
-
-    Nearest resampling keeps the mask binary, so the edge stays hard rather than
-    fading out through the nodata collar.
-    """
+    """Return the thumbnail-sized validity mask when one is needed."""
     try:
         mask = src.dataset_mask(out_shape=(h, w))
     except Exception:
@@ -290,8 +286,7 @@ def _browse(
     if src.nodata is not None:
         arr[arr == src.nodata] = np.nan
     if alpha is not None:
-        # Masked pixels must not skew the stretch: an alpha collar of zeros
-        # would otherwise anchor the low end at black.
+        # Exclude masked pixels from the colour stretch.
         arr[:, alpha == 0] = np.nan
 
     rescale: list[list[float]] | None = None
@@ -316,11 +311,7 @@ def _browse(
 def _write_thumbnail(
     thumb: np.ndarray, alpha: np.ndarray | None, out_path: str
 ) -> None:
-    """Write the browse array as an 8-bit PNG, with alpha when pixels are masked.
-
-    Transparent nodata keeps a rotated ortho's collar from blanking its
-    neighbours, since viewers drape the thumbnail over the item's bounding box.
-    """
+    """Write an 8-bit PNG, including alpha for masked pixels."""
     count = 3 if thumb.shape[0] >= 3 else 1
     out = list(thumb[:count])
     colors = (

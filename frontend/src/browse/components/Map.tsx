@@ -16,6 +16,7 @@ import {
   LARGE_IMAGE_THRESHOLD_SQ_KM,
   TMS_LARGE_MIN_ZOOM,
   TMS_ALL_MIN_ZOOM,
+  TMS_SELECTED_MIN_ZOOM,
   MAX_TMS,
   MAX_PREVIEWS,
   DEFAULT_CENTER,
@@ -757,6 +758,16 @@ export default function OamMap({
     const tmsImageIds = mapInstance._tmsImageIds || new Set<string>();
     const visibleIds = new Set<string>();
     const featureThumbnails = new Map<string, string>();
+    const featureDates = new Map<string, string>();
+
+    // Always show the selected thumbnail below the TMS zoom threshold.
+    const selectedThumb = selectedFeature?.properties?.thumbnail;
+    if (zoom >= FOOTPRINT_MIN_ZOOM && selectedId && selectedThumb && !tmsImageIds.has(selectedId)) {
+      visibleIds.add(selectedId);
+      featureThumbnails.set(selectedId, selectedThumb);
+      featureDates.set(selectedId, selectedFeature?.properties?.acquisition_end || "");
+    }
+
     if (previewsEnabled && zoom >= FOOTPRINT_MIN_ZOOM) {
       try {
         const raw = mapInstance.queryRenderedFeatures(undefined, {
@@ -771,6 +782,7 @@ export default function OamMap({
           if (visibleIds.size >= MAX_PREVIEWS) continue;
           visibleIds.add(id);
           featureThumbnails.set(id, p.thumbnail);
+          featureDates.set(id, p.acquisition_end || "");
         }
       } catch {
         // ignore
@@ -787,12 +799,30 @@ export default function OamMap({
       }
     });
 
-    for (const id of visibleIds) {
-      const layerId = `preview-${id}`;
-      try {
+    // Put newer imagery and smaller footprints on top.
+    const ordered: { id: string; bbox: BBox; area: number }[] = [];
+    try {
+      for (const id of visibleIds) {
         const full = getFullBbox(mapInstance, id);
         if (!full) continue;
-        const b = full.bbox;
+        ordered.push({ id, bbox: full.bbox, area: bboxAreaKm2(full.bbox) });
+      }
+    } catch {
+      // ignore
+    }
+    ordered.sort((a, b) => {
+      // Keep the selected image on top.
+      if (a.id === selectedId) return 1;
+      if (b.id === selectedId) return -1;
+      return (
+        (featureDates.get(a.id) || "").localeCompare(featureDates.get(b.id) || "") ||
+        b.area - a.area
+      );
+    });
+
+    for (const { id, bbox: b } of ordered) {
+      const layerId = `preview-${id}`;
+      try {
         const coords: [[number, number], [number, number], [number, number], [number, number]] = [
           [b[0], b[3]],
           [b[2], b[3]],
@@ -803,6 +833,8 @@ export default function OamMap({
         if (mapInstance.getLayer(layerId)) {
           const source = mapInstance.getSource(layerId) as maplibregl.ImageSource | undefined;
           source?.setCoordinates(coords);
+          // Reapply the order after panning.
+          mapInstance.moveLayer(layerId, "footprint-hover");
           continue;
         }
 
@@ -841,10 +873,13 @@ export default function OamMap({
     const zoom = mapInstance.getZoom();
     const selectedId = selectedFeature?.properties?.id;
 
-    const desiredTms = new Map<string, { url: string; bounds: number[] | null; area: number }>();
+    const desiredTms = new Map<
+      string,
+      { url: string; bounds: number[] | null; area: number; date: string }
+    >();
     const tmsImageIds = new Set<string>();
 
-    if (selectedFeature && zoom >= 10 && selectedId) {
+    if (selectedFeature && zoom >= TMS_SELECTED_MIN_ZOOM && selectedId) {
       const p = selectedFeature.properties;
       const rawProps: RawTileProperties = {
         _id: p.id,
@@ -874,6 +909,7 @@ export default function OamMap({
           url: tmsUrl,
           bounds: boundsArr,
           area,
+          date: p.acquisition_end || "",
         });
         tmsImageIds.add(selectedId);
       }
@@ -911,6 +947,7 @@ export default function OamMap({
               url: tmsUrl,
               bounds: full.bbox as number[],
               area,
+              date: p.acquisition_end || "",
             });
             tmsImageIds.add(id);
           }
@@ -932,12 +969,13 @@ export default function OamMap({
       if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
     });
 
+    // Match preview ordering, with the selected image always on top.
     const sorted = [...desiredTms.entries()].sort((a, b) => {
       const aIsSelected = a[0] === `${TMS_PREFIX}${selectedId}`;
       const bIsSelected = b[0] === `${TMS_PREFIX}${selectedId}`;
       if (aIsSelected) return 1;
       if (bIsSelected) return -1;
-      return (b[1].area || 0) - (a[1].area || 0);
+      return a[1].date.localeCompare(b[1].date) || (b[1].area || 0) - (a[1].area || 0);
     });
 
     for (const [sourceId, { url, bounds }] of sorted) {
@@ -974,7 +1012,7 @@ export default function OamMap({
           type: "raster",
           tiles: [url],
           tileSize: 256,
-          minzoom: isSelected ? 10 : 12,
+          minzoom: isSelected ? TMS_SELECTED_MIN_ZOOM : TMS_LARGE_MIN_ZOOM,
           maxzoom: 22,
         };
         if (bounds) sourceOpts.bounds = bounds as [number, number, number, number];
