@@ -178,6 +178,11 @@ Use a fragment rather than a query string so a presigned URL never reaches
 server or ingress logs. The page removes prefill data from the address bar after
 reading it.
 
+A prefill link works even if the shared login session has expired: the form is
+withheld until sign-in, so the fragment is still in the address bar, and the
+auth component returns to the URL the user arrived at rather than the bare
+origin. Setting `redirect-after-login` on it would discard the handoff.
+
 `source_url` must be a public HTTPS URL whose expiry covers queueing and
 transfer. After the user confirms, the pipeline downloads the TIFF and clears
 the URL from the database.

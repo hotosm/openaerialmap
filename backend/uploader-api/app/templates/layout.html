@@ -15,42 +15,20 @@
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- HOT UI theme, self-contained: it carries the Web Awesome base styles, so
+         this app no longer loads @awesome.me/webawesome separately. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/style.css" />
 
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300..700;1,300..700&family=Manrope:wght@400;500;600;700&display=swap"
-    />
-
-    <!-- Hide custom elements until their scripts load. -->
+    <!-- After the theme: hot.css declares --hot-color-neutral-* unlayered on
+         `:root`, so an earlier block loses on source order. -->
     <style>
       :root {
         --wa-color-brand-fill-loud: #d73f3f;
         --wa-color-brand-border-loud: #ed5c5e;
         --wa-color-brand-on-loud: #ffffff;
-        --hot-font-sans: "Archivo", sans-serif;
-        --hot-font-sans-variant: "Archivo";
-        --hot-font-sans-variant-condensed: "Archivo";
         --hot-color-neutral-900: #2c3038;
         --hot-color-neutral-50: #fafafa;
         --hot-color-neutral-100: #f5f5f5;
-      }
-
-      wa-button:not(:defined),
-      wa-callout:not(:defined),
-      wa-input:not(:defined),
-      wa-select:not(:defined),
-      wa-option:not(:defined),
-      wa-progress-bar:not(:defined),
-      wa-spinner:not(:defined),
-      wa-tag:not(:defined),
-      wa-details:not(:defined),
-      wa-dropdown:not(:defined),
-      hotosm-auth:not(:defined),
-      hot-header:not(:defined),
-      hotosm-tool-menu:not(:defined) {
-        visibility: hidden;
       }
       .oam-header-controls {
         display: flex;
@@ -58,10 +36,6 @@
         gap: 0.5rem;
       }
     </style>
-
-    <!-- HOT UI theme, self-contained: it carries the Web Awesome base styles, so
-         this app no longer loads @awesome.me/webawesome separately. -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/style.css" />
 
     <!-- webawesome-all.js is a barrel of bare `@awesome.me/webawesome/...` imports, so the
          browser needs this map to resolve them. dist-cdn is the pre-bundled build; the pin
@@ -78,19 +52,19 @@
          jsdelivr's /+esm (it duplicates wa-* registrations and most elements never register). -->
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/webawesome-all.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/webawesome-all.js"
     />
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/hotosm-ui.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/hotosm-ui.js"
     />
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/webawesome-all.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/webawesome-all.js"
     ></script>
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@1.0.1/dist/hotosm-ui.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.0.0/dist/hotosm-ui.js"
     ></script>
     {% if auth_enabled %}
     <link
@@ -135,9 +109,11 @@
         </wa-dropdown>
         <hotosm-tool-menu></hotosm-tool-menu>
         {% if auth_enabled %}
+        <!-- No redirect-after-login on purpose: unset, hotosm-auth returns to
+             window.location.href, which keeps a partner's prefill fragment.
+             Pinning it to the bare origin discards the whole handoff. -->
         <hotosm-auth
           hanko-url="{{ hanko_public_url }}"
-          redirect-after-login="{{ frontend_url }}"
           redirect-after-logout="{{ frontend_url }}"
           button-variant="filled"
           button-color="primary"

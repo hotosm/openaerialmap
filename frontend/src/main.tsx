@@ -3,6 +3,7 @@ import "virtual:uno.css";
 import "@hotosm/ui/dist/style.css";
 // register all wa-* elements before first render (avoids FOUCE)
 import "@hotosm/ui/dist/webawesome-all.js";
+import "@hotosm/ui/dist/components/announcement/announcement.js";
 import "@hotosm/ui/dist/components/header/header.js";
 import "@hotosm/ui/dist/components/tool-menu/tool-menu.js";
 import { StrictMode } from "react";

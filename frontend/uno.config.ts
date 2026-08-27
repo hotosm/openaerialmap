@@ -31,8 +31,8 @@ export default defineConfig({
       gray: scale("gray"),
     },
     fontFamily: {
-      sans: '"Barlow", system-ui, sans-serif',
-      display: '"Archivo", system-ui, sans-serif',
+      sans: "var(--hot-font-sans)",
+      display: "var(--hot-font-sans)",
     },
   },
 });

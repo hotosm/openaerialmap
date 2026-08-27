@@ -1,4 +1,4 @@
-/* Look comes from @hotosm/ui + WebAwesome; palette and type match Drone-TM. */
+/* Look comes from @hotosm/ui + WebAwesome; palette matches Drone-TM. */
 
 :root {
   /* Drone-TM palette */
@@ -24,28 +24,23 @@
 
   --oam-shadow-light: 0 0.125rem 1.25rem 0.25rem rgba(0, 0, 0, 0.12);
 
-  /* The rem term is what keeps a vw clamp honouring the reader's font size. */
-  --oam-text-title: clamp(1.375rem, 1.15rem + 1.1vw, 1.75rem);
-  --oam-text-subtitle: clamp(1.125rem, 1.06rem + 0.31vw, 1.25rem);
-  --oam-text-small: 0.875rem;
-  --oam-text-x-small: 0.8125rem;
-  --oam-text-label: 0.72rem;
+  /* Type scale is the shared HOT one, so this page sizes text like every other
+     HOTOSM tool. Roles match Field-TM's app.css: x-large for a page title,
+     large for a section title, small/x-small for secondary and fine print. */
+  --oam-text-title: var(--hot-font-size-x-large); /* 1.5rem */
+  --oam-text-subtitle: var(--hot-font-size-large); /* 1.25rem */
+  --oam-text-body: var(--hot-font-size-medium); /* 1rem */
+  --oam-text-small: var(--hot-font-size-small); /* 0.875rem */
+  --oam-text-x-small: var(--hot-font-size-x-small); /* 0.75rem */
 
   /* Brand red into WebAwesome so hotosm-ui buttons/tags match Drone-TM. */
   --wa-color-brand-fill-loud: var(--oam-red);
   --wa-color-brand-border-loud: #ed5c5e;
   --wa-color-brand-on-loud: #ffffff;
-
-  /* Archivo everywhere. Anything weaker than `:root` loses to the theme and
-     headings fall back to Barlow Condensed, which this app never loads. */
-  --hot-font-sans: "Archivo", sans-serif;
-  --hot-font-sans-variant: "Archivo";
-  --hot-font-sans-variant-condensed: "Archivo";
 }
 
 html,
 body {
-  font-family: "Archivo", sans-serif;
   color: var(--oam-bluedark);
   background: var(--oam-grey-50);
   margin: 0;
@@ -81,7 +76,7 @@ hotosm-auth {
 }
 
 .oam-locale-option--active {
-  font-weight: 700;
+  font-weight: var(--hot-font-weight-bold);
   color: var(--oam-red);
 }
 
@@ -107,7 +102,7 @@ hotosm-auth {
 .oam-card h2 {
   margin-top: 0;
   color: var(--oam-bluedark);
-  font-weight: 700;
+  font-weight: var(--hot-font-weight-bold);
   letter-spacing: -0.01em;
 }
 
@@ -131,7 +126,6 @@ hotosm-auth {
 .oam-form input[type="file"] {
   box-sizing: border-box;
   max-width: 100%;
-  font-family: "Manrope", sans-serif;
   font-size: var(--oam-text-small);
   color: var(--oam-bluegrey);
   border: var(--oam-border-hairline) dashed var(--oam-greylight);
@@ -157,9 +151,8 @@ hotosm-auth {
 .oam-source legend {
   margin: 0.5rem 0 0;
   padding: 0;
-  font-family: "Archivo", sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: var(--oam-text-body);
+  font-weight: var(--hot-font-weight-bold);
   color: var(--oam-bluedark);
 }
 
@@ -201,13 +194,12 @@ hotosm-auth {
 
 .oam-source__option strong {
   display: block;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: var(--oam-text-body);
+  font-weight: var(--hot-font-weight-semibold);
 }
 
 .oam-source__option small {
   display: block;
-  font-family: "Manrope", sans-serif;
   font-size: var(--oam-text-x-small);
   color: var(--oam-bluegrey);
 }
@@ -221,13 +213,11 @@ hotosm-auth {
 
 .oam-source__note {
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--oam-text-x-small);
   color: var(--oam-bluegrey);
 }
 
 .oam-source__help {
-  font-family: "Manrope", sans-serif;
   font-size: var(--oam-text-x-small);
   line-height: 1.5;
   color: var(--oam-grey-800);
@@ -235,7 +225,6 @@ hotosm-auth {
 
 .oam-source__help h4 {
   margin: 1rem 0 0.25rem;
-  font-family: "Archivo", sans-serif;
   font-size: var(--oam-text-small);
   color: var(--oam-bluedark);
 }
@@ -247,7 +236,7 @@ hotosm-auth {
 .oam-source__help code {
   /* Long URLs in a narrow column; breaking beats overflowing. */
   overflow-wrap: anywhere;
-  font-size: 0.78125rem;
+  font-size: var(--oam-text-x-small);
   padding: 0.05rem 0.25rem;
   border-radius: var(--oam-radius-inline);
   background: var(--oam-grey-100);
@@ -267,7 +256,7 @@ hotosm-auth {
 .oam-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: var(--oam-text-small);
   /* Fixed, else the column with the longest filename starves the rest. */
   table-layout: fixed;
 }
@@ -297,10 +286,10 @@ hotosm-auth {
   text-align: left;
   padding: 0.5rem 0.75rem;
   color: var(--oam-bluegrey);
-  font-weight: 600;
+  font-weight: var(--hot-font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-size: var(--oam-text-label);
+  font-size: var(--oam-text-x-small);
   border-bottom: 0.125rem solid var(--oam-greylight);
 }
 
@@ -327,7 +316,7 @@ hotosm-auth {
 }
 
 .oam-profile dt {
-  font-weight: 600;
+  font-weight: var(--hot-font-weight-semibold);
   color: var(--oam-bluegrey);
 }
 
@@ -340,7 +329,6 @@ hotosm-auth {
 
 .oam-muted {
   color: var(--oam-bluegrey);
-  font-family: "Manrope", sans-serif;
 }
 
 /* Phones. */
@@ -405,8 +393,8 @@ hotosm-auth {
   .oam-table td::before {
     content: attr(data-label);
     color: var(--oam-bluegrey);
-    font-weight: 600;
-    font-size: var(--oam-text-label);
+    font-weight: var(--hot-font-weight-semibold);
+    font-size: var(--oam-text-x-small);
     letter-spacing: 0.03em;
     text-transform: uppercase;
   }

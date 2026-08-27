@@ -9,6 +9,17 @@ type HotHeaderAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLEl
   "tabs-center-align"?: boolean | string;
 };
 
+type HotAnnouncementAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
+  // src is the remote JSON config; the rest are static fallbacks.
+  src?: string;
+  version?: string;
+  title?: string;
+  message?: string;
+  variant?: "brand" | "success" | "neutral" | "warning";
+  "dismiss-label"?: string;
+  "storage-key"?: string;
+};
+
 type WaButtonAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   variant?: string;
   appearance?: string;
@@ -93,6 +104,7 @@ type WaCalloutAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLEl
 };
 
 interface CustomElements {
+  "hot-announcement": HotAnnouncementAttributes;
   "hot-header": HotHeaderAttributes;
   "hotosm-tool-menu": DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>;
   "wa-button": WaButtonAttributes;

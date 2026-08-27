@@ -18,7 +18,6 @@ export default function App() {
               alignItems: "center",
               justifyContent: "center",
               color: "#64748b",
-              fontFamily: "var(--hot-font-sans-variant), system-ui, sans-serif",
             }}
           >
             Loading map…

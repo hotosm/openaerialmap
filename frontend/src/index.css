@@ -6,7 +6,6 @@
 
 body {
   margin: 0;
-  font-family: "Barlow", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -23,7 +22,6 @@ body {
   border-radius: var(--hot-border-radius-large, 8px);
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  font-family: var(--hot-font-sans-variant), system-ui, sans-serif;
 }
 
 .oam-disambig-popup .maplibregl-popup-close-button {

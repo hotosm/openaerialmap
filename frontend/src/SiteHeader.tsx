@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { UPLOADER_URL } from "./browse/utils/constants";
+import { ANNOUNCEMENT_URL, UPLOADER_URL } from "./browse/utils/constants";
 
 // Keep these tabs aligned with backend/uploader-api/app/templates/layout.html.
 
@@ -44,26 +44,31 @@ export default function SiteHeader() {
   }, []);
 
   return (
-    <hot-header
-      ref={headerRef}
-      title="OpenAerialMap"
-      logo="/openaerialmap.svg"
-      size="small"
-      tabs-center-align
-    >
-      <div slot="auth" className="oam-header-controls">
-        <wa-dropdown class="oam-locale">
-          <wa-button slot="trigger" appearance="plain" size="small" with-caret>
-            EN
-          </wa-button>
-          <div className="oam-locale-menu">
-            <button type="button" className="oam-locale-option oam-locale-option--active">
-              English
-            </button>
-          </div>
-        </wa-dropdown>
-        <hotosm-tool-menu></hotosm-tool-menu>
-      </div>
-    </hot-header>
+    <>
+      {/* Renders nothing when there is no active announcement. */}
+      <hot-announcement src={ANNOUNCEMENT_URL} storage-key="oam-announcement" />
+
+      <hot-header
+        ref={headerRef}
+        title="OpenAerialMap"
+        logo="/openaerialmap.svg"
+        size="small"
+        tabs-center-align
+      >
+        <div slot="auth" className="oam-header-controls">
+          <wa-dropdown class="oam-locale">
+            <wa-button slot="trigger" appearance="plain" size="small" with-caret>
+              EN
+            </wa-button>
+            <div className="oam-locale-menu">
+              <button type="button" className="oam-locale-option oam-locale-option--active">
+                English
+              </button>
+            </div>
+          </wa-dropdown>
+          <hotosm-tool-menu></hotosm-tool-menu>
+        </div>
+      </hot-header>
+    </>
   );
 }

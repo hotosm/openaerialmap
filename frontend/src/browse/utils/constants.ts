@@ -47,6 +47,12 @@ export const PACKAGER_URL = getRuntimeConfig(
   "https://packager.imagery.hotosm.org",
 );
 
+// Banner content, edited via Windmill. Unreachable or empty hides the banner.
+export const ANNOUNCEMENT_URL = getRuntimeConfig(
+  "VITE_ANNOUNCEMENT_URL",
+  "https://d33erh71igmru9.cloudfront.net/oam.json",
+);
+
 // pgSTAC collection used in tile URLs.
 export const COLLECTION_ID = "openaerialmap";
 

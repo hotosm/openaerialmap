@@ -8,7 +8,8 @@ type RuntimeConfigKey =
   | "VITE_STAC_BROWSER_URL"
   | "VITE_UPLOADER_URL"
   | "VITE_PACKAGER_URL"
-  | "VITE_BASEMAP_STYLE_URL";
+  | "VITE_BASEMAP_STYLE_URL"
+  | "VITE_ANNOUNCEMENT_URL";
 
 declare global {
   interface Window {
