@@ -1,4 +1,4 @@
-import { getOptionalRuntimeConfig, getRuntimeConfig } from "../../runtimeConfig";
+import { getRuntimeConfig } from "../../runtimeConfig";
 
 // global-data.pmtiles has footprints; global-coverage.pmtiles is density-only.
 export const PMTILES_URL = getRuntimeConfig(
@@ -50,8 +50,14 @@ export const PACKAGER_URL = getRuntimeConfig(
 // pgSTAC collection used in tile URLs.
 export const COLLECTION_ID = "openaerialmap";
 
-// The satellite basemap is hidden when this is unset.
-export const MAPBOX_TOKEN: string | undefined = getOptionalRuntimeConfig("VITE_MAPBOX_TOKEN");
+// MapLibre style JSON for the default vector basemap. OpenFreeMap's
+// public instance needs no API key and sets no request limits; point
+// this at a self-hosted style (OpenFreeMap or Protomaps) to drop the
+// third-party dependency.
+export const BASEMAP_STYLE_URL = getRuntimeConfig(
+  "VITE_BASEMAP_STYLE_URL",
+  "https://tiles.openfreemap.org/styles/positron",
+);
 
 // Low-zoom footprint tiles are thinned, so use density tiles below this zoom.
 export const FOOTPRINT_MIN_ZOOM = 8;

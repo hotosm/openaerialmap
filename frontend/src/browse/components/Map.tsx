@@ -12,7 +12,6 @@ import {
   PMTILES_SOURCE_LAYER,
   DENSITY_SOURCE_URL,
   DENSITY_SOURCE_LAYER,
-  MAPBOX_TOKEN,
   FOOTPRINT_MIN_ZOOM,
   LARGE_IMAGE_THRESHOLD_SQ_KM,
   TMS_LARGE_MIN_ZOOM,
@@ -28,7 +27,13 @@ import { transformFeature } from "../utils/format";
 import { bboxAreaKm2, getFullBbox, type BBox } from "../utils/geo";
 import { ItemBoundsCache, fetchItemBounds, getTmsUrl, thumbUrl } from "../utils/tiles";
 import type { Filters, ImageFeature, RawTileProperties } from "../utils/types";
-import type { Basemap } from "./Toolbar";
+import {
+  BASEMAP_GLYPHS,
+  BASEMAP_SPRITE,
+  OPENFREEMAP_ATTRIBUTION,
+  resolveBasemap,
+} from "../utils/basemaps";
+import type { Basemap } from "../utils/basemaps";
 
 interface Props {
   onMapInit?: (m: MapLibreMap) => void;
@@ -46,6 +51,10 @@ interface Props {
 }
 
 const TMS_PREFIX = "tms-";
+
+// Basemap layers are inserted below this one so they always sit
+// beneath the OAM data layers, whatever order they are added in.
+const BASEMAP_BEFORE_ID = "density-fill";
 
 // Augment the MapLibre Map instance with a scratch field for the set of
 // image ids that currently have a TMS layer, so the preview effect can
@@ -73,6 +82,10 @@ export default function OamMap({
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProgrammaticMove = useRef(false);
+  // What the currently applied basemap added, so the next switch
+  // knows exactly what to tear down without touching OAM's layers.
+  const appliedLayerIds = useRef<string[]>([]);
+  const appliedSourceIds = useRef<string[]>([]);
   // Set true on cleanup so any inflight fetch resolving after the map
   // component was torn down (StrictMode remount, tab switch, route
   // navigation) bails out instead of calling setState on a stale
@@ -306,17 +319,16 @@ export default function OamMap({
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
+      // Starts empty: the basemap effect below adds the chosen
+      // basemap's sources and layers once the map has loaded, so a
+      // basemap that fails to fetch degrades to bare footprints rather
+      // than taking the whole map down with it.
       style: {
         version: 8,
-        sources: {
-          "basemap-source": {
-            type: "raster",
-            tiles: ["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "&copy; OpenStreetMap &copy; CARTO",
-          },
-        },
-        layers: [{ id: "basemap-layer", type: "raster", source: "basemap-source" }],
+        glyphs: BASEMAP_GLYPHS,
+        sprite: BASEMAP_SPRITE,
+        sources: {},
+        layers: [],
       },
       center,
       zoom,
@@ -324,7 +336,14 @@ export default function OamMap({
     });
 
     onMapInit?.(map.current);
-    map.current.addControl(new maplibregl.AttributionControl(), "bottom-right");
+    // The mini-map renders the OpenFreeMap basemap whatever this map is
+    // set to and has no attribution control of its own, so credit it
+    // here unconditionally. MapLibre de-duplicates it against the
+    // identical string on the sources when this map is on it too.
+    map.current.addControl(
+      new maplibregl.AttributionControl({ customAttribution: OPENFREEMAP_ATTRIBUTION }),
+      "bottom-right",
+    );
 
     map.current.on("load", () => {
       setIsLoaded(true);
@@ -389,7 +408,7 @@ export default function OamMap({
         layout: {
           "text-field": "{count}",
           "text-size": 12,
-          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+          "text-font": ["Noto Sans Bold"],
           "text-allow-overlap": false,
         },
         paint: {
@@ -611,20 +630,45 @@ export default function OamMap({
   }, [searchBbox, isLoaded]);
 
   // 3. BASEMAP SWITCHER
+  //
+  // Also does the initial apply, since the map is created with an empty
+  // style. Swaps layers rather than calling setStyle so the OAM sources
+  // and the per-image TMS layers added by the effects below survive.
   useEffect(() => {
     if (!map.current || !isLoaded) return;
-    let tiles: string[] = [];
-    if (basemap === "carto") {
-      tiles = ["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"];
-    } else if (basemap === "hot") {
-      tiles = ["https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"];
-    } else if (basemap === "satellite" && MAPBOX_TOKEN) {
-      tiles = [
-        `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${MAPBOX_TOKEN}`,
-      ];
-    }
-    const source = map.current.getSource("basemap-source") as RasterTileSource | undefined;
-    if (source && tiles.length > 0) source.setTiles(tiles);
+    let cancelled = false;
+
+    resolveBasemap(basemap)
+      .then((spec) => {
+        const m = map.current;
+        if (cancelled || !m) return;
+
+        for (const id of appliedLayerIds.current) {
+          if (m.getLayer(id)) m.removeLayer(id);
+        }
+        for (const id of appliedSourceIds.current) {
+          if (m.getSource(id)) m.removeSource(id);
+        }
+
+        if (spec.glyphs) m.setGlyphs(spec.glyphs);
+        if (spec.sprite) m.setSprite(spec.sprite);
+        for (const [id, source] of Object.entries(spec.sources)) {
+          m.addSource(id, source);
+        }
+        for (const layer of spec.layers) {
+          m.addLayer(layer, m.getLayer(BASEMAP_BEFORE_ID) ? BASEMAP_BEFORE_ID : undefined);
+        }
+
+        appliedLayerIds.current = spec.layers.map((l) => l.id);
+        appliedSourceIds.current = Object.keys(spec.sources);
+      })
+      .catch((err: unknown) => {
+        console.error("failed to load basemap", basemap, err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [basemap, isLoaded]);
 
   // 4. FILTERS

@@ -4,7 +4,8 @@ import SiteHeader from "../SiteHeader";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
-import Toolbar, { type Basemap } from "./components/Toolbar";
+import Toolbar from "./components/Toolbar";
+import type { Basemap } from "./utils/basemaps";
 import MiniMap from "./components/MiniMap";
 import type { Filters, ImageFeature } from "./utils/types";
 import { EMPTY_FILTERS } from "./utils/types";
@@ -24,7 +25,7 @@ export default function Browse() {
 
   const [previewsEnabled, setPreviewsEnabled] = useState(true);
   const [hoveredFeatureId, setHoveredFeatureId] = useState<string | null>(null);
-  const [basemap, setBasemap] = useState<Basemap>("carto");
+  const [basemap, setBasemap] = useState<Basemap>("light");
 
   const [filters, setFilters] = useState<Filters>(() => {
     const f = readInitialFilters();

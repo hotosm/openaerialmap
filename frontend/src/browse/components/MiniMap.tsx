@@ -2,10 +2,34 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { BBox } from "../utils/geo";
+import { BASEMAP_STYLE_URL } from "../utils/constants";
 
 interface MiniMapProps {
   center: [number, number] | null;
   bounds: BBox | null;
+}
+
+function drawBox(map: maplibregl.Map | null, bounds: BBox | null) {
+  if (!map || !bounds) return;
+  const source = map.getSource("box") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+  const [w, s, e, n] = bounds;
+  source.setData({
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [w, n],
+          [e, n],
+          [e, s],
+          [w, s],
+          [w, n],
+        ],
+      ],
+    },
+  });
 }
 
 // Small overview map anchored bottom-right that mirrors the main map's
@@ -18,48 +42,42 @@ export default function MiniMap({ center, bounds }: MiniMapProps) {
   // map on every parent-map move - the second effect updates the
   // centre imperatively instead).
   const initialCenterRef = useRef(center);
+  // The basemap style is fetched, so the box source only exists once
+  // the map has loaded. Latch the newest bounds for the load handler so
+  // a viewport change that lands first still gets drawn.
+  const boundsRef = useRef(bounds);
 
   useEffect(() => {
     if (map.current || !container.current) return;
     map.current = new maplibregl.Map({
       container: container.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "",
-          },
-          box: {
-            type: "geojson",
-            data: { type: "FeatureCollection", features: [] },
-          },
-        },
-        layers: [
-          { id: "osm", type: "raster", source: "osm", minzoom: 0, maxzoom: 22 },
-          // HOT primary red (matches --hot-color-primary-600). Kept as
-          // a literal because MapLibre paint props are evaluated
-          // outside CSS and can't read custom properties.
-          {
-            id: "box-line",
-            type: "line",
-            source: "box",
-            paint: { "line-color": "#D73F3F", "line-width": 2 },
-          },
-          {
-            id: "box-fill",
-            type: "fill",
-            source: "box",
-            paint: { "fill-color": "#D73F3F", "fill-opacity": 0.1 },
-          },
-        ],
-      },
+      style: BASEMAP_STYLE_URL,
       center: initialCenterRef.current || [0, 20],
       zoom: 0,
       interactive: false,
       attributionControl: false,
+    });
+    map.current.on("load", () => {
+      map.current!.addSource("box", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      // HOT primary red (matches --hot-color-primary-600). Kept as
+      // a literal because MapLibre paint props are evaluated
+      // outside CSS and can't read custom properties.
+      map.current!.addLayer({
+        id: "box-line",
+        type: "line",
+        source: "box",
+        paint: { "line-color": "#D73F3F", "line-width": 2 },
+      });
+      map.current!.addLayer({
+        id: "box-fill",
+        type: "fill",
+        source: "box",
+        paint: { "fill-color": "#D73F3F", "fill-opacity": 0.1 },
+      });
+      drawBox(map.current, boundsRef.current);
     });
     return () => {
       map.current?.remove();
@@ -68,30 +86,10 @@ export default function MiniMap({ center, bounds }: MiniMapProps) {
   }, []);
 
   useEffect(() => {
+    boundsRef.current = bounds;
     if (!map.current) return;
     if (center) map.current.setCenter(center);
-    if (bounds) {
-      const [w, s, e, n] = bounds;
-      const source = map.current.getSource("box") as maplibregl.GeoJSONSource | undefined;
-      if (source) {
-        source.setData({
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [w, n],
-                [e, n],
-                [e, s],
-                [w, s],
-                [w, n],
-              ],
-            ],
-          },
-        });
-      }
-    }
+    drawBox(map.current, bounds);
   }, [center, bounds]);
 
   return (

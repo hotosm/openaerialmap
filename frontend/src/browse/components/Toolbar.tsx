@@ -1,9 +1,7 @@
 import { useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { BBox } from "../utils/geo";
-import { MAPBOX_TOKEN } from "../utils/constants";
-
-export type Basemap = "carto" | "hot" | "satellite";
+import type { Basemap } from "../utils/basemaps";
 
 interface Props {
   className?: string;
@@ -60,12 +58,9 @@ export default function Toolbar({
   };
 
   const basemapOptions: Array<{ id: Basemap; label: string }> = [
-    { id: "carto", label: "Carto Light" },
+    { id: "light", label: "OpenFreeMap Light" },
     { id: "hot", label: "Humanitarian OSM" },
   ];
-  if (MAPBOX_TOKEN) {
-    basemapOptions.push({ id: "satellite", label: "Mapbox Satellite" });
-  }
 
   return (
     <div className={`flex flex-col font-sans shadow-lg rounded-md ${className}`}>
