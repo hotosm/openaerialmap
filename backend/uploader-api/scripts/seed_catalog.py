@@ -25,6 +25,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("seed")
 
+# The AWS SDKs log every request signature and event handler at DEBUG.
+for noisy in ("boto3", "botocore", "s3transfer", "urllib3"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+
 SRC_STAC = os.environ["SEED_STAC_URL"].rstrip("/")
 SRC_BUCKET = os.environ["SEED_SRC_BUCKET"]
 SRC_PREFIX = os.environ["SEED_SRC_ASSET_BASE_URL"].rstrip("/")
