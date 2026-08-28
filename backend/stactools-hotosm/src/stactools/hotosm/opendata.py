@@ -54,6 +54,26 @@ def item_timestamp(item: Item, property_name: str) -> dt.datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
 
 
+def collection_in_bucket(session: requests.Session, url: str) -> bool:
+    """Whether a Collection a provider's index points at is really in its bucket.
+
+    An index entry can outlive the document: Maxar's `event_info.json` still
+    lists `Floods-Spain-2024`, whose `collection.json` is a 404. PySTAC's
+    retrying StacIO hands that error body back as if it were a document, so one
+    stale entry fails the whole sync unless it is skipped here.
+    """
+    response = session.head(url)
+    if response.ok:
+        return True
+
+    logger.warning(
+        "Skipping Collection missing from bucket (HTTP %s): %s",
+        response.status_code,
+        url,
+    )
+    return False
+
+
 def deduplicate_items(items: Iterable[Item]) -> Iterator[Item]:
     """Yield each source document once.
 

@@ -87,12 +87,15 @@ and [Batch Ingestion](./backend/stactools-hotosm.md) for more.
 ## Add ingestion
 
 Create a PR on [hotosm/k8s-infra](https://github.com/hotosm/k8s-infra/pulls)
-to add a new
-[manifest](https://github.com/hotosm/k8s-infra/tree/main/kubernetes/manifests)
-that syncs your data on a schedule.
-See
-[sync-maxar](https://github.com/hotosm/k8s-infra/blob/main/kubernetes/manifests/sync-maxar.yaml)
-for a representative example.
+adding an `apps/oam/sync-<provider>.yaml` CronJob, copying
+[sync-vantor.yaml](https://github.com/hotosm/k8s-infra/blob/main/apps/oam/sync-vantor.yaml).
+Give it `--handle-exceptions IGNORE`, so one Item failing validation does not
+cost the run.
+
+[apps/oam/README.md](https://github.com/hotosm/k8s-infra/blob/main/apps/oam/README.md)
+covers the two easy things to miss: create the Collection once with
+`sync-collection` first, and merge to `main` before the CronJob can see your
+provider.
 
 ## STAC Metadata
 

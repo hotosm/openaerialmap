@@ -8,6 +8,8 @@ from urllib.parse import urljoin
 import pystac
 import requests
 
+from stactools.hotosm.opendata import collection_in_bucket
+
 logger = logging.getLogger(__name__)
 
 MAXAR_ROOT = "https://maxar-opendata.s3.amazonaws.com/events/"
@@ -45,6 +47,9 @@ def new_stac_items(
         )
         if after is None or event_date >= after:
             url = urljoin(MAXAR_ROOT, f"{event['s3_directory']}/collection.json")
+            if not collection_in_bucket(session, url):
+                continue
+
             collection = pystac.read_file(url, stac_io=stac_io)
             assert isinstance(collection, pystac.Collection)
             collection.remove_links(pystac.RelType.ROOT)

@@ -7,7 +7,7 @@ from typing import Iterator
 import pystac
 import requests
 
-from stactools.hotosm.opendata import item_timestamp
+from stactools.hotosm.opendata import collection_in_bucket, item_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,9 @@ def new_stac_items(
     seen: set[str] = set()
 
     for href in event_collection_hrefs(session):
+        if not collection_in_bucket(session, href):
+            continue
+
         collection = pystac.read_file(href, stac_io=stac_io)
         assert isinstance(collection, pystac.Collection)
         collection.remove_links(pystac.RelType.ROOT)

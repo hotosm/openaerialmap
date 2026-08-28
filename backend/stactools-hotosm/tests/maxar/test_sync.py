@@ -52,6 +52,7 @@ def test_new_stac_items_filtering():
             },
         ],
     )
+    responses.head(url=f"{MAXAR_ROOT}foo/collection.json")
     collection = pystac.Collection(
         id="test",
         description="foo",
@@ -64,6 +65,31 @@ def test_new_stac_items_filtering():
 
     assert len(items) == 0
     assert resp.call_count == 1
+    mock.assert_called_once_with(
+        f"{MAXAR_ROOT.rstrip('/')}/foo/collection.json", stac_io=stac_io
+    )
+
+
+@responses.activate
+def test_new_stac_items_missing_event_collection():
+    """An event whose Collection left the bucket is skipped, not fatal."""
+    session = requests.Session()
+    stac_io = pystac.stac_io.DefaultStacIO()
+
+    responses.get(
+        url=MAXAR_EVENT_INFO,
+        json=[
+            {"date": "2025-05-01", "s3_directory": "missing"},
+            {"date": "2025-06-01", "s3_directory": "foo"},
+        ],
+    )
+    responses.head(url=f"{MAXAR_ROOT}missing/collection.json", status=404)
+    responses.head(url=f"{MAXAR_ROOT}foo/collection.json")
+
+    collection = pystac.Collection(id="test", description="foo", extent=None)
+    with patch("pystac.read_file", return_value=collection) as mock:
+        list(new_stac_items(stac_io, session, dt.datetime(2025, 1, 1, tzinfo=dt.UTC)))
+
     mock.assert_called_once_with(
         f"{MAXAR_ROOT.rstrip('/')}/foo/collection.json", stac_io=stac_io
     )

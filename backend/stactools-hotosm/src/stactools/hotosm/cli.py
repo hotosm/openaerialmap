@@ -177,7 +177,8 @@ def sync_collection(
     with TemporaryDirectory() as tmp_dir:
         destination = Path(tmp_dir).joinpath("collections.json")
         create_and_save_collection(catalog, destination)
-        loader.load_collections(destination, Methods.upsert)
+        # pypgstac reads a str or an iterable, and silently ignores a Path.
+        loader.load_collections(str(destination), Methods.upsert)
 
     click.echo(f"Synchronized the STAC Collection definition for {catalog} to PgSTAC.")
 
@@ -282,6 +283,7 @@ def dump_catalog_command(catalog: OpenDataCatalog) -> click.Command:
             stac_item_creator=partial(opendata.create_item, catalog),
             uploaded_after=after,
             handle_exceptions=handle_exceptions,
+            target_item_id=catalog.target_item_id,
         )
         dump_to_ndjson(file, items)
         report_errors(errors)

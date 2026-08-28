@@ -1,14 +1,20 @@
 """Tests for `stactools.hotosm.cli`."""
 
 import datetime as dt
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 
 import pystac
 import pytest
+from click.testing import CliRunner
+from pypgstac.load import Loader, read_json
 
+from stactools.hotosm import cli
 from stactools.hotosm.catalogs import CATALOGS
 from stactools.hotosm.cli import OAM_CATALOG_KEY, main, sync_handler
+from stactools.hotosm.constants import COLLECTION_ID as COLLECTION_ID_OAM
 
 COLLECTION_ID = "test-collection"
 UPLOADED_AFTER = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
@@ -217,3 +223,86 @@ class TestCatalogCommands:
         )
 
         assert list(catalog_option.type.choices) == [OAM_CATALOG_KEY, *CATALOGS]
+
+
+class TestDumpCatalogCommand:
+    """Test the generated `dump-<provider>` commands."""
+
+    def test_rewritten_item_ids_are_predicted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A dump predicts IDs the way the matching sync does.
+
+        Maxar rewrites its slashed IDs, so a dump that did not know the
+        catalog's `target_item_id` rejected every Item it built.
+        """
+        maxar = CATALOGS["Maxar"]
+        assert maxar.target_item_id is not None
+
+        monkeypatch.setattr(
+            cli,
+            "get_catalog_items_after",
+            lambda _catalog, _after: iter([_item("a/b")]),
+        )
+        monkeypatch.setattr(
+            cli.opendata,
+            "create_item",
+            lambda catalog, item: _item(catalog.target_item_id(item.id)),
+        )
+
+        destination = tmp_path / "items.ndjson"
+        result = CliRunner().invoke(
+            main,
+            [
+                "dump-maxar",
+                "--uploaded-after",
+                "2020-01-01",
+                "--file",
+                str(destination),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        dumped = [
+            json.loads(line) for line in destination.read_text().splitlines() if line
+        ]
+        assert [item["id"] for item in dumped] == ["a-b"]
+
+
+class TestSyncCollection:
+    """Test the `sync-collection` command."""
+
+    def test_collection_reaches_pypgstac(self, monkeypatch: pytest.MonkeyPatch):
+        """The Collection must actually be readable by pypgstac.
+
+        `read_json` yields nothing for a `pathlib.Path` without raising, so
+        handing it one made the whole command a silent no-op.
+        """
+        loaded: list[dict] = []
+
+        def _load_collections(_self, file, _insert_mode=None):
+            loaded.extend(read_json(file))
+
+        monkeypatch.setattr(Loader, "load_collections", _load_collections)
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "sync-collection",
+                "--catalog",
+                OAM_CATALOG_KEY,
+                "--pguser",
+                "u",
+                "--pgpassword",
+                "p",
+                "--pghost",
+                "h",
+                "--pgport",
+                "5432",
+                "--pgdatabase",
+                "d",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert [collection["id"] for collection in loaded] == [COLLECTION_ID_OAM]
