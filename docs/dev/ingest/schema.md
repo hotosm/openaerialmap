@@ -1,113 +1,40 @@
-# Adding a new data provider
+<!-- markdownlint-disable MD013 MD046 -->
 
-This document walks through the process of adding a new data provider to the HOT
-OpenAerialMap (HOT OAM) STAC Catalog.
+# STAC extension
 
-## Creating STAC items
+Every Item we create declares the OAM extension:
 
-The code to create STAC items for the OpenAerialMap STAC Catalog lives in this
-repo at `backend/stactools-hotosm`.
+```text
+https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
+```
 
-Providers publish a static STAC catalog in a public bucket that we flatten into
-a single OAM Collection. That rewrite - the OAM properties, the `derived_from`
-link back upstream, the S3 alternate assets, the OAM extension - is the same
-whoever the provider is, so it lives once in
-`src/stactools/hotosm/opendata.py`. A provider is described declaratively by an
-`OpenDataCatalog` and supplies only the parts that genuinely differ. Every
-rewritten Item is validated against the OAM extension before it is loaded, so a
-provider whose imagery cannot satisfy the [required fields](#required) below
-fails the sync rather than reaching the catalog.
+That URL is this site.
+[`docs/oam/v0.2.0/schema.json`](https://github.com/hotosm/openaerialmap/tree/main/docs/oam)
+is a symlink to the source of truth in
+[`stac-extension/json-schema/`](https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension/json-schema),
+so publishing a schema change is a push to `main`.
 
-`src/stactools/hotosm/vantor/` is the example to copy. Create a new branch and
-a new directory for your provider, holding:
+Validation does not fetch it. The same schema ships inside the package and is
+registered with `pystac` before every `Item.validate()`, so ingestion does not
+depend on this site being up.
 
-- **`stac.py`** - a `CATALOG = opendata.OpenDataCatalog(...)` with the
-  Collection ID, description, providers and root catalog URL, plus a
-  `prepare_item(oam_item, item)` hook for any provider specific rewriting
-  (Item ID, title, `gsd`, asset fixups).
-- **`sync.py`**, _only if the default does not fit_ - how to find Items in the
-  provider's bucket. By default Items are found by walking the provider's own
-  catalog with PySTAC, following child Catalog/Collection and Item links from
-  the root, so a provider publishing spec-compliant STAC needs no crawling code
-  at all. Write `new_stac_items(stac_io, session, after)` when the provider
-  needs a shortcut through its own layout - Maxar filters whole events using
-  its `event_info.json` rather than reading every Collection. Pair it with
-  `all_catalog_ids(session)` if the provider has acquisition IDs worth
-  summarising on the Collection.
+The full field definitions live in the
+[extension README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/stac-extension/README.md).
+What follows is what an ingestor has to get right.
 
-Two things the default walk deliberately does not assume:
+## What the schema enforces
 
-- **It reads the provider's whole catalogue every run.** There is no index to
-  skip ahead with, so one request per linked document, all of it held in
-  memory. That is fine for a catalogue of thousands; a provider with orders of
-  magnitude more Items needs `new_stac_items` backed by a manifest, a bucket
-  inventory, a STAC API search, or partitioned catalogs that can be pruned
-  before their Items are read.
-- **It does not treat any STAC property as "published here".** `--uploaded-since`
-  and `--uploaded-after` cannot be answered from arbitrary static STAC:
-  `created` is when the _metadata_ was written, so a provider adding a
-  historical Item publishes it with an old `created`, and filtering on that
-  would drop the Item permanently. `sync-<provider>` subsets by skipping Items
-  already in PgSTAC instead, and `dump-<provider>` writes the full inventory.
-  Set `timestamp_property` only for a provider that documents a property as
-  meaning "added to this catalogue" - Vantor's `published`, for instance.
+Only three fields. An Item missing any of them fails validation and never
+reaches the catalogue:
 
-Three provider responsibilities the shared code cannot take on:
+- `gsd`
+- `oam:platform_type`
+- `oam:producer_name`
 
-- **Drop repeated links while walking.** Only the provider knows what a repeat
-  is. The default walk identifies an Item by its HREF, so a catalog linking one
-  Item both directly and through a child Collection yields it once. Maxar
-  instead drops repeats by ID, because an acquisition covering two events is
-  filed under both and is still one Item. Anything left is treated downstream
-  as a distinct record.
-- **Item IDs must be unique across everything the provider publishes.** STAC
-  only scopes an ID to its Collection, but we flatten a provider into one OAM
-  Collection, so two source Collections reusing an ID would overwrite each
-  other. Give them distinct IDs in `prepare_item` - both Items reach it. If two
-  still land on one ID, ingestion fails naming them rather than picking one.
-- **Rewriting an ID means declaring how.** If `prepare_item` changes
-  `oam_item.id`, give the catalog a `target_item_id(item_id)` doing the same
-  rewrite - Maxar swaps `/` for `-` - so the "already ingested?" lookup queries
-  the ID PgSTAC actually stores. Ingestion checks the two agree.
+## What the app needs
 
-Then add the catalog to `CATALOGS` in `src/stactools/hotosm/catalogs.py`. The
-CLI derives `dump-<provider>`, `sync-<provider>` and the `--catalog` choices
-from that registry, so there is nothing else to wire up.
-
-Be sure to include tests. `tests/vantor/` covers both modules, with fixtures
-generated from the live bucket by `tests/vantor/data/generate_fixtures.py`.
-Pick fixtures that pin down the provider's quirks - the Vantor ones include an
-Item that mislabels its COG - because upstream metadata is rarely uniform.
-When it's ready, open a pull request (PR) with your changes.
-
-See the package
-[README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md)
-and [Batch Ingestion](./backend/stactools-hotosm.md) for more.
-
-## Add ingestion
-
-Create a PR on [hotosm/k8s-infra](https://github.com/hotosm/k8s-infra/pulls)
-adding an `apps/oam/sync-<provider>.yaml` CronJob, copying
-[sync-vantor.yaml](https://github.com/hotosm/k8s-infra/blob/main/apps/oam/sync-vantor.yaml).
-Give it `--handle-exceptions IGNORE`, so one Item failing validation does not
-cost the run.
-
-[apps/oam/README.md](https://github.com/hotosm/k8s-infra/blob/main/apps/oam/README.md)
-covers the two easy things to miss: create the Collection once with
-`sync-collection` first, and merge to `main` before the CronJob can see your
-provider.
-
-## STAC Metadata
-
-Items are read by the browse map, the tile server, and the STAC API
-search. The tables below separate out **mandatory** from **optional**
-fields.
-
-<!-- markdownlint-disable MD013 -->
-
-### Required
-
-Leave one out and the item is rejected, invisible on the map, or undisplayable.
+The schema does not require these, but leave one out and the Item is invisible
+on the map, unfilterable, or undisplayable.
 
 | Field                          | What to put in it                                                                                                                                                                      | What needs it                                                                                                                                        |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -132,7 +59,7 @@ Leave one out and the item is rejected, invisible on the map, or undisplayable.
     (e.g. `[179.5, -16, -179.5, -15]`) - that's how a reader knows it wraps.
     Otherwise the item draws as a stripe across the whole map.
 
-### Optional
+## Optional fields
 
 The uploader works these out from the image file. An ingested catalogue
 usually won't have them and OAM copes without, so fill in what your source
@@ -163,12 +90,54 @@ provides and skip the rest.
 | `links[rel=derived_from]`                    | Link to the original item in your catalogue                                              | Provenance for ingested imagery - worth adding for any third-party source                              |
 | `links[rel=via]`                             | Link to a public page about the imagery                                                  | A "more info" backlink                                                                                 |
 
-<!-- markdownlint-enable MD013 -->
+## Versions
 
-!!! note "Extension versions"
+| Version  | Status                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------ |
+| `v0.2.0` | current. Knows every `oam:` field above                                                    |
+| `v0.1.0` | knows only `oam:platform_type` and `oam:producer_name`, and rejects any other `oam:` field |
 
-    Every `oam:` field here is defined in OAM extension **v0.2.0**. Older items
-    list v0.1.0, which knows only `oam:platform_type` and `oam:producer_name`
-    and rejects any other `oam:` field; that URL still serves the old
-    definition, so those items keep validating. Point new items at v0.2.0, and
-    add any `oam:` field of your own to the schema before using it.
+Both stay published at their own URL with their original definition, so older
+Items keep validating. Point new Items at `v0.2.0`, and add any `oam:` field of
+your own to the schema before using it.
+
+Some Items still list a third URL,
+`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served by
+GitHub Pages from the archived standalone repo. Nothing here resolves it any
+more, but external clients validating those Items do.
+
+## Upgrading Items to v0.2.0
+
+Rebuilding an Item stamps it with the current version, so an upgrade is a
+re-ingest of the whole source.
+
+A sync will not do it - it skips Items already in PgSTAC, so widening the
+window finds them and passes straight over. Dump and upsert instead:
+
+```bash
+hotosm dump-oam   --uploaded-after 2016-01-01 --handle-exceptions IGNORE --file oam.ndjson
+hotosm dump-maxar --uploaded-after 2023-01-01 --handle-exceptions IGNORE --file maxar.ndjson
+
+pypgstac load items --method upsert oam.ndjson
+pypgstac load items --method upsert maxar.ndjson
+```
+
+Check what is left:
+
+```bash
+curl -s "https://api.imagery.hotosm.org/stac/search?limit=1" \
+  | jq '.features[0].stac_extensions'
+```
+
+!!! note "Adding a required field is a new version"
+
+    Making an existing field required invalidates every Item in production at
+    once. Publish the new version first, re-ingest onto it, and only then
+    tighten the schema.
+
+## Creating a new version
+
+See the package
+[README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md#stac-extension).
+
+<!-- markdownlint-enable MD013 MD046 -->

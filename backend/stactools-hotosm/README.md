@@ -4,14 +4,14 @@ Builds OpenAerialMap STAC Items and Collections from the legacy metadata API,
 Maxar, and Vantor.
 
 Third-party catalogs are registered in `src/stactools/hotosm/catalogs.py`. See
-[Adding a new data provider](../../docs/dev/new-provider.md).
+[Add a data provider](../../docs/dev/ingest/new-provider.md).
 
 This package is used by:
 
 - `backend/stac-ingester` - the bulk/scheduled ingester image
 - `backend/uploader-api/pipeline/metadata` - the per-upload pipeline step
 
-See the [`hotosm` CLI guide](../../docs/dev/backend/stactools-hotosm.md).
+See the [Ingestion docs](../../docs/dev/ingest/index.md).
 
 ## Getting started
 

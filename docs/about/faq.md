@@ -16,7 +16,7 @@ Yes. Sign in to the [uploader](https://upload.imagery.hotosm.org/) to add
 georeferenced, openly licensed imagery.
 
 If you are an imagery provider, you can also look into being ingested
-into our [STAC catalog on a schedule](../dev/new-provider.md).
+into our [STAC catalog on a schedule](../dev/ingest/index.md).
 
 ## How else can I contribute?
 

@@ -80,14 +80,16 @@ nav:
           - Tech Decisions: decisions/README.md
           - Pre-Commit: https://docs.hotosm.org/dev-guide/repo-management/pre-commit/
           - Versioning: https://docs.hotosm.org/dev-guide/repo-management/version-control/#creating-releases
+      - Ingestion:
+          - Overview: dev/ingest/index.md
+          - Add a Data Provider: dev/ingest/new-provider.md
+          - Backfill: dev/ingest/backfill.md
+          - STAC Extension: dev/ingest/schema.md
       - Backend:
           - Global Mosaic: dev/backend/global-mosaic.md
           - STAC API: dev/backend/stac-api.md
-          - STAC Ingester: dev/backend/stac-ingester.md
-          - STAC Creation (stactools-hotosm): dev/backend/stactools-hotosm.md
       - Frontend: dev/frontend.md
       - Local Setup: dev/local-setup.md
-      - Adding New Providers: dev/new-provider.md
       - Backup Prod STAC: dev/backup-prod-pgstac.md
   - Roadmap: https://github.com/hotosm/openaerialmap#roadmap
   - Timeline: about/timeline.md

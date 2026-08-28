@@ -1,1 +1,0 @@
-../../../backend/stac-ingester/README.md
