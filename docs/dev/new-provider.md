@@ -6,11 +6,38 @@ OpenAerialMap (HOT OAM) STAC Catalog.
 ## Creating STAC items
 
 The code to create STAC items for the OpenAerialMap STAC Catalog lives in this
-repo at `backend/stactools-hotosm`. For an example of creating a HOT OAM STAC
-item from existing Maxar items, see
-`backend/stactools-hotosm/src/stactools/hotosm/maxar/stac.py`. Create a new
-branch, create a new directory for your provider, and write the code. Be sure
-to include tests. When it's ready, open a pull request (PR) with your changes.
+repo at `backend/stactools-hotosm`.
+
+Providers publish a static STAC catalog in a public bucket that we flatten into
+a single OAM Collection. That rewrite - the OAM properties, the `derived_from`
+link back upstream, the S3 alternate assets, the OAM extension - is the same
+whoever the provider is, so it lives once in
+`src/stactools/hotosm/opendata.py`. A provider is described declaratively by an
+`OpenDataCatalog` and supplies only the parts that genuinely differ.
+
+`src/stactools/hotosm/vantor/` is the example to copy. Create a new branch and
+a new directory for your provider, holding two modules:
+
+- **`sync.py`** - how to find Items in the provider's bucket. Two functions:
+  `new_stac_items(stac_io, session, after)` yields the Items added since a
+  date, and `all_catalog_ids(session)` yields every acquisition ID for the
+  Collection summary. How you subset the catalog is up to the provider's
+  layout: Maxar filters whole events using its `event_info.json`, Vantor
+  filters individual Items on their `published` property.
+- **`stac.py`** - a `prepare_item(oam_item, item)` hook for the provider
+  specific rewriting (Item ID, title, `gsd`, asset fixups), and a
+  `CATALOG = opendata.OpenDataCatalog(...)` tying it together with the
+  Collection ID, description, providers and root catalog URL.
+
+Then add the catalog to `CATALOGS` in `src/stactools/hotosm/catalogs.py`. The
+CLI derives `dump-<provider>`, `sync-<provider>` and the `--catalog` choices
+from that registry, so there is nothing else to wire up.
+
+Be sure to include tests. `tests/vantor/` covers both modules, with fixtures
+generated from the live bucket by `tests/vantor/data/generate_fixtures.py`.
+Pick fixtures that pin down the provider's quirks - the Vantor ones include an
+Item that mislabels its COG - because upstream metadata is rarely uniform.
+When it's ready, open a pull request (PR) with your changes.
 
 See the package
 [README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md)
@@ -78,7 +105,7 @@ provides and skip the rest.
 | `properties.oam:footprint_source`            | `mask` if the outline follows the real image edge, `bbox` if it's just the rectangle     | Says how tight the outline on the map is                                                               |
 | `properties.oam:footprint_area`              | Covered area in square metres                                                            | Coverage stats                                                                                         |
 | `properties.oam:acquisition_time_estimated`  | `true` when nobody supplied a capture date                                               | Warns that the date is a best guess                                                                    |
-| `properties.oam:acquisition_source`          | Where the guessed date came from: `file-tags` or `ingest`                                | Says how good that guess is                                                                            |
+| `properties.oam:acquisition_source`          | Where the date came from when the provider gave none: `user`, `file-tags` or `ingest`    | Says how good that guess is                                                                            |
 | `properties.oam:external_id`                 | An ID from the system that sent the imagery, e.g. an ODM task                            | Links the item back to that system                                                                     |
 | `properties.processing:*`                    | `software`, `version`, `lineage`, `datetime` - what produced the file and how            | Provenance                                                                                             |
 | `assets.visual.file:size`                    | File size in bytes                                                                       | Download size on the card                                                                              |
@@ -89,7 +116,7 @@ provides and skip the rest.
 | `assets.metadata`                            | Link to the item's own JSON                                                              | A stable copy of the record                                                                            |
 | `assets.tms` / `assets.wmts`                 | Link to an existing tile service                                                         | Used instead of OAM's tile server (older OAM items)                                                    |
 | `assets.*.alternate`                         | A second link to the same file, usually `s3://`                                          | Direct bucket access for people who prefer it                                                          |
-| `links[rel=derived-from]`                    | Link to the original item in your catalogue                                              | Provenance for ingested imagery - worth adding for any third-party source                              |
+| `links[rel=derived_from]`                    | Link to the original item in your catalogue                                              | Provenance for ingested imagery - worth adding for any third-party source                              |
 | `links[rel=via]`                             | Link to a public page about the imagery                                                  | A "more info" backlink                                                                                 |
 
 <!-- markdownlint-enable MD013 -->
