@@ -18,6 +18,24 @@ pytestmark = pytest.mark.skipif(
     shutil.which("helm") is None, reason="helm is not installed"
 )
 
+
+@pytest.fixture(scope="session", autouse=True)
+def _subcharts_present():
+    """Fetch the subchart archives, which charts/ is gitignored so CI lacks."""
+    chart_yaml = yaml.safe_load((CHART_DIR / "Chart.yaml").read_text())
+    if any(
+        not list((CHART_DIR / "charts").glob(f"{dep['name']}-*.tgz"))
+        for dep in chart_yaml.get("dependencies", [])
+    ):
+        done = subprocess.run(
+            ["helm", "dependency", "build", str(CHART_DIR)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert done.returncode == 0, f"helm dependency build failed:\n{done.stderr}"
+
+
 # The name earlier chart versions used. Hard-coded so a refactor has to argue.
 LEGACY_CLAIM_NAME = "oam-db-data"
 
