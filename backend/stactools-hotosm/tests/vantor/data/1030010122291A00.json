@@ -1,0 +1,151 @@
+{
+ "license": "CC-BY-NC-4.0",
+ "id": "1030010122291A00",
+ "bbox": [
+  49.240658365596545,
+  -18.310656647501936,
+  49.49792348016093,
+  -17.995691664632403
+ ],
+ "type": "Feature",
+ "links": [
+  {
+   "rel": "collection",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/collection.json"
+  },
+  {
+   "rel": "self",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/1030010122291A00.json"
+  },
+  {
+   "rel": "root",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/catalog.json"
+  }
+ ],
+ "assets": {
+  "visual": {
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/1030010122291A00.tif",
+   "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+   "title": "Visual COG",
+   "roles": [
+    "visual"
+   ]
+  },
+  "thumbnail": {
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/1030010122291A00.jpg",
+   "type": "image/jpeg",
+   "title": "Thumbnail",
+   "roles": [
+    "thumbnail"
+   ]
+  }
+ },
+ "geometry": {
+  "type": "Polygon",
+  "coordinates": [
+   [
+    [
+     49.49792348016093,
+     -17.995691664632403
+    ],
+    [
+     49.49514924892155,
+     -18.21866992461264
+    ],
+    [
+     49.24408706594279,
+     -18.310656647501936
+    ],
+    [
+     49.242381589321226,
+     -18.16679078521824
+    ],
+    [
+     49.24190407752573,
+     -18.14942608820496
+    ],
+    [
+     49.241894823165154,
+     -18.148941306776447
+    ],
+    [
+     49.24188684508429,
+     -18.14879947560943
+    ],
+    [
+     49.241114931570536,
+     -18.120734041887907
+    ],
+    [
+     49.241102360546876,
+     -18.114248250560635
+    ],
+    [
+     49.24109001363262,
+     -18.113858372253965
+    ],
+    [
+     49.24108886307429,
+     -18.113221633291758
+    ],
+    [
+     49.240658365596545,
+     -18.099735327098422
+    ],
+    [
+     49.24067981474309,
+     -18.097557050428357
+    ],
+    [
+     49.30801051566697,
+     -18.070517832996085
+    ],
+    [
+     49.49792348016093,
+     -17.995691664632403
+    ]
+   ]
+  ]
+ },
+ "collection": "Typhoon-Gezani-Feb-2026",
+ "properties": {
+  "title": "Vantor WV02 Image 1030010122291A00",
+  "pan_gsd": 0.81,
+  "datetime": "2026-02-12T07:08:14.950926Z",
+  "phase": "post",
+  "published": "2026-02-12T20:07:00.0Z",
+  "vehicle_name": "WV02",
+  "view:azimuth": 214.88,
+  "constellation": "maxar",
+  "eo:cloud_cover": 37,
+  "scan_direction": "Reverse",
+  "view:off_nadir": 40.82,
+  "view:sun_azimuth": 84.17,
+  "multispectral_gsd": 3.24,
+  "ingestion_datetime": "2026-02-12T08:33:16.45923193Z",
+  "view:sun_elevation": 63.57,
+  "eo:bands": [
+   {
+    "name": "b1",
+    "description": "Red",
+    "common_name": "red"
+   },
+   {
+    "name": "b2",
+    "description": "Green",
+    "common_name": "green"
+   },
+   {
+    "name": "b3",
+    "description": "Blue",
+    "common_name": "blue"
+   }
+  ]
+ },
+ "stac_version": "1.0.0",
+ "stac_extensions": [
+  "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+  "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+  "https://stac-extensions.github.io/timestamps/v1.1.0/schema.json"
+ ]
+}

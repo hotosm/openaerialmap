@@ -1,4 +1,4 @@
-# Uploader tests via `just test all` (compose.test.yaml + tasks/test).
+# Uploader tests via `just test uploader` (compose.test.yaml + tasks/test).
 name: Test Uploader
 
 on:
@@ -23,5 +23,5 @@ jobs:
     uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
     with:
       environment: "test"
-      command: "test all"
+      command: "test uploader"
     secrets: inherit

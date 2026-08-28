@@ -1,0 +1,64 @@
+{
+ "stac_version": "1.0.0",
+ "type": "Catalog",
+ "id": "vantor-opendata",
+ "license": "CC-BY-NC-4.0",
+ "description": "Vantor Open Data Program Catalog",
+ "links": [
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Nepal-Flooding-Aug-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Indonesia-Earthquakes-Aug-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Colombia-Earthquake-Aug-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Spokane-Washington-Wildfire-Aug-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Bordeaux-France-Wildfire-July-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Marianas-Typhoon-Bavi-Jul-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Venezuela-Earthquake-Jun-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Spain-Portugal-Flooding-Feb-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/DRC-Ebola-May-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "root",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/catalog.json",
+   "type": "application/json"
+  }
+ ]
+}

@@ -1,0 +1,110 @@
+{
+ "license": "CC-BY-NC-4.0",
+ "id": "B140001100103610",
+ "bbox": [
+  49.30679588245651,
+  -18.25762366573885,
+  49.45902556853177,
+  -18.050174661460414
+ ],
+ "type": "Feature",
+ "links": [
+  {
+   "rel": "collection",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/collection.json"
+  },
+  {
+   "rel": "self",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B140001100103610.json"
+  },
+  {
+   "rel": "root",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/catalog.json"
+  }
+ ],
+ "assets": {
+  "visual": {
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B140001100103610.tif",
+   "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+   "title": "Visual COG",
+   "roles": [
+    "thumbnail"
+   ]
+  },
+  "thumbnail": {
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B140001100103610.jpg",
+   "type": "image/jpeg",
+   "title": "Thumbnail",
+   "roles": [
+    "thumbnail"
+   ]
+  }
+ },
+ "geometry": {
+  "type": "Polygon",
+  "coordinates": [
+   [
+    [
+     49.308943159895,
+     -18.25363953310832
+    ],
+    [
+     49.30757855803854,
+     -18.118015322203387
+    ],
+    [
+     49.30746996466452,
+     -18.11422158900294
+    ],
+    [
+     49.30679634827559,
+     -18.05033400103491
+    ],
+    [
+     49.30679588245651,
+     -18.050174661460414
+    ],
+    [
+     49.45902556853177,
+     -18.05281188115627
+    ],
+    [
+     49.45865713625315,
+     -18.098168070069658
+    ],
+    [
+     49.457341747240655,
+     -18.25762366573885
+    ],
+    [
+     49.308943159895,
+     -18.25363953310832
+    ]
+   ]
+  ]
+ },
+ "collection": "Typhoon-Gezani-Feb-2026",
+ "properties": {
+  "title": "Vantor LG04 Image B140001100103610",
+  "pan_gsd": 0.48,
+  "datetime": "2026-02-15T04:16:25.999651Z",
+  "phase": "post",
+  "published": "2026-02-16T02:51:00.0Z",
+  "vehicle_name": "LG04",
+  "view:azimuth": 273.55,
+  "constellation": "maxar",
+  "eo:cloud_cover": 12,
+  "scan_direction": "Reverse",
+  "view:off_nadir": 34.28,
+  "view:sun_azimuth": 96.53,
+  "multispectral_gsd": 1.9,
+  "ingestion_datetime": "2026-02-15T05:47:12.661372078Z",
+  "view:sun_elevation": 22.69
+ },
+ "stac_version": "1.0.0",
+ "stac_extensions": [
+  "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+  "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+  "https://stac-extensions.github.io/timestamps/v1.1.0/schema.json"
+ ]
+}

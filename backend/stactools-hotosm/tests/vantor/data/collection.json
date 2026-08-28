@@ -1,0 +1,113 @@
+{
+ "type": "Collection",
+ "id": "Typhoon-Gezani-Feb-2026",
+ "stac_version": "1.0.0",
+ "links": [
+  {
+   "rel": "root",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/catalog.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "self",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/collection.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/pre.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "child",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/post.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "item",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/1030010122291A00.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "item",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B150001101B05900.json",
+   "type": "application/json"
+  },
+  {
+   "rel": "item",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B140001100103610.json",
+   "type": "application/json"
+  }
+ ],
+ "extent": {
+  "spatial": {
+   "bbox": [
+    [
+     35.3204773,
+     -24.51409782485032,
+     49.5000011,
+     -17.5
+    ],
+    [
+     49.240658365596545,
+     -18.310656647501936,
+     49.49792348016093,
+     -17.995691664632403
+    ],
+    [
+     49.31217253114811,
+     -18.517869348578586,
+     49.413107794771555,
+     -17.984782053548738
+    ],
+    [
+     49.4056048,
+     -18.0,
+     49.5000011,
+     -17.5
+    ],
+    [
+     49.102583,
+     -18.526947,
+     49.261162,
+     -17.974776
+    ],
+    [
+     49.22940211050704,
+     -18.53,
+     49.32990819263393,
+     -17.87
+    ],
+    [
+     49.30679588245651,
+     -18.25762366573885,
+     49.45902556853177,
+     -18.050174661460414
+    ],
+    [
+     35.3204773,
+     -24.3741739,
+     35.4246673,
+     -23.4663843
+    ],
+    [
+     35.400803811224165,
+     -24.51409782485032,
+     35.50616464835972,
+     -22.98930379543521
+    ]
+   ]
+  },
+  "temporal": {
+   "interval": [
+    [
+     "2025-04-09T06:49:50.411043Z",
+     "2026-02-15T04:16:25.999651Z"
+    ]
+   ]
+  }
+ },
+ "title": "Typhoon-Gezani-Feb-2026",
+ "description": "Cyclone Gezani made landfall on February 10, 2026 near the city of Toamasina, Madagascar. Early estimates have 75% of buildings destroyed.",
+ "license": "CC-BY-NC-4.0"
+}
