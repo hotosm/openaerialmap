@@ -51,7 +51,7 @@
     "title": "Pisgah Crater Cinder Cone",
     "oam:producer_name": "redacted",
     "oam:platform_type": "uav",
-    "gsd": 2.990237944881498e-07,
+    "gsd": 2.990237944881498e-7,
     "license": "CC-BY-4.0",
     "instruments": [
       "Phantom 3 Pro"
@@ -118,11 +118,11 @@
         30505
       ],
       "proj:transform": [
-        3.276234535837461e-07,
+        3.276234535837461e-7,
         0,
         -116.38018350872744,
         0,
-        -2.704241353925534e-07,
+        -2.704241353925534e-7,
         34.75077985936304,
         0,
         0,

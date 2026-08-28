@@ -5,7 +5,7 @@ on:
     paths:
       - docs/**
       - mkdocs.yml
-      - backend/stactools-hotosm/stac-extension/json-schema/schema.json
+      - backend/stactools-hotosm/stac-extension/json-schema/**/schema.json
     branches: [main]
   # Allow manual trigger (workflow_dispatch)
   workflow_dispatch:

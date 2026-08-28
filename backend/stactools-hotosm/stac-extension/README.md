@@ -7,13 +7,10 @@
 - **Extension [Maturity Classification](https://github.com/radiantearth/stac-spec/tree/master/extensions/README.md#extension-maturity):** Proposal
 - **Owners**: @ceholden @gadomski
 
-This extension documents metadata used by the Humanitarian OpenStreetMap Team (HOT)'s OpenAerialMap (OAM) project.
-It builds on common STAC metadata by defining some optional common metadata as required attributes and defines
-the expected values for common metadata.
+Defines STAC metadata used by HOT's OpenAerialMap project.
 
-- Examples:
-  - [Item example](./examples/item.json): Shows the basic usage of the extension in a STAC Item
-- [JSON Schema](./json-schema/schema.json)
+- [Item example](./examples/item.json)
+- [JSON Schema](./json-schema/v0.2.0/schema.json)
 - [Changelog](./CHANGELOG.md)
 
 ## Fields
@@ -74,16 +71,13 @@ metres.
 
 #### oam:acquisition_source
 
-Where an estimated acquisition datetime came from: `file-tags` (the image
-file's EXIF or TIFF tags) or `ingest` (the time of ingestion, when nothing
-better was available). `oam:acquisition_time_estimated` is `true` in both
-cases.
+Where the acquisition datetime came from: `user`, `file-tags`, or `ingest`.
+Set `oam:acquisition_time_estimated` for `file-tags` and `ingest`.
 
 #### Provider
 
-The imagery data provider must be defined for each STAC Item. This data provider should also be included
-as a ["provider"](https://github.com/radiantearth/stac-spec/blob/master/commons/common-metadata.md#provider-object)
-link with contact information.
+Set `oam:producer_name` and add the producer as the first STAC
+[`provider`](https://github.com/radiantearth/stac-spec/blob/master/commons/common-metadata.md#provider-object).
 
 #### License
 
@@ -95,33 +89,24 @@ Imagery for OAM must be licensed as either,
 
 ## Contributing
 
-All contributions are subject to the
-[STAC Specification Code of Conduct](https://github.com/radiantearth/stac-spec/blob/master/CODE_OF_CONDUCT.md).
-For contributions, please follow the
-[STAC specification contributing guide](https://github.com/radiantearth/stac-spec/blob/master/CONTRIBUTING.md) Instructions
-for running tests are copied here for convenience.
+Follow the [STAC Code of Conduct](https://github.com/radiantearth/stac-spec/blob/master/CODE_OF_CONDUCT.md)
+and [contributing guide](https://github.com/radiantearth/stac-spec/blob/master/CONTRIBUTING.md).
 
 ### Running tests
 
-The same checks that run as checks on PR's are part of the repository and can be run locally to verify that changes are valid.
-To run tests locally, you'll need `npm`, which is a standard part of any [node.js installation](https://nodejs.org/en/download/).
-
-First you'll need to install everything with npm once. Just navigate to the root of this repository and on
-your command line run:
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-Then to check markdown formatting and test the examples against the JSON schema, you can run:
+Check Markdown and examples:
 
 ```bash
 npm test
 ```
 
-This will spit out the same texts that you see online, and you can then go and fix your markdown or examples.
-
-If the tests reveal formatting problems with the examples, you can fix them with:
+Format examples:
 
 ```bash
 npm run format-examples

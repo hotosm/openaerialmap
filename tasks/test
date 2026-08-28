@@ -24,10 +24,9 @@ docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo foun
 default:
   just --justfile {{justfile()}} --list test
 
-# Run every uploader test suite in its built image (CI entrypoint).
+# Run every unit test suite. CI splits these across workflows.
 [no-cd]
-all: uploader fetch metadata
-  {{docker}} compose -f compose.test.yaml down --remove-orphans
+all: uploader stactools stac-extension
 
 # Chart rendering tests on the host, for iterating without a container rebuild.
 # `just test all` covers them too: the test image ships helm.
@@ -35,9 +34,14 @@ all: uploader fetch metadata
 chart:
   cd {{justfile_directory()}}/backend/uploader-api && uv run --group test pytest tests/test_chart_rendering.py -q
 
+# Every uploader suite in its built image.
+[no-cd]
+uploader: uploader-api fetch metadata
+  {{docker}} compose -f compose.test.yaml down --remove-orphans
+
 # Uploader API unit tests (app/tests).
 [no-cd]
-uploader:
+uploader-api:
   {{docker}} compose -f compose.test.yaml run --rm --build test-app
 
 # Pipeline fetch-step unit tests (fetch/tests).
@@ -49,6 +53,38 @@ fetch:
 [no-cd]
 metadata:
   {{docker}} compose -f compose.test.yaml run --rm --build test-metadata
+
+# Install uv if missing
+[private]
+[no-cd]
+_install-uv:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  command -v uv >/dev/null 2>&1 && exit 0
+  echo "📦 Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# stactools-hotosm tests, lint, types and lock check. Host + uv, not a container.
+[no-cd]
+stactools: _install-uv
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export PATH="$HOME/.local/bin:$PATH"
+  cd {{justfile_directory()}}/backend/stactools-hotosm
+  uv sync --all-extras --python 3.12
+  ./scripts/test
+  ./scripts/lint
+  ./scripts/typecheck
+  uv lock --check
+
+# Validates the OAM extension schema and its examples. Needs npm.
+[no-cd]
+stac-extension:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}/backend/stactools-hotosm/stac-extension
+  npm install
+  npm test
 
 # Ensure local services needed by test recipes are running.
 [private]

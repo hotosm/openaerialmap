@@ -28,7 +28,9 @@ processing design, but this feature is still useful because,
   on a scheduled frequency.
 
 To address these use cases, the CLI programs can ingest data through two
-mechanisms described below.
+mechanisms described below. There is a `dump-<provider>` and `sync-<provider>`
+command per 3rd party catalog we ingest, currently `maxar` and `vantor`; see
+[Adding a new data provider](../new-provider.md) for how those are wired up.
 
 ## Dump to an intermediate format and ingest using `pypgstac` tools
 
@@ -92,7 +94,7 @@ https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 ```
 
 That URL is this site. `docs/oam/v0.2.0/schema.json` is a symlink to
-`backend/stactools-hotosm/stac-extension/json-schema/schema.json`, which is the
+`backend/stactools-hotosm/stac-extension/json-schema/v0.2.0/schema.json`, the
 source of truth for the current version, so publishing a schema change is just
 a push to `main`.
 
@@ -109,6 +111,6 @@ Items ingested before the schema moved here still list the old URL,
 `https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served by
 GitHub Pages on the archived standalone repo. Nothing in this repo resolves it
 any more, but external clients that validate those Items do. To get off it
-entirely, re-run `sync-oam` and `sync-maxar` with `--uploaded-after` set far
-enough back to cover the whole catalogue - both load in "upsert" mode, so every
-Item is rewritten with the current URL.
+entirely, re-run `sync-oam`, `sync-maxar` and `sync-vantor` with
+`--uploaded-after` set far enough back to cover the whole catalogue - they all
+load in "upsert" mode, so every Item is rewritten with the current URL.
