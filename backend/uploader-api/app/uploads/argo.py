@@ -115,3 +115,26 @@ def submit_geotiff_workflow(
         log.info("Workflow %s already exists; treating it as submitted", name)
     log.info(f"Submitted Argo workflow {name} for upload {upload_id}")
     return name
+
+
+def get_workflow_phase(name: str) -> str | None:
+    """Return an Argo workflow's phase, or None if the object is gone.
+
+    `None` is the normal answer for a workflow that finished a while ago: the
+    template's `ttlStrategy` deletes it 10 minutes after completion, so an
+    outcome nobody recorded before then is no longer retrievable from Argo.
+    """
+    try:
+        workflow = _api().get_namespaced_custom_object(
+            group="argoproj.io",
+            version="v1alpha1",
+            namespace=settings.ARGO_NAMESPACE,
+            plural="workflows",
+            name=name,
+            _request_timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except ApiException as err:
+        if err.status == 404:
+            return None
+        raise
+    return (workflow.get("status") or {}).get("phase") or "Pending"

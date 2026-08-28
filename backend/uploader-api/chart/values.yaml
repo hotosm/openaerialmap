@@ -42,6 +42,9 @@ env:
   S3_REGION: us-east-1
   ARGO_NAMESPACE: oam
   ARGO_WORKFLOW_TEMPLATE: geotiff-processing-template
+  # The API asks Argo about uploads whose final callback never arrived. Tune
+  # with RECONCILE_INTERVAL_SECONDS / RECONCILE_QUIET_MINUTES (which must stay
+  # under the template's ttlStrategy) or turn off with RECONCILE_ENABLED.
   # Pipeline step image tag; pin an immutable git SHA for reproducible deploys.
   PIPELINE_IMAGE_TAG: main
   STAC_COLLECTION: openaerialmap

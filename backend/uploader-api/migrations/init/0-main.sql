@@ -70,3 +70,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uploads_external_id_active_idx
 CREATE INDEX IF NOT EXISTS uploads_checksum_idx
     ON uploads (checksum)
     WHERE checksum IS NOT NULL;
+
+-- The reconciler sweeps the oldest non-terminal uploads every minute, and
+-- almost every row is terminal, so keep those out of the index entirely.
+CREATE INDEX IF NOT EXISTS uploads_unfinished_idx
+    ON uploads (updated_at)
+    WHERE status NOT IN ('Uploaded', 'Succeeded', 'Failed', 'Error', 'Aborted');
