@@ -19,10 +19,15 @@ COLLECTION_DESCRIPTION = (
 )
 
 
+def target_item_id(item_id: str) -> str:
+    """Rewrite a Maxar Item ID for OAM."""
+    # Slashes in IDs interfere with API paths.
+    return item_id.replace("/", "-")
+
+
 def prepare_item(oam_item: Item, item: Item) -> None:
     """Apply Maxar-specific Item changes."""
-    # Slashes in IDs interfere with API paths.
-    oam_item.id = item.id.replace("/", "-")
+    oam_item.id = target_item_id(item.id)
 
     oam_item.make_asset_hrefs_absolute()
 
@@ -63,6 +68,7 @@ CATALOG = opendata.OpenDataCatalog(
     prepare_item=prepare_item,
     new_stac_items=new_stac_items,
     all_catalog_ids=all_catalog_ids,
+    target_item_id=target_item_id,
 )
 
 

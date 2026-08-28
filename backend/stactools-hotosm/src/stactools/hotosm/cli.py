@@ -323,6 +323,7 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
             uploaded_after=after,
             handle_exceptions=handle_exceptions,
             existing_ids_finder=partial(get_existing_item_ids, ctx.obj["pgstac"]),
+            target_item_id=catalog.target_item_id,
         )
         loader.load_items(iter(items), insert_mode=Methods.upsert)
         click.echo(f"Completed ingesting {len(items)} STAC Items")
@@ -344,7 +345,7 @@ def create_and_save_collection(catalog: str, destination: Path) -> None:
         collection = opendata.create_collection(
             open_data_catalog,
             open_data_catalog.read_catalog(),
-            catalog_ids=open_data_catalog.all_catalog_ids(requests.Session()),
+            catalog_ids=open_data_catalog.find_catalog_ids(requests.Session()),
         )
     else:
         raise click.BadParameter(f"Unknown collection ID {catalog}")
@@ -357,7 +358,12 @@ def get_oam_items_after(
     client: OamMetadataClient, uploaded_after: dt.datetime
 ) -> Iterator[OamMetadata]:
     """Helper function to yield sanitizied OamMetadata entities."""
+    seen: set[str] = set()
     for oam_metadata in client.get_all_items(uploaded_after):
+        # Paging by upload date can repeat an entry when uploads land mid-run.
+        if oam_metadata.id in seen:
+            continue
+        seen.add(oam_metadata.id)
         yield oam_metadata.sanitize()
 
 
@@ -366,7 +372,7 @@ def get_catalog_items_after(
     uploaded_after: dt.datetime,
 ) -> Iterator[pystac.Item]:
     """Helper function to yield an open data catalog's STAC Items."""
-    yield from catalog.new_stac_items(
+    yield from catalog.find_new_items(
         pystac.stac_io.RetryStacIO(), requests.Session(), uploaded_after
     )
 
@@ -393,6 +399,28 @@ def get_existing_item_ids(
     return {row[0] for row in rows}
 
 
+def check_item_id(item_id: str, predicted_id: str, taken_by: str | None) -> None:
+    """Confirm a created Item lands on the ID it was expected to.
+
+    Every source Item reaching here is a distinct record - each source drops
+    its own repeated links first - so two landing on one ID would overwrite
+    each other in a single flattened OAM Collection. STAC allows a provider to
+    reuse an ID across two of its Collections, so this is the provider's to
+    resolve, not something to silently collapse.
+    """
+    if item_id != predicted_id:
+        raise ValueError(
+            f"Created Item ID {item_id!r} is not the predicted {predicted_id!r}: "
+            "the catalog's prepare_item and target_item_id disagree"
+        )
+
+    if taken_by is not None:
+        raise ValueError(
+            f"Item ID {item_id!r} is already taken by source Item {taken_by!r}: "
+            "give them distinct IDs in the catalog's prepare_item"
+        )
+
+
 def sync_handler(
     collection_id: str,
     raw_metadata_creator: Callable[[dt.datetime], Iterator[MetadataType]],
@@ -400,29 +428,42 @@ def sync_handler(
     uploaded_after: dt.datetime,
     handle_exceptions: HandleExceptionsType,
     existing_ids_finder: Callable[[str, list[str]], set[str]] | None = None,
+    target_item_id: opendata.TargetItemId | None = None,
 ) -> tuple[list[dict], list[str]]:
     """Orchestrate creating STAC Items from a data provider."""
+    to_target_id = target_item_id or (lambda id_: id_)
     raw_metadata = list(raw_metadata_creator(uploaded_after))
     click.echo(f"Found {len(raw_metadata)} metadata items added since {uploaded_after}")
 
     # Skip existing Items before reading their remote assets.
     if existing_ids_finder is not None:
-        existing = existing_ids_finder(collection_id, [m.id for m in raw_metadata])
+        existing = existing_ids_finder(
+            collection_id, [to_target_id(m.id) for m in raw_metadata]
+        )
         if existing:
             click.echo(f"Skipping {len(existing)} Items already in PgSTAC")
-            raw_metadata = [m for m in raw_metadata if m.id not in existing]
+            raw_metadata = [
+                m for m in raw_metadata if to_target_id(m.id) not in existing
+            ]
 
     items = []
     errors = []
+    source_of: dict[str, str] = {}
     for raw_metadata_ in raw_metadata:
         try:
             item = stac_item_creator(raw_metadata_).to_dict()
+            check_item_id(
+                item["id"],
+                to_target_id(raw_metadata_.id),
+                source_of.get(item["id"]),
+            )
         except Exception as e:
             if handle_exceptions == "IGNORE":
                 errors.append(f"{raw_metadata_}: {e}")
                 continue
             else:
                 raise
+        source_of[item["id"]] = raw_metadata_.id
         # PgSTAC requires a Collection ID even when its link is unavailable.
         item["collection"] = collection_id
         items.append(item)

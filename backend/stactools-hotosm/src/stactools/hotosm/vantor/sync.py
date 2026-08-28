@@ -7,6 +7,8 @@ from typing import Iterator
 import pystac
 import requests
 
+from stactools.hotosm.opendata import item_timestamp
+
 logger = logging.getLogger(__name__)
 
 VANTOR_ROOT = "https://vantor-opendata.s3.amazonaws.com/events/"
@@ -27,19 +29,7 @@ def event_collection_hrefs(session: requests.Session) -> Iterator[str]:
 
 def published_datetime(item: pystac.Item) -> dt.datetime | None:
     """Parse an Item's published date, treating naive values as UTC."""
-    published = item.properties.get(PUBLISHED_PROPERTY)
-    if not isinstance(published, str):
-        return None
-
-    try:
-        parsed = dt.datetime.fromisoformat(published)
-    except ValueError:
-        logger.warning(
-            "Cannot parse %r=%r for Item=%s", PUBLISHED_PROPERTY, published, item.id
-        )
-        return None
-
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
+    return item_timestamp(item, PUBLISHED_PROPERTY)
 
 
 def new_stac_items(

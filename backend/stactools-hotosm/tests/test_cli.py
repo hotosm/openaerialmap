@@ -37,21 +37,26 @@ class _Entry:
     id: str
 
 
-def _create_item(raw_metadata: str) -> pystac.Item:
+def _create_item(raw_metadata: _Entry) -> pystac.Item:
     """Create a STAC Item, failing for the entry named ``bad``."""
-    if raw_metadata == "bad":
+    if raw_metadata.id == "bad":
         raise ValueError("cannot create a STAC Item from this entry")
-    return _item(raw_metadata)
+    return _item(raw_metadata.id)
 
 
-def _middle_entry_fails(_uploaded_after: dt.datetime) -> Iterator[str]:
+def _entries(*ids: str) -> Iterator[_Entry]:
+    """Yield raw metadata for each ID."""
+    yield from (_Entry(id_) for id_ in ids)
+
+
+def _middle_entry_fails(_uploaded_after: dt.datetime) -> Iterator[_Entry]:
     """Yield raw metadata whose second entry cannot be converted."""
-    yield from ["good-1", "bad", "good-2"]
+    yield from _entries("good-1", "bad", "good-2")
 
 
-def _first_entry_fails(_uploaded_after: dt.datetime) -> Iterator[str]:
+def _first_entry_fails(_uploaded_after: dt.datetime) -> Iterator[_Entry]:
     """Yield raw metadata whose first entry cannot be converted."""
-    yield from ["bad", "good-1"]
+    yield from _entries("bad", "good-1")
 
 
 class TestSyncHandler:
@@ -99,7 +104,7 @@ class TestSyncHandler:
         """Every Item is collected and stamped with the Collection ID."""
         items, errors = sync_handler(
             collection_id=COLLECTION_ID,
-            raw_metadata_creator=lambda _: iter(["good-1", "good-2"]),
+            raw_metadata_creator=lambda _: _entries("good-1", "good-2"),
             stac_item_creator=_create_item,
             uploaded_after=UPLOADED_AFTER,
             handle_exceptions="RAISE",
@@ -107,6 +112,67 @@ class TestSyncHandler:
 
         assert [item["id"] for item in items] == ["good-1", "good-2"]
         assert all(item["collection"] == COLLECTION_ID for item in items)
+        assert errors == []
+
+    def test_colliding_target_ids_are_rejected(self):
+        """Two source Items landing on one ID would overwrite each other."""
+        with pytest.raises(ValueError, match="already taken by source Item"):
+            sync_handler(
+                collection_id=COLLECTION_ID,
+                raw_metadata_creator=lambda _: _entries("a/b", "a-b"),
+                stac_item_creator=lambda entry: _item(entry.id.replace("/", "-")),
+                uploaded_after=UPLOADED_AFTER,
+                handle_exceptions="RAISE",
+                target_item_id=lambda id_: id_.replace("/", "-"),
+            )
+
+    def test_colliding_target_ids_are_reported_when_ignoring(self):
+        """`IGNORE` keeps the first Item and reports the collision."""
+        items, errors = sync_handler(
+            collection_id=COLLECTION_ID,
+            raw_metadata_creator=lambda _: _entries("a/b", "a-b"),
+            stac_item_creator=lambda entry: _item(entry.id.replace("/", "-")),
+            uploaded_after=UPLOADED_AFTER,
+            handle_exceptions="IGNORE",
+            target_item_id=lambda id_: id_.replace("/", "-"),
+        )
+
+        assert [item["id"] for item in items] == ["a-b"]
+        assert len(errors) == 1
+        assert "already taken by source Item" in errors[0]
+
+    def test_unpredicted_item_id_is_rejected(self):
+        """A catalog whose `prepare_item` and `target_item_id` disagree fails."""
+        with pytest.raises(ValueError, match="is not the predicted"):
+            sync_handler(
+                collection_id=COLLECTION_ID,
+                raw_metadata_creator=lambda _: _entries("a/b"),
+                stac_item_creator=lambda entry: _item(entry.id.replace("/", "_")),
+                uploaded_after=UPLOADED_AFTER,
+                handle_exceptions="RAISE",
+                target_item_id=lambda id_: id_.replace("/", "-"),
+            )
+
+    def test_existing_items_are_looked_up_by_target_id(self):
+        """A provider rewriting its IDs is matched on the ID PgSTAC stores."""
+        queried: list[list[str]] = []
+
+        def _existing(_collection_id: str, item_ids: list[str]) -> set[str]:
+            queried.append(item_ids)
+            return {"a-1"}
+
+        items, errors = sync_handler(
+            collection_id=COLLECTION_ID,
+            raw_metadata_creator=lambda _: _entries("a/1", "a/2"),
+            stac_item_creator=lambda entry: _item(entry.id.replace("/", "-")),
+            uploaded_after=UPLOADED_AFTER,
+            handle_exceptions="RAISE",
+            existing_ids_finder=_existing,
+            target_item_id=lambda id_: id_.replace("/", "-"),
+        )
+
+        assert queried == [["a-1", "a-2"]]
+        assert [item["id"] for item in items] == ["a-2"]
         assert errors == []
 
     def test_existing_items_are_not_rebuilt(self):
@@ -119,7 +185,7 @@ class TestSyncHandler:
 
         items, errors = sync_handler(
             collection_id=COLLECTION_ID,
-            raw_metadata_creator=lambda _: iter([_Entry("old"), _Entry("new")]),
+            raw_metadata_creator=lambda _: _entries("old", "new"),
             stac_item_creator=_record,
             uploaded_after=UPLOADED_AFTER,
             handle_exceptions="RAISE",

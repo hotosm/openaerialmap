@@ -38,6 +38,7 @@ def new_stac_items(
     r.raise_for_status()
     events = r.json()
 
+    seen: set[str] = set()
     for event in events:
         event_date = dt.datetime.strptime(event["date"], "%Y-%m-%d").replace(
             tzinfo=dt.UTC
@@ -47,7 +48,14 @@ def new_stac_items(
             collection = pystac.read_file(url, stac_io=stac_io)
             assert isinstance(collection, pystac.Collection)
             collection.remove_links(pystac.RelType.ROOT)
-            yield from collection.get_items(recursive=True)
+
+            for item in collection.get_items(recursive=True):
+                # An acquisition covering two events is one Maxar Item, filed
+                # under each event's Collection.
+                if item.id in seen:
+                    continue
+                seen.add(item.id)
+                yield item
 
 
 def all_catalog_ids(session: requests.Session) -> Iterator[str]:

@@ -1,6 +1,7 @@
 """Rewrite third-party STAC catalogs for OAM."""
 
 import datetime as dt
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Iterator
 
@@ -22,18 +23,96 @@ from pystac import (
 from pystac.extensions.item_assets import ItemAssetDefinition
 from pystac.extensions.render import Render, RenderExtension
 
-from stactools.hotosm.constants import (
-    OAM_EXTENSION_DEFAULT_VERSION,
-    OAM_EXTENSION_SCHEMA_URI_PATTERN,
+from stactools.hotosm.oam_extension import (
+    register_oam_extension_schemas,
+    set_oam_extension,
 )
-from stactools.hotosm.oam_extension import register_oam_extension_schemas
 from stactools.hotosm.stac_common import add_alternate_assets
+
+logger = logging.getLogger(__name__)
 
 VISUAL_ASSET_DESCRIPTION = "Imagery data formatted for visualization (RGB)"
 
 PrepareItem = Callable[[Item, Item], None]
 NewStacItems = Callable[[pystac.StacIO, requests.Session, dt.datetime], Iterator[Item]]
 AllCatalogIds = Callable[[requests.Session], Iterator[str]]
+TargetItemId = Callable[[str], str]
+
+
+def item_timestamp(item: Item, property_name: str) -> dt.datetime | None:
+    """Parse an Item timestamp property, treating naive values as UTC."""
+    value = item.properties.get(property_name)
+    if not isinstance(value, str):
+        return None
+
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+    except ValueError:
+        logger.warning("Cannot parse %r=%r for Item=%s", property_name, value, item.id)
+        return None
+
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
+
+
+def deduplicate_items(items: Iterable[Item]) -> Iterator[Item]:
+    """Yield each source document once.
+
+    Identity is where the Item lives, so a catalog linking one Item both
+    directly and through a child Collection yields it once. Two Items sharing
+    an ID but not an HREF are distinct records - STAC only scopes an ID to its
+    Collection - so both are yielded for the ingest to resolve or reject rather
+    than being silently collapsed here.
+    """
+    seen: set[str] = set()
+    for item in items:
+        identity = item.get_self_href() or item.id
+        if identity in seen:
+            continue
+        seen.add(identity)
+        yield item
+
+
+def walk_new_items(
+    catalog_url: str,
+    stac_io: pystac.StacIO,
+    after: dt.datetime,
+    timestamp_property: str | None = None,
+) -> Iterator[Item]:
+    """Yield a provider's Items by walking its static STAC catalog.
+
+    Follows the provider's own child Catalog/Collection and Item links from the
+    root, so a provider publishing spec-compliant STAC needs no bespoke crawling
+    code. Reading every Item is the price of that: use `new_stac_items` for a
+    provider large enough to need an index, manifest or API to subset with.
+
+    Yields the provider's whole inventory unless `timestamp_property` names a
+    property meaning "published in this catalog", which no STAC field is
+    guaranteed to be. In particular `created` is when the *metadata* was
+    written, so a provider adding a historical Item publishes it with an old
+    `created` and filtering on it would drop the Item for good. Callers subset
+    by reconciling against the Items already ingested instead.
+
+    Items missing a declared timestamp are yielded rather than dropped: there is
+    nothing to filter them on, and a provider omitting it is a data problem
+    worth surfacing.
+    """
+    root = pystac.read_file(catalog_url, stac_io=stac_io)
+    if not isinstance(root, Catalog):
+        raise TypeError(f"Expected a STAC Catalog or Collection at {catalog_url}")
+
+    for item in deduplicate_items(root.get_items(recursive=True)):
+        if timestamp_property is None:
+            yield item
+            continue
+
+        timestamp = item_timestamp(item, timestamp_property)
+        if timestamp is None:
+            logger.warning(
+                "Item without a usable %r property: %s", timestamp_property, item.id
+            )
+            yield item
+        elif timestamp >= after:
+            yield item
 
 
 def _default_item_assets() -> dict[str, ItemAssetDefinition]:
@@ -58,9 +137,15 @@ class OpenDataCatalog:
     producer_name: str
     platform_type: str
     providers: list[Provider]
-    prepare_item: PrepareItem
-    new_stac_items: NewStacItems
-    all_catalog_ids: AllCatalogIds
+
+    # A provider whose Items already satisfy the OAM extension, and whose
+    # catalog is small enough to walk, needs none of these.
+    prepare_item: PrepareItem | None = None
+    new_stac_items: NewStacItems | None = None
+    all_catalog_ids: AllCatalogIds | None = None
+    target_item_id: TargetItemId | None = None
+    # Only set this to a property the provider documents as "published here".
+    timestamp_property: str | None = None
 
     product_type: str = "visual"
     item_assets: dict[str, ItemAssetDefinition] = field(
@@ -73,6 +158,26 @@ class OpenDataCatalog:
         if not isinstance(catalog, Catalog):
             raise TypeError(f"Expected a STAC Catalog at {self.catalog_url}")
         return catalog
+
+    def find_new_items(
+        self,
+        stac_io: pystac.StacIO,
+        session: requests.Session,
+        after: dt.datetime,
+    ) -> Iterator[Item]:
+        """Yield the provider's Items added since a date."""
+        if self.new_stac_items is not None:
+            yield from self.new_stac_items(stac_io, session, after)
+        else:
+            yield from walk_new_items(
+                self.catalog_url, stac_io, after, self.timestamp_property
+            )
+
+    def find_catalog_ids(self, session: requests.Session) -> Iterator[str] | None:
+        """Yield acquisition IDs for the Collection summary, if there are any."""
+        if self.all_catalog_ids is None:
+            return None
+        return self.all_catalog_ids(session)
 
 
 def create_collection(
@@ -141,7 +246,8 @@ def create_item(catalog: OpenDataCatalog, item: Item) -> Item:
     oam_item = item.clone()
     oam_item.set_collection(None)
 
-    catalog.prepare_item(oam_item, item)
+    if catalog.prepare_item is not None:
+        catalog.prepare_item(oam_item, item)
 
     oam_item.properties.setdefault("oam:producer_name", catalog.producer_name)
     oam_item.properties.setdefault("oam:platform_type", catalog.platform_type)
@@ -167,10 +273,12 @@ def create_item(catalog: OpenDataCatalog, item: Item) -> Item:
 
     add_alternate_assets(oam_item)
 
-    oam_item.stac_extensions.append(
-        OAM_EXTENSION_SCHEMA_URI_PATTERN.format(version=OAM_EXTENSION_DEFAULT_VERSION)
-    )
+    set_oam_extension(oam_item)
 
     register_oam_extension_schemas()
+
+    # Declaring the extension is not the same as satisfying it: a provider that
+    # publishes no `gsd` needs a `prepare_item` supplying one.
+    oam_item.validate()
 
     return oam_item
