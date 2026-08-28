@@ -1,31 +1,26 @@
 # STAC Tools for Humanitarian OpenStreetMap Team's OpenAerialMap
 
-Builds the STAC Items and Collections for OpenAerialMap, from both the legacy
-OAM metadata API and the Maxar Open Data Program.
+Builds OpenAerialMap STAC Items and Collections from the legacy metadata API,
+Maxar, and Vantor.
 
-This package used to live at <https://github.com/hotosm/stactools-hotosm> but
-is now part of this monorepo:
+Third-party catalogs are registered in `src/stactools/hotosm/catalogs.py`. See
+[Adding a new data provider](../../docs/dev/new-provider.md).
+
+This package is used by:
 
 - `backend/stac-ingester` - the bulk/scheduled ingester image
 - `backend/uploader-api/pipeline/metadata` - the per-upload pipeline step
 
-Usage of the `hotosm` CLI is documented in
-[the developer guide](../../docs/dev/backend/stactools-hotosm.md).
+See the [`hotosm` CLI guide](../../docs/dev/backend/stactools-hotosm.md).
 
 ## Getting started
 
-Dependencies are managed with [uv](https://docs.astral.sh/uv/getting-started/installation/):
+Install dependencies with
+[uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```bash
 uv sync --all-extras
 ```
-
-Linting and commit checks are handled by the repo-root `pre-commit` config, not
-a per-package one. See the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
-
-Note that ruff resolves its configuration per directory, so this package keeps
-the stricter rule set (pydocstyle among others) declared in its own
-`pyproject.toml`, rather than inheriting the rest of `backend/`.
 
 ### Tests
 
@@ -33,11 +28,9 @@ the stricter rule set (pydocstyle among others) declared in its own
 ./scripts/test
 ```
 
-These scripts are also what CI runs, in
-`.github/workflows/backend-stactools-test.yml`. They use paths relative to this
-directory, so run them from here.
+Run commands from this directory.
 
-### Formatting, Linting, and Type Checking
+### Code checks
 
 ```bash
 ./scripts/format     # ruff format
@@ -45,52 +38,43 @@ directory, so run them from here.
 ./scripts/typecheck  # mypy
 ```
 
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for repository-wide checks.
+
 ## Versioning
 
-There is no separate release process since moving to the monorepo.
-All consuming tools simple use the `main` version in this repo.
+There is no separate release process. Consumers use the version on `main`.
 
 The `__version__` is kept only as a static string for STAC provenance.
 
 ## STAC Extension
 
-`stac-extension/` defines the OpenAerialMap STAC extension - see its
+`stac-extension/` defines the OpenAerialMap STAC extension. See its
 [README](./stac-extension/README.md).
 
-`json-schema/schema.json` is the source of truth for the **current** version,
-both for editing and for the local validation in `tests/test_stac_extension.py`.
-It is published at
+Each schema version has one source file under
+`stac-extension/json-schema/v{version}/schema.json`. The current version is:
 
 ```text
 https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 ```
 
-which is its `$id`, and the URI `create_item` puts in `stac_extensions`.
-
-Publishing happens through the mkdocs site: `docs/oam/v{version}/schema.json`
-symlinks to the schema for that version, so every push that changes one
-redeploys it along with the docs. Superseded versions are frozen as real files
-under `src/stactools/hotosm/schemas/oam/v{version}/`, with the `docs/oam`
-symlink pointing at the frozen copy.
+Do not edit a released schema. The `docs/oam/` and
+`src/stactools/hotosm/schemas/oam/` symlinks publish and bundle each version.
 
 To create a new version:
 
-1. Freeze the outgoing one: copy `json-schema/schema.json` over
-   `src/stactools/hotosm/schemas/oam/v{old}/schema.json` and point
-   `docs/oam/v{old}/schema.json` at it. Its URI must keep serving the old
-   definition, which names itself in `$id` and in the `stac_extensions`
-   `contains` check - serve the new schema there and every Item using it stops
-   validating.
-2. Bump `$id` in `json-schema/schema.json`, then symlink `docs/oam/v{new}/` and
-   `schemas/oam/v{new}/` to it.
-3. Add the version to `OAM_EXTENSION_SUPPORTED_VERSIONS` and set
-   `OAM_EXTENSION_DEFAULT_VERSION`.
+1. Copy the current schema to
+   `stac-extension/json-schema/v{new}/schema.json`. Update its `$id` and
+   `definitions.stac_extensions` version.
+2. Symlink `docs/oam/v{new}/schema.json` and
+   `src/stactools/hotosm/schemas/oam/v{new}/schema.json` to it.
+3. Add the version to `OAM_EXTENSION_SUPPORTED_VERSIONS`, set
+   `OAM_EXTENSION_DEFAULT_VERSION`, and add its `sha256` to
+   `RELEASED_SCHEMA_SHA256` in `tests/test_stac_extension.py`.
 4. Update `stac-extension/package.json`, the example Item, and the extension
    README and CHANGELOG.
 
-`test_published_versions_are_frozen` checks steps 1-3 for every supported
-version.
+Tests pin released schemas and check the symlinks and `$id` values.
 
-The schema was previously served from GitHub Pages on the standalone repo, at
-`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`. That URL is
-still in the `stac_extensions` array of Items ingested before the move.
+Older Items may still use the previous schema URL:
+`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`.
