@@ -1,3 +1,4 @@
+# stactools tests via `just test stactools` / `just test stac-extension` (tasks/test).
 name: Test stactools-hotosm
 
 on:
@@ -5,6 +6,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "backend/stactools-hotosm/**"
+      - "tasks/test"
       - ".github/workflows/backend-stactools-test.yml"
   workflow_dispatch:
 
@@ -12,52 +14,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    working-directory: backend/stactools-hotosm
-
 jobs:
-  test:
-    name: Test
+  pytest:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
+    with:
+      environment: "test"
+      command: "test stactools"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.12"
-
-      - name: Install package
-        run: uv sync --all-extras
-
-      - name: Run tests
-        run: ./scripts/test
-
-      - name: Check for lint
-        run: ./scripts/lint
-
-      - name: Run static type checking
-        run: ./scripts/typecheck
-
-      - name: Check lock file
-        run: uv lock --check
-
-  test-extension:
-    name: Test STAC extension
+  stac-extension:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend/stactools-hotosm/stac-extension
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "lts/*"
-
-      - run: npm install
-
-      - run: npm test
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
+    with:
+      environment: "test"
+      command: "test stac-extension"
