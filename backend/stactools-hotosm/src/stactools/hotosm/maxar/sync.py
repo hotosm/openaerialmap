@@ -11,6 +11,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 MAXAR_ROOT = "https://maxar-opendata.s3.amazonaws.com/events/"
+MAXAR_CATALOG = "https://maxar-opendata.s3.amazonaws.com/events/catalog.json"
 MAXAR_EVENT_INFO = "https://maxar-opendata.s3.amazonaws.com/events/event_info.json"
 
 
@@ -72,8 +73,7 @@ def all_catalog_ids(session: requests.Session) -> Iterator[str]:
         url = urljoin(MAXAR_ROOT, f"{event['s3_directory']}/collection.json")
         r = session.get(url)
         if not r.ok:
-            # Some events listed in "event_info.json" have no Collection in
-            # the bucket, so don't fail the whole catalog for one of them
+            # Skip events without a Collection in the bucket.
             logger.warning(
                 "Skipping event Collection missing from bucket (HTTP %s): %s",
                 r.status_code,

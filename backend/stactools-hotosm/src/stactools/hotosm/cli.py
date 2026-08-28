@@ -5,8 +5,7 @@ import json
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Iterator, Literal, TypeVar
-from urllib.parse import urljoin
+from typing import Any, Callable, Iterator, Literal, Protocol, TypeVar
 
 import click
 import pystac
@@ -14,25 +13,19 @@ import requests
 from pypgstac.db import PgstacDB
 from pypgstac.load import Loader, Methods
 
+from stactools.hotosm import opendata
+from stactools.hotosm.catalogs import CATALOGS
 from stactools.hotosm.constants import COLLECTION_ID as OAM_COLLECTION_ID
-from stactools.hotosm.maxar.stac import (
-    COLLECTION_ID as MAXAR_COLLECTION_ID,
-    create_collection as create_maxar_collection,
-    create_item as create_maxar_item,
-)
-from stactools.hotosm.maxar.sync import (
-    MAXAR_ROOT,
-    all_catalog_ids as all_maxar_catalog_ids,
-    new_stac_items as new_maxar_stac_items,
-)
 from stactools.hotosm.oam_metadata import OamMetadata
 from stactools.hotosm.oam_metadata_client import OamMetadataClient
+from stactools.hotosm.opendata import OpenDataCatalog
 from stactools.hotosm.stac import (
     create_collection as create_oam_collection,
     create_item as create_oam_item,
 )
 
-# ===== Common CLI options and argument parsing
+OAM_CATALOG_KEY = "OAM"
+
 uploaded_since_sec = click.option(
     "--uploaded-since",
     type=float,
@@ -137,13 +130,12 @@ dump_to_path = click.option(
 
 catalog_option = click.option(
     "--catalog",
-    type=click.Choice(["OAM", "Maxar"]),
+    type=click.Choice([OAM_CATALOG_KEY, *CATALOGS]),
     required=True,
     help="Sync STAC Collection definition for this dataset catalog.",
 )
 
 
-# ===== CLI commands
 @click.group
 def main():
     """STAC for Humanitarian OpenStreetMap Team OpenAerialMap."""
@@ -223,37 +215,6 @@ def dump_oam(
 
 
 @main.command()
-@dump_to_path
-@uploaded_since_sec
-@uploaded_after_dt
-@handle_exceptions
-def dump_maxar(
-    file: Path,
-    uploaded_since: float | None,
-    uploaded_after: dt.datetime | None,
-    handle_exceptions: HandleExceptionsType,
-    **_pgstac_options: Any,
-) -> None:
-    """Dump new Maxar Items from the open data bucket to NDJSON.
-
-    The output of this CLI program can be used with the `pypgstac load items` CLI
-    command to bulk load STAC Items into PgSTAC.
-    """
-    uploaded_after = parse_uploaded_since(uploaded_since, uploaded_after)
-
-    click.echo(f"Looking for STAC Items added since {uploaded_after}")
-    items, errors = sync_handler(
-        collection_id=MAXAR_COLLECTION_ID,
-        raw_metadata_creator=get_maxar_items_after,
-        stac_item_creator=create_maxar_item,
-        uploaded_after=uploaded_after,
-        handle_exceptions=handle_exceptions,
-    )
-    dump_to_ndjson(file, items)
-    report_errors(errors)
-
-
-@main.command()
 @uploaded_since_sec
 @uploaded_after_dt
 @handle_exceptions
@@ -282,60 +243,111 @@ def sync_oam(
         stac_item_creator=create_oam_item,
         uploaded_after=uploaded_after,
         handle_exceptions=handle_exceptions,
+        existing_ids_finder=partial(get_existing_item_ids, ctx.obj["pgstac"]),
     )
     loader.load_items(iter(items), insert_mode=Methods.upsert)
     click.echo(f"Completed ingesting {len(items)} STAC Items")
     report_errors(errors)
 
 
-@main.command()
-@uploaded_since_sec
-@uploaded_after_dt
-@handle_exceptions
-@pgstac_username
-@pgstac_password
-@pgstac_host
-@pgstac_port
-@pgstac_database
-@click.pass_context
-def sync_maxar(
-    ctx: click.Context,
-    uploaded_since: float | None,
-    uploaded_after: dt.datetime | None,
-    handle_exceptions: HandleExceptionsType,
-    **_pgstac_options: Any,
-) -> None:
-    """Sync new Maxar Items from the open data bucket to PgSTAC."""
-    uploaded_after = parse_uploaded_since(uploaded_since, uploaded_after)
-    loader = Loader(ctx.obj["pgstac"])
+def dump_catalog_command(catalog: OpenDataCatalog) -> click.Command:
+    """Build the `dump-<catalog>` CLI command for an open data catalog."""
 
-    click.echo(f"Looking for STAC Items added since {uploaded_after}")
-    items, errors = sync_handler(
-        collection_id=MAXAR_COLLECTION_ID,
-        raw_metadata_creator=get_maxar_items_after,
-        stac_item_creator=create_maxar_item,
-        uploaded_after=uploaded_after,
-        handle_exceptions=handle_exceptions,
+    @click.command(
+        name=f"dump-{catalog.key.lower()}",
+        help=(
+            f"Dump new {catalog.key} Items from the open data bucket to NDJSON.\n"
+            "\n"
+            "The output of this CLI program can be used with the "
+            "`pypgstac load items` CLI command to bulk load STAC Items into PgSTAC."
+        ),
     )
-    loader.load_items(iter(items), insert_mode=Methods.upsert)
-    click.echo(f"Completed ingesting {len(items)} STAC Items")
-    report_errors(errors)
+    @dump_to_path
+    @uploaded_since_sec
+    @uploaded_after_dt
+    @handle_exceptions
+    def dump(
+        file: Path,
+        uploaded_since: float | None,
+        uploaded_after: dt.datetime | None,
+        handle_exceptions: HandleExceptionsType,
+        **_pgstac_options: Any,
+    ) -> None:
+        after = parse_uploaded_since(uploaded_since, uploaded_after)
+
+        click.echo(f"Looking for STAC Items added since {after}")
+        items, errors = sync_handler(
+            collection_id=catalog.collection_id,
+            raw_metadata_creator=partial(get_catalog_items_after, catalog),
+            stac_item_creator=partial(opendata.create_item, catalog),
+            uploaded_after=after,
+            handle_exceptions=handle_exceptions,
+        )
+        dump_to_ndjson(file, items)
+        report_errors(errors)
+
+    return dump
 
 
-# ===== Helper functions
+def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
+    """Build the `sync-<catalog>` CLI command for an open data catalog."""
+
+    @click.command(
+        name=f"sync-{catalog.key.lower()}",
+        help=f"Sync new {catalog.key} Items from the open data bucket to PgSTAC.",
+    )
+    @uploaded_since_sec
+    @uploaded_after_dt
+    @handle_exceptions
+    @pgstac_username
+    @pgstac_password
+    @pgstac_host
+    @pgstac_port
+    @pgstac_database
+    @click.pass_context
+    def sync(
+        ctx: click.Context,
+        uploaded_since: float | None,
+        uploaded_after: dt.datetime | None,
+        handle_exceptions: HandleExceptionsType,
+        **_pgstac_options: Any,
+    ) -> None:
+        after = parse_uploaded_since(uploaded_since, uploaded_after)
+        loader = Loader(ctx.obj["pgstac"])
+
+        click.echo(f"Looking for STAC Items added since {after}")
+        items, errors = sync_handler(
+            collection_id=catalog.collection_id,
+            raw_metadata_creator=partial(get_catalog_items_after, catalog),
+            stac_item_creator=partial(opendata.create_item, catalog),
+            uploaded_after=after,
+            handle_exceptions=handle_exceptions,
+            existing_ids_finder=partial(get_existing_item_ids, ctx.obj["pgstac"]),
+        )
+        loader.load_items(iter(items), insert_mode=Methods.upsert)
+        click.echo(f"Completed ingesting {len(items)} STAC Items")
+        report_errors(errors)
+
+    return sync
+
+
+for _catalog in CATALOGS.values():
+    main.add_command(dump_catalog_command(_catalog))
+    main.add_command(sync_catalog_command(_catalog))
+
+
 def create_and_save_collection(catalog: str, destination: Path) -> None:
     """Create a STAC Collection and write to JSON."""
-    if catalog == "OAM":
+    if catalog == OAM_CATALOG_KEY:
         collection = create_oam_collection()
-    elif catalog == "Maxar":
-        maxar_catalog = pystac.read_file(urljoin(MAXAR_ROOT, "catalog.json"))
-        assert isinstance(maxar_catalog, pystac.Catalog)
-        collection = create_maxar_collection(
-            maxar_catalog,
-            catalog_ids=all_maxar_catalog_ids(requests.Session()),
+    elif open_data_catalog := CATALOGS.get(catalog):
+        collection = opendata.create_collection(
+            open_data_catalog,
+            open_data_catalog.read_catalog(),
+            catalog_ids=open_data_catalog.all_catalog_ids(requests.Session()),
         )
     else:
-        raise click.BadParameter("Unknown collection ID {collection}")
+        raise click.BadParameter(f"Unknown collection ID {catalog}")
 
     with destination.open("w") as dst:
         dst.write(json.dumps(collection.to_dict()))
@@ -349,16 +361,36 @@ def get_oam_items_after(
         yield oam_metadata.sanitize()
 
 
-def get_maxar_items_after(
+def get_catalog_items_after(
+    catalog: OpenDataCatalog,
     uploaded_after: dt.datetime,
 ) -> Iterator[pystac.Item]:
-    """Helper function to yield Maxar STAC Items."""
-    yield from new_maxar_stac_items(
+    """Helper function to yield an open data catalog's STAC Items."""
+    yield from catalog.new_stac_items(
         pystac.stac_io.RetryStacIO(), requests.Session(), uploaded_after
     )
 
 
-MetadataType = TypeVar("MetadataType")
+class HasId(Protocol):
+    """Object with a STAC Item ID."""
+
+    id: str
+
+
+MetadataType = TypeVar("MetadataType", bound=HasId)
+
+
+def get_existing_item_ids(
+    pgstac: PgstacDB, collection_id: str, item_ids: list[str]
+) -> set[str]:
+    """Return the subset of `item_ids` already present in PgSTAC."""
+    if not item_ids:
+        return set()
+    rows = pgstac.query(
+        "SELECT id FROM items WHERE collection = %s AND id = ANY(%s)",
+        [collection_id, item_ids],
+    )
+    return {row[0] for row in rows}
 
 
 def sync_handler(
@@ -367,10 +399,18 @@ def sync_handler(
     stac_item_creator: Callable[[MetadataType], pystac.Item],
     uploaded_after: dt.datetime,
     handle_exceptions: HandleExceptionsType,
+    existing_ids_finder: Callable[[str, list[str]], set[str]] | None = None,
 ) -> tuple[list[dict], list[str]]:
     """Orchestrate creating STAC Items from a data provider."""
     raw_metadata = list(raw_metadata_creator(uploaded_after))
     click.echo(f"Found {len(raw_metadata)} metadata items added since {uploaded_after}")
+
+    # Skip existing Items before reading their remote assets.
+    if existing_ids_finder is not None:
+        existing = existing_ids_finder(collection_id, [m.id for m in raw_metadata])
+        if existing:
+            click.echo(f"Skipping {len(existing)} Items already in PgSTAC")
+            raw_metadata = [m for m in raw_metadata if m.id not in existing]
 
     items = []
     errors = []
@@ -383,9 +423,7 @@ def sync_handler(
                 continue
             else:
                 raise
-        # NOTE: STAC Items cannot contain a Collection ID unless they also include
-        # a link to the Collection, which we won't necessarily know ahead of time.
-        # We add the Collection ID here as a requirement for `pypgstac load items`.
+        # PgSTAC requires a Collection ID even when its link is unavailable.
         item["collection"] = collection_id
         items.append(item)
 

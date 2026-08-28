@@ -1,12 +1,14 @@
 """Tests for `stactools.hotosm.cli`."""
 
 import datetime as dt
+from dataclasses import dataclass
 from typing import Iterator
 
 import pystac
 import pytest
 
-from stactools.hotosm.cli import sync_handler
+from stactools.hotosm.catalogs import CATALOGS
+from stactools.hotosm.cli import OAM_CATALOG_KEY, main, sync_handler
 
 COLLECTION_ID = "test-collection"
 UPLOADED_AFTER = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
@@ -26,6 +28,13 @@ def _item(id_: str) -> pystac.Item:
         datetime=UPLOADED_AFTER,
         properties={},
     )
+
+
+@dataclass
+class _Entry:
+    """Raw metadata carrying the ID it converts into."""
+
+    id: str
 
 
 def _create_item(raw_metadata: str) -> pystac.Item:
@@ -99,3 +108,46 @@ class TestSyncHandler:
         assert [item["id"] for item in items] == ["good-1", "good-2"]
         assert all(item["collection"] == COLLECTION_ID for item in items)
         assert errors == []
+
+    def test_existing_items_are_not_rebuilt(self):
+        """Do not build Items already in PgSTAC."""
+        built = []
+
+        def _record(entry: _Entry) -> pystac.Item:
+            built.append(entry.id)
+            return _item(entry.id)
+
+        items, errors = sync_handler(
+            collection_id=COLLECTION_ID,
+            raw_metadata_creator=lambda _: iter([_Entry("old"), _Entry("new")]),
+            stac_item_creator=_record,
+            uploaded_after=UPLOADED_AFTER,
+            handle_exceptions="RAISE",
+            existing_ids_finder=lambda _collection, _ids: {"old"},
+        )
+
+        assert built == ["new"]
+        assert [item["id"] for item in items] == ["new"]
+        assert errors == []
+
+
+class TestCatalogCommands:
+    """Test catalog registry commands."""
+
+    def test_command_per_registered_catalog(self):
+        """Create dump and sync commands for every catalog."""
+        assert {"dump-maxar", "sync-maxar"} <= set(main.commands)
+
+        for key in CATALOGS:
+            assert f"dump-{key.lower()}" in main.commands
+            assert f"sync-{key.lower()}" in main.commands
+
+    def test_collection_choices_cover_every_catalog(self):
+        """`--catalog` offers OAM and every registered open data catalog."""
+        catalog_option = next(
+            param
+            for param in main.commands["dump-collection"].params
+            if param.name == "catalog"
+        )
+
+        assert list(catalog_option.type.choices) == [OAM_CATALOG_KEY, *CATALOGS]

@@ -4,8 +4,8 @@
   "scripts": {
     "test": "npm run check-markdown && npm run check-examples",
     "check-markdown": "remark . -f -r remark.yaml",
-    "check-examples": "stac-node-validator . --lint --verbose --schemaMap https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json=./json-schema/schema.json",
-    "format-examples": "stac-node-validator . --format --schemaMap https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json=./json-schema/schema.json"
+    "check-examples": "stac-node-validator . --lint --verbose --schemaMap https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json=./json-schema/v0.2.0/schema.json",
+    "format-examples": "stac-node-validator . --format --schemaMap https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json=./json-schema/v0.2.0/schema.json"
   },
   "dependencies": {
     "remark-cli": "^12.0.0",

@@ -11,19 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--
+- Add `dump-vantor` and `sync-vantor` for the Vantor Open Data Program.
+- Add a shared `OpenDataCatalog` provider registry.
 
 ### Changed
 
--
+- Build Maxar commands and catalog options from the provider registry.
+- Add provider, license, and product type metadata to third-party Items.
+- Store each OAM extension schema version in a separate file.
 
 ### Fixed
 
--
-
-### Removed
-
--
+- Fix Vantor `eo:bands` placement and missing `published` timezones.
 
 ## [v0.2.1]
 

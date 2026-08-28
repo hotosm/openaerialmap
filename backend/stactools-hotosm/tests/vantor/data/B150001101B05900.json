@@ -1,0 +1,111 @@
+{
+ "license": "CC-BY-NC-4.0",
+ "id": "B150001101B05900",
+ "bbox": [
+  49.4056048,
+  -18.0,
+  49.5000011,
+  -17.5
+ ],
+ "type": "Feature",
+ "links": [
+  {
+   "rel": "collection",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/collection.json"
+  },
+  {
+   "rel": "self",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B150001101B05900.json"
+  },
+  {
+   "rel": "root",
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/catalog.json"
+  }
+ ],
+ "assets": {
+  "visual": {
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B150001101B05900.tif",
+   "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+   "title": "Visual COG",
+   "roles": [
+    "visual"
+   ]
+  },
+  "thumbnail": {
+   "href": "https://vantor-opendata.s3.amazonaws.com/events/Typhoon-Gezani-Feb-2026/B150001101B05900.jpg",
+   "type": "image/jpg",
+   "title": "Thumbnail",
+   "roles": [
+    "thumbnail"
+   ]
+  }
+ },
+ "geometry": {
+  "type": "Polygon",
+  "coordinates": [
+   [
+    [
+     49.4056048,
+     -17.5
+    ],
+    [
+     49.4056048,
+     -18.0
+    ],
+    [
+     49.5000011,
+     -18.0
+    ],
+    [
+     49.5000011,
+     -17.5
+    ],
+    [
+     49.4056048,
+     -17.5
+    ]
+   ]
+  ]
+ },
+ "collection": "Typhoon-Gezani-Feb-2026",
+ "properties": {
+  "title": "Vantor LG05 Image B150001101B05900",
+  "pan_gsd": 0.35,
+  "datetime": "2026-01-16T04:38:37.24956Z",
+  "phase": "pre",
+  "published": "2026-02-11T19:19:00.0Z",
+  "vehicle_name": "LG05",
+  "view:azimuth": 138.15,
+  "constellation": "maxar",
+  "eo:cloud_cover": 23,
+  "scan_direction": "Reverse",
+  "view:off_nadir": 11.67,
+  "view:sun_azimuth": 104.28,
+  "multispectral_gsd": 1.41,
+  "ingestion_datetime": "2026-01-17T10:05:57.178119997Z",
+  "view:sun_elevation": 30.64,
+  "eo:bands": [
+   {
+    "name": "b1",
+    "description": "Red",
+    "common_name": "red"
+   },
+   {
+    "name": "b2",
+    "description": "Green",
+    "common_name": "green"
+   },
+   {
+    "name": "b3",
+    "description": "Blue",
+    "common_name": "blue"
+   }
+  ]
+ },
+ "stac_version": "1.0.0",
+ "stac_extensions": [
+  "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+  "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+  "https://stac-extensions.github.io/timestamps/v1.1.0/schema.json"
+ ]
+}

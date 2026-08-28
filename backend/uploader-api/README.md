@@ -215,10 +215,8 @@ already published.
   `backend/stac-ingester`.
 - `chart/`: Helm chart with namespace-scoped Argo RBAC (a Role, no ClusterRole),
   Deployment, Service, and Ingress for `upload.imagery.hotosm.org`.
-- CI: image builds plus a PR gate (`backend-uploader-test.yml`) running
-  `just test all` (unit tests per component in their images). Lint is on
-  pre-commit.ci. The chart can provision the S3 credentials secret
-  (`s3Secret.create`), which the pipeline steps read too.
+- CI runs `just test uploader`; pre-commit.ci handles linting.
+- The chart can create the pipeline S3 secret with `s3Secret.create`.
 
 ## Production bucket setup
 

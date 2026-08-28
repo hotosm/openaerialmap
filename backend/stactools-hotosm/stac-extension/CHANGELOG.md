@@ -21,29 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `oam:product_type`, `oam:product_type_source` - what kind of imagery the data
-  asset holds, and whether that was declared or detected.
-- `oam:footprint_source`, `oam:footprint_area` - how the Item geometry was
-  derived, and the area it covers.
-- `oam:acquisition_time_estimated`, `oam:acquisition_source` - marks an
-  estimated acquisition datetime, and where it came from.
-- `oam:external_id` - identifier in the system that submitted the imagery.
+- `oam:product_type` and `oam:product_type_source`.
+- `oam:footprint_source` and `oam:footprint_area`.
+- `oam:acquisition_time_estimated` and `oam:acquisition_source`.
+- `oam:external_id`.
 
-All optional, and the required fields are unchanged, so a v0.1.0 Item is a
-valid v0.2.0 Item once its `stac_extensions` entry is updated.
-
-### Changed
-
-- The schema is now published from `https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json`,
-  and `$id` points there. The previous location,
-  `https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served the
-  same v0.1.0 definition from the now-archived standalone repository.
+All new fields are optional.
 
 ## [v0.1.0]
 
 ### Added
 
 - First definition of the OAM STAC extension.
+
+### Changed
+
+- Move the schema URL to `https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json`.
 
 [Unreleased]: https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension
 [v0.2.0]: https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
