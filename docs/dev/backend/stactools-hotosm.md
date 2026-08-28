@@ -110,7 +110,14 @@ ingestion does not depend on this site being up.
 Items ingested before the schema moved here still list the old URL,
 `https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served by
 GitHub Pages on the archived standalone repo. Nothing in this repo resolves it
-any more, but external clients that validate those Items do. To get off it
-entirely, re-run `sync-oam`, `sync-maxar` and `sync-vantor` with
-`--uploaded-after` set far enough back to cover the whole catalogue - they all
-load in "upsert" mode, so every Item is rewritten with the current URL.
+any more, but external clients that validate those Items do.
+
+To get off it, rewrite those Items. `sync-<provider>` will not: it skips Items
+already in PgSTAC, so widening `--uploaded-after` finds them and passes over
+them. Use `dump-<provider>`, which writes everything it is given, and upsert it:
+
+```bash
+hotosm dump-maxar --uploaded-after 2023-01-01 --handle-exceptions IGNORE \
+  --file maxar.ndjson
+pypgstac load items --method upsert maxar.ndjson
+```

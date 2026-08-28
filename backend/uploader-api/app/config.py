@@ -199,6 +199,17 @@ class Settings(BaseSettings):
     PIPELINE_IMAGE_TAG: str = "latest"
     WF_CALLBACK_URL: str = "http://uploader-api.oam.svc.cluster.local:8080"
 
+    # A workflow's final callback is one best-effort message, so the reconciler
+    # asks Argo directly about uploads that have gone quiet.
+    RECONCILE_ENABLED: bool = True
+    RECONCILE_INTERVAL_SECONDS: int = 60
+    # Must stay well under the template's ttlStrategy.secondsAfterCompletion
+    # (600), or every lost outcome is a deleted workflow by the time we look.
+    RECONCILE_QUIET_MINUTES: int = 5
+    # Backstop for an upload Argo can tell us nothing about, matching the window
+    # `count_active` already stops counting a stuck upload against the quota.
+    RECONCILE_MAX_AGE_HOURS: int = 24
+
     STAC_URL: str = "http://stac-api:8082"
     STAC_COLLECTION: str = "openaerialmap"
     # Strict checks fetch remote extension schemas.

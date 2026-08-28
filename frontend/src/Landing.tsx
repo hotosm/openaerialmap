@@ -181,7 +181,7 @@ export default function Landing() {
             <div className="landing-hero-actions">
               <wa-button
                 variant="brand"
-                size="large"
+                size="l"
                 onClick={() => {
                   window.location.href = "/browse";
                 }}
@@ -190,7 +190,7 @@ export default function Landing() {
               </wa-button>
               <wa-button
                 appearance="outlined"
-                size="large"
+                size="l"
                 class="landing-hero-upload"
                 onClick={() => {
                   window.location.href = UPLOADER_URL;

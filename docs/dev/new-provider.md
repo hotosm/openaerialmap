@@ -13,21 +13,62 @@ a single OAM Collection. That rewrite - the OAM properties, the `derived_from`
 link back upstream, the S3 alternate assets, the OAM extension - is the same
 whoever the provider is, so it lives once in
 `src/stactools/hotosm/opendata.py`. A provider is described declaratively by an
-`OpenDataCatalog` and supplies only the parts that genuinely differ.
+`OpenDataCatalog` and supplies only the parts that genuinely differ. Every
+rewritten Item is validated against the OAM extension before it is loaded, so a
+provider whose imagery cannot satisfy the [required fields](#required) below
+fails the sync rather than reaching the catalog.
 
 `src/stactools/hotosm/vantor/` is the example to copy. Create a new branch and
-a new directory for your provider, holding two modules:
+a new directory for your provider, holding:
 
-- **`sync.py`** - how to find Items in the provider's bucket. Two functions:
-  `new_stac_items(stac_io, session, after)` yields the Items added since a
-  date, and `all_catalog_ids(session)` yields every acquisition ID for the
-  Collection summary. How you subset the catalog is up to the provider's
-  layout: Maxar filters whole events using its `event_info.json`, Vantor
-  filters individual Items on their `published` property.
-- **`stac.py`** - a `prepare_item(oam_item, item)` hook for the provider
-  specific rewriting (Item ID, title, `gsd`, asset fixups), and a
-  `CATALOG = opendata.OpenDataCatalog(...)` tying it together with the
-  Collection ID, description, providers and root catalog URL.
+- **`stac.py`** - a `CATALOG = opendata.OpenDataCatalog(...)` with the
+  Collection ID, description, providers and root catalog URL, plus a
+  `prepare_item(oam_item, item)` hook for any provider specific rewriting
+  (Item ID, title, `gsd`, asset fixups).
+- **`sync.py`**, _only if the default does not fit_ - how to find Items in the
+  provider's bucket. By default Items are found by walking the provider's own
+  catalog with PySTAC, following child Catalog/Collection and Item links from
+  the root, so a provider publishing spec-compliant STAC needs no crawling code
+  at all. Write `new_stac_items(stac_io, session, after)` when the provider
+  needs a shortcut through its own layout - Maxar filters whole events using
+  its `event_info.json` rather than reading every Collection. Pair it with
+  `all_catalog_ids(session)` if the provider has acquisition IDs worth
+  summarising on the Collection.
+
+Two things the default walk deliberately does not assume:
+
+- **It reads the provider's whole catalogue every run.** There is no index to
+  skip ahead with, so one request per linked document, all of it held in
+  memory. That is fine for a catalogue of thousands; a provider with orders of
+  magnitude more Items needs `new_stac_items` backed by a manifest, a bucket
+  inventory, a STAC API search, or partitioned catalogs that can be pruned
+  before their Items are read.
+- **It does not treat any STAC property as "published here".** `--uploaded-since`
+  and `--uploaded-after` cannot be answered from arbitrary static STAC:
+  `created` is when the _metadata_ was written, so a provider adding a
+  historical Item publishes it with an old `created`, and filtering on that
+  would drop the Item permanently. `sync-<provider>` subsets by skipping Items
+  already in PgSTAC instead, and `dump-<provider>` writes the full inventory.
+  Set `timestamp_property` only for a provider that documents a property as
+  meaning "added to this catalogue" - Vantor's `published`, for instance.
+
+Three provider responsibilities the shared code cannot take on:
+
+- **Drop repeated links while walking.** Only the provider knows what a repeat
+  is. The default walk identifies an Item by its HREF, so a catalog linking one
+  Item both directly and through a child Collection yields it once. Maxar
+  instead drops repeats by ID, because an acquisition covering two events is
+  filed under both and is still one Item. Anything left is treated downstream
+  as a distinct record.
+- **Item IDs must be unique across everything the provider publishes.** STAC
+  only scopes an ID to its Collection, but we flatten a provider into one OAM
+  Collection, so two source Collections reusing an ID would overwrite each
+  other. Give them distinct IDs in `prepare_item` - both Items reach it. If two
+  still land on one ID, ingestion fails naming them rather than picking one.
+- **Rewriting an ID means declaring how.** If `prepare_item` changes
+  `oam_item.id`, give the catalog a `target_item_id(item_id)` doing the same
+  rewrite - Maxar swaps `/` for `-` - so the "already ingested?" lookup queries
+  the ID PgSTAC actually stores. Ingestion checks the two agree.
 
 Then add the catalog to `CATALOGS` in `src/stactools/hotosm/catalogs.py`. The
 CLI derives `dump-<provider>`, `sync-<provider>` and the `--catalog` choices
@@ -46,12 +87,15 @@ and [Batch Ingestion](./backend/stactools-hotosm.md) for more.
 ## Add ingestion
 
 Create a PR on [hotosm/k8s-infra](https://github.com/hotosm/k8s-infra/pulls)
-to add a new
-[manifest](https://github.com/hotosm/k8s-infra/tree/main/kubernetes/manifests)
-that syncs your data on a schedule.
-See
-[sync-maxar](https://github.com/hotosm/k8s-infra/blob/main/kubernetes/manifests/sync-maxar.yaml)
-for a representative example.
+adding an `apps/oam/sync-<provider>.yaml` CronJob, copying
+[sync-vantor.yaml](https://github.com/hotosm/k8s-infra/blob/main/apps/oam/sync-vantor.yaml).
+Give it `--handle-exceptions IGNORE`, so one Item failing validation does not
+cost the run.
+
+[apps/oam/README.md](https://github.com/hotosm/k8s-infra/blob/main/apps/oam/README.md)
+covers the two easy things to miss: create the Collection once with
+`sync-collection` first, and merge to `main` before the CronJob can see your
+provider.
 
 ## STAC Metadata
 

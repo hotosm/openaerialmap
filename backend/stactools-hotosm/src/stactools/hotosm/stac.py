@@ -28,11 +28,12 @@ from stactools.hotosm.constants import (
     COLLECTION_DESCRIPTION,
     COLLECTION_ID,
     COLLECTION_TITLE,
-    OAM_EXTENSION_DEFAULT_VERSION,
-    OAM_EXTENSION_SCHEMA_URI_PATTERN,
 )
 from stactools.hotosm.exceptions import AssetNotFoundError
-from stactools.hotosm.oam_extension import register_oam_extension_schemas
+from stactools.hotosm.oam_extension import (
+    register_oam_extension_schemas,
+    set_oam_extension,
+)
 from stactools.hotosm.oam_metadata import OamMetadata
 from stactools.hotosm.stac_common import add_alternate_assets
 
@@ -195,9 +196,7 @@ def create_item(oam_metadata: OamMetadata) -> Item:
     _add_projection_extension(item, ["visual"])
     add_alternate_assets(item)
 
-    item.stac_extensions.append(
-        OAM_EXTENSION_SCHEMA_URI_PATTERN.format(version=OAM_EXTENSION_DEFAULT_VERSION)
-    )
+    set_oam_extension(item)
 
     register_oam_extension_schemas()
     item.validate()

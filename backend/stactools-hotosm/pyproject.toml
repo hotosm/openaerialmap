@@ -15,7 +15,8 @@ dependencies = [
 [project.optional-dependencies]
 ingest = [
     "click>=8.1.8",
-    "pypgstac[psycopg]>=0.9.6",
+    # Ensure the version is in sync with current eoAPI version deployed
+    "pypgstac[psycopg]>=0.9.11,<0.9.12",
 ]
 
 [project.scripts]
@@ -36,7 +37,7 @@ dev = [
 demo = [
     "notebook>=7.3.3",
     "rustac>=0.7.2",
-    "pypgstac[psycopg]>=0.9.6",
+    "pypgstac[psycopg]>=0.9.11,<0.9.12",
 ]
 
 [tool.pytest.ini_options]

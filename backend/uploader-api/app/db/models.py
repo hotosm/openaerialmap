@@ -40,14 +40,22 @@ class UploadStatus(StrEnum):
 
 # Nothing follows these, so they expire the callback token and stop counting
 # against the quota. "Uploaded" means stored with no cluster to process it.
-TERMINAL_STATUSES = frozenset(
-    {
-        UploadStatus.UPLOADED,
-        UploadStatus.SUCCEEDED,
-        UploadStatus.FAILED,
-        UploadStatus.ERROR,
-        UploadStatus.ABORTED,
-    }
+# Ordered because `NOT_TERMINAL_SQL` below has to read the same as the
+# `uploads_unfinished_idx` predicate, constant for constant.
+_TERMINAL_ORDER = (
+    UploadStatus.UPLOADED,
+    UploadStatus.SUCCEEDED,
+    UploadStatus.FAILED,
+    UploadStatus.ERROR,
+    UploadStatus.ABORTED,
+)
+TERMINAL_STATUSES = frozenset(_TERMINAL_ORDER)
+
+# Inlined rather than parameterised: Postgres only uses a partial index when it
+# can prove the query's predicate implies the index's, and it cannot prove
+# anything about an array it will not see until execution.
+NOT_TERMINAL_SQL = sql.SQL("status NOT IN ({statuses})").format(
+    statuses=sql.SQL(", ").join(sql.Literal(str(s)) for s in _TERMINAL_ORDER)
 )
 
 # Declaration order is progress order, so a callback that arrives late cannot
@@ -427,3 +435,59 @@ class DbUpload:
                 },
             )
             return await cur.fetchone()
+
+    @classmethod
+    async def stalled(
+        cls, db: AsyncConnection, quiet_minutes: int, limit: int = 200
+    ) -> list[Self]:
+        """List non-terminal uploads that have not been heard from recently.
+
+        Being quiet is not the same as being stuck - a large conversion sends
+        nothing for a long time - so these are candidates to ask Argo about,
+        not rows to fail.
+        """
+        query = sql.SQL(
+            "SELECT * FROM uploads WHERE {not_terminal} "
+            "AND updated_at < NOW() - make_interval(mins => %(m)s) "
+            "ORDER BY updated_at LIMIT %(n)s;"
+        ).format(not_terminal=NOT_TERMINAL_SQL)
+        async with db.cursor(row_factory=class_row(cls)) as cur:
+            await cur.execute(query, {"m": quiet_minutes, "n": limit})
+            return await cur.fetchall()
+
+    @classmethod
+    async def finalize_stalled(
+        cls,
+        db: AsyncConnection,
+        upload_id: str,
+        new_status: str,
+        message: str,
+        *,
+        expect_status: str,
+    ) -> bool:
+        """End an upload the reconciler found already over, expiring its token.
+
+        Neither owner- nor token-guarded: the caller is the API itself, acting
+        on what the cluster says. `expect_status` is the status the sweep read
+        before it went to ask, so a callback that arrived in the meantime keeps
+        its more specific answer instead of being overwritten by this one.
+
+        Returns whether a row was actually updated.
+        """
+        async with db.cursor() as cur:
+            await cur.execute(
+                """
+                UPDATE uploads
+                SET status = %(s)s, message = %(m)s, updated_at = NOW(),
+                    callback_token = NULL, source_url = NULL
+                WHERE id = %(id)s AND status = %(expect_status)s
+                RETURNING id;
+                """,
+                {
+                    "s": new_status,
+                    "m": message,
+                    "id": upload_id,
+                    "expect_status": expect_status,
+                },
+            )
+            return await cur.fetchone() is not None

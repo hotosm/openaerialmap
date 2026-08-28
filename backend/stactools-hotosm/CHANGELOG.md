@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `dump-vantor` and `sync-vantor` for the Vantor Open Data Program.
 - Add a shared `OpenDataCatalog` provider registry.
+- Find Items by walking a provider's static STAC catalog by default, so a
+  provider publishing spec-compliant STAC needs no crawling code
+  (adapted from [@hfu](https://github.com/hfu)'s external STAC harvester).
+- Validate every third-party Item against the OAM extension before loading it,
+  as Items from the OAM metadata API already were.
 
 ### Changed
 
@@ -23,6 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix Vantor `eo:bands` placement and missing `published` timezones.
+- Skip duplicate metadata items a provider links from more than one place,
+  which `dump-maxar` could write twice for an acquisition covering two events.
+- Declare the OAM and alternate-assets extensions once, so an Item from a
+  source that already declares them stays valid STAC.
+- Fail, rather than overwrite, when two source Items land on one OAM Item ID.
+- Look up Items already in PgSTAC by the ID they are stored under, so the
+  lookup is no longer a no-op for Maxar, whose IDs are rewritten on ingest.
+- Skip an event Collection a provider lists but no longer serves, which failed
+  the whole Maxar sync.
+- Predict rewritten Item IDs in `dump-<provider>`, so `dump-maxar` no longer
+  rejects every Item it builds.
+- Pass the Collection file to pypgstac as a str, which silently ignores a
+  `Path`, making `sync-collection` a no-op.
+- Require pypgstac >=0.9.11, whose loader no longer reports success while
+  discarding every Item whose datetime falls outside a partition's constraint.
 
 ## [v0.2.1]
 

@@ -32,7 +32,7 @@
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
 
-A revamp of OpenAerialMap, originally developed back in the 2010's.
+A revamp of OpenAerialMap, originally developed back in the 2010s.
 
 ## Components
 

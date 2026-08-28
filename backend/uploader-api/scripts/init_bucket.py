@@ -33,6 +33,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("init-bucket")
 
+# The AWS SDKs log every request signature and event handler at DEBUG.
+for noisy in ("boto3", "botocore", "s3transfer", "urllib3"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+
 BUCKET = os.environ["S3_BUCKET"]
 ENDPOINT = os.environ.get("S3_ENDPOINT") or None
 REGION = os.environ.get("S3_REGION", "us-east-1")

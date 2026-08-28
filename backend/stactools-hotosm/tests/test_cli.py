@@ -1,14 +1,20 @@
 """Tests for `stactools.hotosm.cli`."""
 
 import datetime as dt
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 
 import pystac
 import pytest
+from click.testing import CliRunner
+from pypgstac.load import Loader, read_json
 
+from stactools.hotosm import cli
 from stactools.hotosm.catalogs import CATALOGS
 from stactools.hotosm.cli import OAM_CATALOG_KEY, main, sync_handler
+from stactools.hotosm.constants import COLLECTION_ID as COLLECTION_ID_OAM
 
 COLLECTION_ID = "test-collection"
 UPLOADED_AFTER = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
@@ -37,21 +43,26 @@ class _Entry:
     id: str
 
 
-def _create_item(raw_metadata: str) -> pystac.Item:
+def _create_item(raw_metadata: _Entry) -> pystac.Item:
     """Create a STAC Item, failing for the entry named ``bad``."""
-    if raw_metadata == "bad":
+    if raw_metadata.id == "bad":
         raise ValueError("cannot create a STAC Item from this entry")
-    return _item(raw_metadata)
+    return _item(raw_metadata.id)
 
 
-def _middle_entry_fails(_uploaded_after: dt.datetime) -> Iterator[str]:
+def _entries(*ids: str) -> Iterator[_Entry]:
+    """Yield raw metadata for each ID."""
+    yield from (_Entry(id_) for id_ in ids)
+
+
+def _middle_entry_fails(_uploaded_after: dt.datetime) -> Iterator[_Entry]:
     """Yield raw metadata whose second entry cannot be converted."""
-    yield from ["good-1", "bad", "good-2"]
+    yield from _entries("good-1", "bad", "good-2")
 
 
-def _first_entry_fails(_uploaded_after: dt.datetime) -> Iterator[str]:
+def _first_entry_fails(_uploaded_after: dt.datetime) -> Iterator[_Entry]:
     """Yield raw metadata whose first entry cannot be converted."""
-    yield from ["bad", "good-1"]
+    yield from _entries("bad", "good-1")
 
 
 class TestSyncHandler:
@@ -99,7 +110,7 @@ class TestSyncHandler:
         """Every Item is collected and stamped with the Collection ID."""
         items, errors = sync_handler(
             collection_id=COLLECTION_ID,
-            raw_metadata_creator=lambda _: iter(["good-1", "good-2"]),
+            raw_metadata_creator=lambda _: _entries("good-1", "good-2"),
             stac_item_creator=_create_item,
             uploaded_after=UPLOADED_AFTER,
             handle_exceptions="RAISE",
@@ -107,6 +118,67 @@ class TestSyncHandler:
 
         assert [item["id"] for item in items] == ["good-1", "good-2"]
         assert all(item["collection"] == COLLECTION_ID for item in items)
+        assert errors == []
+
+    def test_colliding_target_ids_are_rejected(self):
+        """Two source Items landing on one ID would overwrite each other."""
+        with pytest.raises(ValueError, match="already taken by source Item"):
+            sync_handler(
+                collection_id=COLLECTION_ID,
+                raw_metadata_creator=lambda _: _entries("a/b", "a-b"),
+                stac_item_creator=lambda entry: _item(entry.id.replace("/", "-")),
+                uploaded_after=UPLOADED_AFTER,
+                handle_exceptions="RAISE",
+                target_item_id=lambda id_: id_.replace("/", "-"),
+            )
+
+    def test_colliding_target_ids_are_reported_when_ignoring(self):
+        """`IGNORE` keeps the first Item and reports the collision."""
+        items, errors = sync_handler(
+            collection_id=COLLECTION_ID,
+            raw_metadata_creator=lambda _: _entries("a/b", "a-b"),
+            stac_item_creator=lambda entry: _item(entry.id.replace("/", "-")),
+            uploaded_after=UPLOADED_AFTER,
+            handle_exceptions="IGNORE",
+            target_item_id=lambda id_: id_.replace("/", "-"),
+        )
+
+        assert [item["id"] for item in items] == ["a-b"]
+        assert len(errors) == 1
+        assert "already taken by source Item" in errors[0]
+
+    def test_unpredicted_item_id_is_rejected(self):
+        """A catalog whose `prepare_item` and `target_item_id` disagree fails."""
+        with pytest.raises(ValueError, match="is not the predicted"):
+            sync_handler(
+                collection_id=COLLECTION_ID,
+                raw_metadata_creator=lambda _: _entries("a/b"),
+                stac_item_creator=lambda entry: _item(entry.id.replace("/", "_")),
+                uploaded_after=UPLOADED_AFTER,
+                handle_exceptions="RAISE",
+                target_item_id=lambda id_: id_.replace("/", "-"),
+            )
+
+    def test_existing_items_are_looked_up_by_target_id(self):
+        """A provider rewriting its IDs is matched on the ID PgSTAC stores."""
+        queried: list[list[str]] = []
+
+        def _existing(_collection_id: str, item_ids: list[str]) -> set[str]:
+            queried.append(item_ids)
+            return {"a-1"}
+
+        items, errors = sync_handler(
+            collection_id=COLLECTION_ID,
+            raw_metadata_creator=lambda _: _entries("a/1", "a/2"),
+            stac_item_creator=lambda entry: _item(entry.id.replace("/", "-")),
+            uploaded_after=UPLOADED_AFTER,
+            handle_exceptions="RAISE",
+            existing_ids_finder=_existing,
+            target_item_id=lambda id_: id_.replace("/", "-"),
+        )
+
+        assert queried == [["a-1", "a-2"]]
+        assert [item["id"] for item in items] == ["a-2"]
         assert errors == []
 
     def test_existing_items_are_not_rebuilt(self):
@@ -119,7 +191,7 @@ class TestSyncHandler:
 
         items, errors = sync_handler(
             collection_id=COLLECTION_ID,
-            raw_metadata_creator=lambda _: iter([_Entry("old"), _Entry("new")]),
+            raw_metadata_creator=lambda _: _entries("old", "new"),
             stac_item_creator=_record,
             uploaded_after=UPLOADED_AFTER,
             handle_exceptions="RAISE",
@@ -151,3 +223,86 @@ class TestCatalogCommands:
         )
 
         assert list(catalog_option.type.choices) == [OAM_CATALOG_KEY, *CATALOGS]
+
+
+class TestDumpCatalogCommand:
+    """Test the generated `dump-<provider>` commands."""
+
+    def test_rewritten_item_ids_are_predicted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A dump predicts IDs the way the matching sync does.
+
+        Maxar rewrites its slashed IDs, so a dump that did not know the
+        catalog's `target_item_id` rejected every Item it built.
+        """
+        maxar = CATALOGS["Maxar"]
+        assert maxar.target_item_id is not None
+
+        monkeypatch.setattr(
+            cli,
+            "get_catalog_items_after",
+            lambda _catalog, _after: iter([_item("a/b")]),
+        )
+        monkeypatch.setattr(
+            cli.opendata,
+            "create_item",
+            lambda catalog, item: _item(catalog.target_item_id(item.id)),
+        )
+
+        destination = tmp_path / "items.ndjson"
+        result = CliRunner().invoke(
+            main,
+            [
+                "dump-maxar",
+                "--uploaded-after",
+                "2020-01-01",
+                "--file",
+                str(destination),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        dumped = [
+            json.loads(line) for line in destination.read_text().splitlines() if line
+        ]
+        assert [item["id"] for item in dumped] == ["a-b"]
+
+
+class TestSyncCollection:
+    """Test the `sync-collection` command."""
+
+    def test_collection_reaches_pypgstac(self, monkeypatch: pytest.MonkeyPatch):
+        """The Collection must actually be readable by pypgstac.
+
+        `read_json` yields nothing for a `pathlib.Path` without raising, so
+        handing it one made the whole command a silent no-op.
+        """
+        loaded: list[dict] = []
+
+        def _load_collections(_self, file, _insert_mode=None):
+            loaded.extend(read_json(file))
+
+        monkeypatch.setattr(Loader, "load_collections", _load_collections)
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "sync-collection",
+                "--catalog",
+                OAM_CATALOG_KEY,
+                "--pguser",
+                "u",
+                "--pgpassword",
+                "p",
+                "--pghost",
+                "h",
+                "--pgport",
+                "5432",
+                "--pgdatabase",
+                "d",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert [collection["id"] for collection in loaded] == [COLLECTION_ID_OAM]

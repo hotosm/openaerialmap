@@ -10,13 +10,43 @@ from functools import cache
 from importlib.resources import files
 from typing import Any
 
+from pystac import Item
 from pystac.validation import RegisteredValidator
 from pystac.validation.stac_validator import JsonSchemaSTACValidator
 
 from stactools.hotosm.constants import (
+    OAM_EXTENSION_DEFAULT_VERSION,
     OAM_EXTENSION_SCHEMA_URI_PATTERN,
     OAM_EXTENSION_SUPPORTED_VERSIONS,
 )
+
+OAM_EXTENSION_URI_PREFIX, OAM_EXTENSION_URI_SUFFIX = (
+    OAM_EXTENSION_SCHEMA_URI_PATTERN.split("{version}")
+)
+
+
+def is_oam_extension(schema_uri: str) -> bool:
+    """Whether a `stac_extensions` entry is the OAM extension, any version."""
+    return schema_uri.startswith(OAM_EXTENSION_URI_PREFIX) and schema_uri.endswith(
+        OAM_EXTENSION_URI_SUFFIX
+    )
+
+
+def set_oam_extension(item: Item) -> None:
+    """Declare the current OAM extension version on an Item, exactly once.
+
+    A third-party Item may already declare the extension: appending it again
+    fails core STAC validation, and leaving an older version in place fails the
+    older schema, which rejects fields added in later ones.
+    """
+    item.stac_extensions = [
+        schema_uri
+        for schema_uri in item.stac_extensions
+        if not is_oam_extension(schema_uri)
+    ]
+    item.stac_extensions.append(
+        OAM_EXTENSION_SCHEMA_URI_PATTERN.format(version=OAM_EXTENSION_DEFAULT_VERSION)
+    )
 
 
 @cache

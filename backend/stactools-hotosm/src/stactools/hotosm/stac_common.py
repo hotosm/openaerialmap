@@ -10,7 +10,9 @@ ALTERNATE_ASSETS_SCHEMA = f"https://stac-extensions.github.io/alternate-assets/{
 
 def add_alternate_assets(item: Item) -> Item:
     """Modify Item in place by adding alternate-assets extension."""
-    item.stac_extensions.append(ALTERNATE_ASSETS_SCHEMA)
+    # A third-party Item may already declare it; twice fails STAC validation.
+    if ALTERNATE_ASSETS_SCHEMA not in item.stac_extensions:
+        item.stac_extensions.append(ALTERNATE_ASSETS_SCHEMA)
 
     for asset in item.assets.values():
         parsed = urlparse(asset.href)

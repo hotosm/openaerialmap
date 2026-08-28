@@ -11,6 +11,7 @@ import uuid
 import pytest
 import pytest_asyncio
 from psycopg import AsyncConnection
+from psycopg_pool import AsyncConnectionPool
 
 from app.db.models import DbUpload, DbUser
 
@@ -42,6 +43,22 @@ async def db() -> AsyncConnection:
     finally:
         await conn.rollback()
         await conn.close()
+
+
+@pytest_asyncio.fixture
+async def pool() -> AsyncConnectionPool:
+    """A real pool, for code that manages its own connections and commits."""
+    pool = AsyncConnectionPool(conninfo=_DSN, min_size=1, max_size=4, open=False)
+    try:
+        try:
+            await pool.open(wait=True, timeout=5)
+        except Exception as exc:  # noqa: BLE001
+            # Skipping still has to close it: an unopened pool keeps workers
+            # running, and pytest will not exit while they do.
+            pytest.skip(f"No PostgreSQL at {_DSN.rsplit('@', 1)[-1]}: {exc}")
+        yield pool
+    finally:
+        await pool.close()
 
 
 @pytest_asyncio.fixture

@@ -83,6 +83,7 @@ def test_published_datetime(published: str | None, expected: dt.datetime | None)
 def test_new_stac_items_filtering():
     """Ensure Items published before the cutoff are filtered out."""
     responses.get(url=VANTOR_CATALOG, json=catalog_json(FOO_COLLECTION))
+    responses.head(url=FOO_COLLECTION)
 
     collection = pystac.Collection(id="foo", description="foo", extent=None)
     collection.add_items(
@@ -108,6 +109,7 @@ def test_new_stac_items_filtering():
 def test_new_stac_items_deduplicates_and_skips_unpublished():
     """Drop duplicate and unpublished Items."""
     responses.get(url=VANTOR_CATALOG, json=catalog_json(FOO_COLLECTION))
+    responses.head(url=FOO_COLLECTION)
 
     collection = pystac.Collection(id="foo", description="foo", extent=None)
     collection.add_items(
@@ -128,6 +130,30 @@ def test_new_stac_items_deduplicates_and_skips_unpublished():
         )
 
     assert [i.id for i in items] == ["dupe"]
+
+
+@responses.activate
+def test_new_stac_items_missing_event_collection():
+    """An event Collection missing from the bucket is skipped, not fatal."""
+    responses.get(url=VANTOR_CATALOG, json=catalog_json(FOO_COLLECTION, BAR_COLLECTION))
+    responses.head(url=FOO_COLLECTION, status=404)
+    responses.head(url=BAR_COLLECTION)
+
+    collection = pystac.Collection(id="bar", description="bar", extent=None)
+    collection.add_items([item("new", "2026-01-01T00:00:00Z")])
+    stac_io = pystac.stac_io.DefaultStacIO()
+
+    with patch("pystac.read_file", return_value=collection) as mock:
+        items = list(
+            new_stac_items(
+                stac_io,
+                requests.Session(),
+                dt.datetime(2025, 6, 1, tzinfo=dt.UTC),
+            )
+        )
+
+    assert [i.id for i in items] == ["new"]
+    mock.assert_called_once_with(BAR_COLLECTION, stac_io=stac_io)
 
 
 @responses.activate

@@ -10,6 +10,10 @@ spec:
   # Every workflow holds a 300Gi volume until it completes, and volumeClaimGC
   # only runs when it does. Well above a legitimate run on the largest upload
   # we accept; anything past it is stuck, not slow.
+  # TODO verify a 100GiB upload really does finish inside this, and in 300Gi.
+  # Lever: COG_VERIFY=off on convert, six full-resolution passes over both files.
+  # Lever: raise this, remembering the PVC is held until the workflow completes.
+  # Lever: lower COG_LEVEL from 12, where most of the conversion time goes.
   activeDeadlineSeconds: 21600
   ttlStrategy:
     secondsAfterCompletion: 600

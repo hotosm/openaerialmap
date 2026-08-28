@@ -36,6 +36,7 @@ from app.monitoring import (
     set_otel_tracer,
     set_sentry_otel_tracer,
 )
+from app.uploads.reconcile import start_reconciler, stop_reconciler
 from app.uploads.upload_routes import upload_router
 
 log = logging.getLogger(__name__)
@@ -227,8 +228,9 @@ def create_app() -> Litestar:
             ),
             ResponseHeader(name="X-Frame-Options", value="DENY"),
         ],
-        on_startup=[get_db_connection_pool],
-        on_shutdown=[close_db_connection_pool],
+        on_startup=[get_db_connection_pool, start_reconciler],
+        # Cancel the sweep before the pool it borrows connections from goes.
+        on_shutdown=[stop_reconciler, close_db_connection_pool],
         cors_config=CORSConfig(
             allow_origins=[settings.frontend_url, *settings.EXTRA_CORS_ORIGINS],
             allow_credentials=True,
