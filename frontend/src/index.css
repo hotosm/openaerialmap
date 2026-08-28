@@ -105,21 +105,33 @@ body {
   align-items: center;
   gap: 0.5rem;
 }
+/* Web Awesome's form-control tokens size buttons for forms (~2.9em tall), which
+   overflows the size="s" header and collides with the tool menu. */
+.oam-locale wa-button[slot="trigger"],
+.oam-header-controls hotosm-tool-menu {
+  --wa-form-control-height: 2rem;
+  --wa-form-control-padding-inline: 0.375rem;
+}
 .oam-locale-menu {
   display: flex;
   flex-direction: column;
-  min-width: 8rem;
+  min-width: 6rem;
+  /* The popup doesn't inherit the trigger's size. */
+  font-size: var(--wa-font-size-s, 0.875rem);
+  font-weight: var(--wa-font-weight-body, 400);
 }
 .oam-locale-option {
-  padding: 0.5rem 0.75rem;
+  height: auto;
+  padding: 0.25rem 0.5rem;
   border: none;
   background: none;
+  justify-content: flex-start;
   text-align: left;
   font: inherit;
   cursor: pointer;
 }
 .oam-locale-option:hover {
-  background: var(--wa-color-neutral-fill-normal, #f0f0f0);
+  background: var(--wa-color-neutral-fill-quiet, #f0f0f0);
 }
 .oam-locale-option--active {
   font-weight: 700;
