@@ -207,7 +207,6 @@ def test_main_rolls_back_first_canonical_asset_when_second_patch_fails(
             Path(path).write_bytes(b"pmtiles-bytes")
         elif key.endswith(".mbtiles"):
             Path(path).write_bytes(b"mbtiles-bytes")
-        return None
 
     def fake_s3_exists(bucket, key):
         return False

@@ -149,10 +149,7 @@ def patch_item_assets(
     """POST multiple canonical assets in one atomic STAC update."""
     url = f"{internal_base.rstrip('/')}/internal/items/{item_id}/assets/batch"
     payload = {
-        "assets": [
-            {"key": asset_key, "asset": asset}
-            for asset_key, asset in assets
-        ]
+        "assets": [{"key": asset_key, "asset": asset} for asset_key, asset in assets]
     }
     r = httpx.post(
         url,
