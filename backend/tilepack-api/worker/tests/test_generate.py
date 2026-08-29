@@ -175,3 +175,60 @@ def test_main_does_not_upload_or_patch_after_generation_failure(
 
     assert upload_calls == []
     assert patch_calls == []
+
+
+def test_main_rolls_back_first_canonical_asset_when_second_patch_fails(
+    monkeypatch, tmp_path: Path
+):
+    monkeypatch.setenv("STAC_ITEM_ID", "item-123")
+    monkeypatch.setenv("FORMAT", "pmtiles")
+    monkeypatch.setenv("COG_URL", "https://example.test/cog.tif")
+    monkeypatch.setenv("OUTPUT_KEY", "tilepacks/item-123.pmtiles")
+    monkeypatch.setenv("LOCK_KEY", "tilepacks/item-123.lock")
+    monkeypatch.setenv("MIN_ZOOM", "0")
+    monkeypatch.setenv("MAX_ZOOM", "0")
+    monkeypatch.setenv("CANONICAL", "true")
+    monkeypatch.setenv("GSD", "1")
+    monkeypatch.setenv("S3_BUCKET", "example-bucket")
+    monkeypatch.setenv("S3_PUBLIC_BASE_URL", "https://cdn.example.test")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "https://internal.example.test")
+    monkeypatch.setenv("INTERNAL_TOKEN", "token")
+
+    state = {"assets": {}}
+
+    def fake_generate_mbtiles(*args, **kwargs):
+        return None
+
+    def fake_convert_to_pmtiles(*args, **kwargs):
+        return None
+
+    def fake_upload(bucket, key, path, content_type):
+        if key.endswith(".pmtiles"):
+            Path(path).write_bytes(b"pmtiles-bytes")
+        elif key.endswith(".mbtiles"):
+            Path(path).write_bytes(b"mbtiles-bytes")
+        return None
+
+    def fake_s3_exists(bucket, key):
+        return False
+
+    def fake_patch_item_assets(*args, **kwargs):
+        assets = kwargs.get("assets") or (args[3] if len(args) > 3 else [])
+        staged = {}
+        for key, asset in assets:
+            if key == "mbtiles":
+                raise RuntimeError("second publish failed")
+            staged[key] = asset
+        state["assets"].update(staged)
+
+    monkeypatch.setattr(generate, "generate_mbtiles", fake_generate_mbtiles)
+    monkeypatch.setattr(generate, "convert_to_pmtiles", fake_convert_to_pmtiles)
+    monkeypatch.setattr(generate, "upload", fake_upload)
+    monkeypatch.setattr(generate, "s3_exists", fake_s3_exists)
+    monkeypatch.setattr(generate, "patch_item_assets", fake_patch_item_assets)
+    monkeypatch.setattr(generate, "delete_lock", lambda *args, **kwargs: None)
+
+    with pytest.raises(RuntimeError, match="second publish failed"):
+        generate.main()
+
+    assert state["assets"] == {}

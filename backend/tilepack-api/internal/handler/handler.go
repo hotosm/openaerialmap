@@ -63,6 +63,7 @@ func (h *Handler) Routes() http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /internal/items/{id}/assets", h.postInternalAsset)
+	mux.HandleFunc("POST /internal/items/{id}/assets/batch", h.postInternalAssetBatch)
 	return corsMiddleware(mux)
 }
 
@@ -89,6 +90,10 @@ func corsMiddleware(next http.Handler) http.Handler {
 type internalAssetRequest struct {
 	Key   string       `json:"key"`
 	Asset pgstac.Asset `json:"asset"`
+}
+
+type internalAssetBatchRequest struct {
+	Assets []internalAssetRequest `json:"assets"`
 }
 
 // postInternalAsset is the worker-facing write path. It is mounted on
@@ -141,6 +146,63 @@ func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("internal asset patch succeeded: stac_id=%s asset=%s", id, req.Key)
+	writeJSON(w, http.StatusOK, response{Status: "ok"})
+}
+
+func (h *Handler) postInternalAssetBatch(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	got, ok := bearerToken(r.Header.Get("Authorization"))
+	if !ok {
+		log.Printf("internal asset batch auth failed: stac_id=%s reason=missing_or_malformed_bearer", id)
+		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
+		return
+	}
+	expected := h.internalToken()
+	if expected == "" {
+		log.Printf("internal asset batch auth failed: stac_id=%s reason=internal_token_not_configured", id)
+		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+		log.Printf("internal asset batch auth failed: stac_id=%s reason=token_mismatch", id)
+		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
+		return
+	}
+	if !stacIDPattern.MatchString(id) {
+		log.Printf("internal asset batch rejected: stac_id=%s reason=invalid_stac_id", id)
+		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid stac id"})
+		return
+	}
+	var req internalAssetBatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("internal asset batch rejected: stac_id=%s reason=invalid_body err=%v", id, err)
+		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid body"})
+		return
+	}
+	if len(req.Assets) == 0 {
+		log.Printf("internal asset batch rejected: stac_id=%s reason=no_assets", id)
+		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "no assets provided"})
+		return
+	}
+	for _, entry := range req.Assets {
+		if entry.Key != "pmtiles" && entry.Key != "mbtiles" {
+			log.Printf("internal asset batch rejected: stac_id=%s reason=asset_key_not_allowed key=%q", id, entry.Key)
+			writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "asset key not allowed"})
+			return
+		}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	updates := make([]pgstac.AssetUpdate, 0, len(req.Assets))
+	for _, entry := range req.Assets {
+		updates = append(updates, pgstac.AssetUpdate{Key: entry.Key, Asset: entry.Asset})
+	}
+	if err := h.pgstac.AddAssets(ctx, id, h.cfg.STACCollection, updates); err != nil {
+		log.Printf("internal asset batch patch failed: stac_id=%s err=%v", id, err)
+		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: err.Error()})
+		return
+	}
+	log.Printf("internal asset batch patch succeeded: stac_id=%s asset_count=%d", id, len(req.Assets))
 	writeJSON(w, http.StatusOK, response{Status: "ok"})
 }
 
