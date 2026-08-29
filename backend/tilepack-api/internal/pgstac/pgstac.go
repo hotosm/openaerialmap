@@ -50,6 +50,12 @@ type Asset struct {
 	MaxZoom  *int     `json:"maxzoom,omitempty"`
 }
 
+// AssetUpdate is a single asset merge for a STAC item.
+type AssetUpdate struct {
+	Key   string `json:"key"`
+	Asset Asset  `json:"asset"`
+}
+
 // AddAsset reads the current STAC item via pgstac.get_item, merges
 // the given asset into its `assets` map under assetKey, and writes
 // it back via pgstac.update_item. The read+write runs in a
@@ -60,35 +66,37 @@ type Asset struct {
 // ("could not serialize access"); we retry those up to 3 times with
 // short backoffs before giving up.
 func (c *Client) AddAsset(ctx context.Context, itemID, collection, assetKey string, asset Asset) error {
+	return c.AddAssets(ctx, itemID, collection, []AssetUpdate{{Key: assetKey, Asset: asset}})
+}
+
+func (c *Client) AddAssets(ctx context.Context, itemID, collection string, assets []AssetUpdate) error {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err := c.addAssetOnce(ctx, itemID, collection, assetKey, asset)
+		err := c.addAssetsOnce(ctx, itemID, collection, assets)
 		if err == nil {
 			return nil
 		}
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "40001" {
 			lastErr = err
-			log.Printf("pgstac serialization retry: item_id=%s collection=%s asset_key=%s attempt=%d/%d", itemID, collection, assetKey, attempt, maxAttempts)
+			log.Printf("pgstac serialization retry: item_id=%s collection=%s asset_count=%d attempt=%d/%d", itemID, collection, len(assets), attempt, maxAttempts)
 			time.Sleep(time.Duration(attempt*50) * time.Millisecond)
 			continue
 		}
 		return err
 	}
-	log.Printf("pgstac serialization failure: item_id=%s collection=%s asset_key=%s attempts=%d err=%v", itemID, collection, assetKey, maxAttempts, lastErr)
+	log.Printf("pgstac serialization failure: item_id=%s collection=%s asset_count=%d attempts=%d err=%v", itemID, collection, len(assets), maxAttempts, lastErr)
 	return fmt.Errorf("pgstac.update_item: serialization failure after %d attempts: %w", maxAttempts, lastErr)
 }
 
-func (c *Client) addAssetOnce(ctx context.Context, itemID, collection, assetKey string, asset Asset) error {
+func (c *Client) addAssetsOnce(ctx context.Context, itemID, collection string, assets []AssetUpdate) error {
 	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 
-	// pgstac.get_item returns jsonb - pgx scans jsonb into []byte
-	// directly, no ::text cast needed.
 	var raw []byte
 	err = tx.QueryRow(
 		ctx,
@@ -106,18 +114,20 @@ func (c *Client) addAssetOnce(ctx context.Context, itemID, collection, assetKey 
 	if err := json.Unmarshal(raw, &item); err != nil {
 		return fmt.Errorf("decode item: %w", err)
 	}
-	assets, _ := item["assets"].(map[string]any)
-	if assets == nil {
-		assets = map[string]any{}
+	assetMap, _ := item["assets"].(map[string]any)
+	if assetMap == nil {
+		assetMap = map[string]any{}
 	}
-	assetJSON, err := json.Marshal(asset)
-	if err != nil {
-		return err
+	for _, entry := range assets {
+		assetJSON, err := json.Marshal(entry.Asset)
+		if err != nil {
+			return err
+		}
+		var assetData map[string]any
+		_ = json.Unmarshal(assetJSON, &assetData)
+		assetMap[entry.Key] = assetData
 	}
-	var assetMap map[string]any
-	_ = json.Unmarshal(assetJSON, &assetMap)
-	assets[assetKey] = assetMap
-	item["assets"] = assets
+	item["assets"] = assetMap
 
 	updated, err := json.Marshal(item)
 	if err != nil {

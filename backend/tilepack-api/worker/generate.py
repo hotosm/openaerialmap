@@ -140,6 +140,26 @@ def patch_item_asset(
     r.raise_for_status()
 
 
+def patch_item_assets(
+    internal_base: str,
+    internal_token: str,
+    item_id: str,
+    assets: list[tuple[str, dict]],
+) -> None:
+    """POST multiple canonical assets in one atomic STAC update."""
+    url = f"{internal_base.rstrip('/')}/internal/items/{item_id}/assets/batch"
+    payload = {
+        "assets": [{"key": asset_key, "asset": asset} for asset_key, asset in assets]
+    }
+    r = httpx.post(
+        url,
+        json=payload,
+        headers={"Authorization": f"Bearer {internal_token}"},
+        timeout=30,
+    )
+    r.raise_for_status()
+
+
 def _get_thread_reader(cog_url: str) -> Reader:
     """Return a thread-local Reader, opening one if needed.
 
@@ -476,27 +496,38 @@ def main() -> int:
 
                 if canonical:
                     try:
-                        _patch_asset(
+                        patch_item_assets(
                             internal_base,
                             internal_token,
-                            public_base,
                             item_id,
-                            output_key,
-                            "pmtiles",
-                            min_zoom,
-                            max_zoom,
-                            pmtiles_path.stat().st_size,
-                        )
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            mbtiles_key,
-                            "mbtiles",
-                            min_zoom,
-                            max_zoom,
-                            mbtiles_path.stat().st_size,
+                            [
+                                (
+                                    "pmtiles",
+                                    {
+                                        "href": f"{public_base.rstrip('/')}/{output_key}",
+                                        "type": "application/vnd.pmtiles",
+                                        "roles": ["tiles"],
+                                        "title": "PMTILES archive",
+                                        "proj:code": 3857,
+                                        "minzoom": min_zoom,
+                                        "maxzoom": max_zoom,
+                                        "file:size": pmtiles_path.stat().st_size,
+                                    },
+                                ),
+                                (
+                                    "mbtiles",
+                                    {
+                                        "href": f"{public_base.rstrip('/')}/{mbtiles_key}",
+                                        "type": "application/vnd.mbtiles",
+                                        "roles": ["tiles"],
+                                        "title": "MBTILES archive",
+                                        "proj:code": 3857,
+                                        "minzoom": min_zoom,
+                                        "maxzoom": max_zoom,
+                                        "file:size": mbtiles_path.stat().st_size,
+                                    },
+                                ),
+                            ],
                         )
                     except Exception as exc:
                         print(
