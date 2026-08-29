@@ -415,11 +415,17 @@ def _s3_client():
 
 
 def s3_object_size(bucket: str, key: str) -> int | None:
-    """Size of the key in bytes, or None if it does not exist."""
+    """Size of the key in bytes, or None if it does not exist.
+
+    Only a 404 means absent. Treating AccessDenied or a throttle as absent
+    would silently re-render the whole pyramid.
+    """
     try:
         return _s3_client().head_object(Bucket=bucket, Key=key)["ContentLength"]
-    except botocore.exceptions.ClientError:
-        return None
+    except botocore.exceptions.ClientError as exc:
+        if exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") == 404:
+            return None
+        raise
 
 
 def download(bucket: str, key: str, path: Path) -> None:

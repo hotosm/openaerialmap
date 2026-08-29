@@ -13,14 +13,12 @@ worker:
   # Worker Jobs are created in the same namespace as the API release.
   resources:
     requests:
-      # Requests are what the scheduler guarantees; keep them close to
-      # the limits or a busy node throttles the worker well below them.
+      # The scheduler only guarantees requests, so keep them near the limits.
       cpu: "2"
       memory: 2Gi  # benchmarked ~1.16 GB RSS on a dense urban scene
       ephemeral-storage: 10Gi  # ~2x the 4 GiB byte budget, plus margin
     limits:
-      # Tile generation is CPU-bound (GDAL decode, warp, PNG encode), so
-      # this - not the deadline - sets how long a large scene takes.
+      # Tile generation is CPU-bound, so this sets how long a scene takes.
       cpu: "4"
       memory: 4Gi
       ephemeral-storage: 14Gi
@@ -44,16 +42,14 @@ config:
   # Must exceed deadline + grace; the API refuses to start otherwise.
   lockTTLSeconds: 11400
   workerActiveDeadlineSeconds: 10800
-  # How long a finished Job lingers. Also the retry cooldown after a
-  # failure, since a Job cannot be recreated while it exists.
+  # How long a finished Job lingers; also the retry cooldown.
   workerJobTTLSeconds: 3600
   # SIGTERM to SIGKILL, for the worker to release its S3 lock.
   workerTerminationGraceSeconds: 60
   # Multiplies the worker resources above - re-derive if either changes.
   # At 2: 4 CPU / 4Gi / 20Gi reserved, bursting to 8 / 8Gi / 28Gi.
   maxConcurrentJobs: 2
-  # Worker run caps. Tile count bounds runtime against the deadline,
-  # bytes bound disk against the ephemeral-storage limit above.
+  # Tile count bounds runtime; bytes bound disk.
   workerMaxTileCount: 150000
   # Quoted: unquoted, Helm renders it as 4.294967296e+09.
   workerMaxEncodedBytes: "4294967296"

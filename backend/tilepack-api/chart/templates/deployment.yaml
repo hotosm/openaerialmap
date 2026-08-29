@@ -10,9 +10,8 @@ spec:
   template:
     metadata:
       labels: {{- include "chart.selectorLabels" . | nindent 8 }}
-      {{- /* Roll the pod on a config change (envFrom is read once at start)
-      and on a chart release (pullPolicy Always only fetches the mutable
-      :main tag when a pod is created, and nothing else creates one). */}}
+      {{- /* Roll on a config change (envFrom is read once at start) and on
+      a chart release (nothing else ever re-pulls the mutable :main tag). */}}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/chart: {{ .Chart.Version | quote }}

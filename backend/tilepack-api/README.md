@@ -141,6 +141,14 @@ with rate limiting to reduce DDoS risk.
   lock and creating the Job. It expires after `LOCK_TTL_SECONDS`, which
   must outlive a worker running to its deadline (the API refuses to
   start otherwise).
+- **WebP q70 tiles** -- ~10x smaller than PNG, and unlike JPEG it keeps
+  the alpha band, so the padding around a rotated footprint stays
+  transparent instead of rendering as a black collar.
+  Read by GDAL, QGIS, QField (1.6+), MapLibre and Android's decoder.
+  Archives predating this are PNG and stay readable -- each archive
+  declares its own encoding, so no regeneration is needed. A PMTiles
+  build reuses an existing sibling MBTiles, so it inherits PNG if that
+  sibling predates the switch.
 - **Rate limiting** -- per-IP rate limit to protect the cluster.
 - **Direct DB writes** -- the transactions API is not enabled for
   eoAPI, so the worker uses pgstac PL/pgSQL functions to update STAC
@@ -192,14 +200,14 @@ worker side requires a real Kubernetes cluster.
 ## Performance
 
 The workload is ~85% network I/O (HTTP range reads to S3 COGs). GDAL
-decoding and PNG encoding are C libraries - Python is a thin
+decoding and WebP encoding are C libraries - Python is a thin
 orchestrator adding ~1ms of overhead per tile.
 
 Per-tile cost breakdown:
 
 1. **HTTP range read(s) to S3 COG** (~50–70ms)
 2. **GDAL decode + warp/reproject** (~5–15ms)
-3. **PNG encode with alpha mask** (~2–5ms)
+3. **WebP encode with alpha mask** (~2–5ms)
 4. **SQLite insert + Python overhead** (~<1ms)
 
 Baseline benchmarks (8 threads, before optimisations):

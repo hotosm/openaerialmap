@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hotosm/openaerialmap/backend/tilepack-api/internal/config"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -85,7 +86,6 @@ func TestClassifyJob(t *testing.T) {
 			wantPhase: JobPhaseActive,
 		},
 		{
-			// On its way - must not be mistaken for finished.
 			name:      "created but not yet scheduled",
 			job:       &batchv1.Job{Status: batchv1.JobStatus{}},
 			wantPhase: JobPhaseActive,
@@ -129,8 +129,6 @@ func TestClassifyJob(t *testing.T) {
 			wantPhase: JobPhaseActive,
 		},
 		{
-			// Newer Kubernetes sets interim conditions; only exact
-			// terminal types count.
 			name: "interim FailureTarget condition only",
 			job: &batchv1.Job{Status: batchv1.JobStatus{
 				Conditions: []batchv1.JobCondition{{
@@ -174,7 +172,7 @@ func TestClassifyJob(t *testing.T) {
 
 func TestTTLRemaining(t *testing.T) {
 	at := time.Date(2026, 8, 29, 10, 56, 0, 0, time.UTC)
-	c := &Client{jobTTLSeconds: 3600}
+	c := &Client{cfg: &config.Config{WorkerJobTTLSeconds: 3600}}
 
 	tests := []struct {
 		name  string

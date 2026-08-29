@@ -28,18 +28,16 @@ type Config struct {
 	// in STAC, e.g. https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
 	S3PublicBaseURL string
 
-	// LockTTLSeconds - locks older than this are treated as stale and
-	// the request will re-trigger generation. Must outlive a worker
-	// running to its deadline; validateTimeouts enforces that.
+	// LockTTLSeconds - stale locks re-trigger generation. Must outlive a
+	// worker running to its deadline; validateTimeouts enforces that.
 	LockTTLSeconds int64
 
 	// WorkerActiveDeadlineSeconds caps worker Job runtime.
 	WorkerActiveDeadlineSeconds int64
-	// WorkerJobTTLSeconds is TTLSecondsAfterFinished. A failed Job cannot
-	// be recreated while it lingers, so this is also the retry cooldown.
+	// WorkerJobTTLSeconds is TTLSecondsAfterFinished, and so also the retry
+	// cooldown: a failed Job cannot be recreated while it lingers.
 	WorkerJobTTLSeconds int32
-	// WorkerTerminationGraceSeconds - SIGTERM to SIGKILL, for the worker
-	// to release its S3 lock.
+	// WorkerTerminationGraceSeconds - SIGTERM to SIGKILL, for lock release.
 	WorkerTerminationGraceSeconds int64
 
 	// MaxConcurrentJobs caps cluster-wide in-flight worker Jobs.
@@ -91,14 +89,11 @@ type Config struct {
 	WorkerMemoryRequest string
 	WorkerCPULimit      string
 	WorkerMemoryLimit   string
-	// Bounds the worker's temp dir. A pmtiles run holds the mbtiles and
-	// the converted pmtiles at once, so peak disk is ~2x the archive.
+	// A pmtiles run holds mbtiles and pmtiles at once, so peak disk is ~2x.
 	WorkerEphemeralRequest string
 	WorkerEphemeralLimit   string
 
-	// Worker run caps, passed through to the Job so they can be tuned
-	// without an image release. Tile count bounds runtime, bytes bound
-	// disk; neither substitutes for the other.
+	// Worker run caps. Tile count bounds runtime, bytes bound disk.
 	WorkerMaxTileCount    int
 	WorkerMaxEncodedBytes int64
 }
@@ -197,17 +192,14 @@ func getenvFloat(k string, def float64) float64 {
 	return def
 }
 
-// validateTimeouts enforces the ordering the lock protocol depends on.
-// A lock that expires while its worker still runs lets a second request
-// start a duplicate. Checked at startup because the three values live in
-// different places and drift on the next values edit.
+// validateTimeouts rejects a lock TTL that could expire while its worker
+// is still running, which would let a second request start a duplicate.
 func (c *Config) validateTimeouts() error {
 	if c.WorkerActiveDeadlineSeconds <= 0 {
 		return fmt.Errorf("WORKER_ACTIVE_DEADLINE_SECONDS must be > 0, got %d", c.WorkerActiveDeadlineSeconds)
 	}
-	// Both must be strictly positive: grace 0 means immediate SIGKILL so
-	// the lock leaks, and TTL 0 collects the failed Job instantly, which
-	// removes the cooldown and lets a poller restart it forever.
+	// Grace 0 is an immediate SIGKILL (leaked lock); TTL 0 collects the
+	// failed Job instantly (no cooldown, so a poller restarts it forever).
 	if c.WorkerTerminationGraceSeconds <= 0 {
 		return fmt.Errorf("WORKER_TERMINATION_GRACE_SECONDS must be > 0, got %d", c.WorkerTerminationGraceSeconds)
 	}

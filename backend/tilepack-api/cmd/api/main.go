@@ -26,30 +26,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("s3: %v", err)
 	}
-	kc, err := k8s.New(k8s.NewOpts{
-		Namespace:            cfg.WorkerNamespace,
-		WorkerImage:          cfg.WorkerImage,
-		WorkerServiceAccount: cfg.WorkerServiceAccount,
-		InternalBaseURL:      cfg.InternalBaseURL,
-		InternalTokenSecret:  cfg.InternalTokenSecret,
-		S3CredsSecret:        cfg.S3CredsSecret,
-		S3CredsAccessKey:     cfg.S3CredsAccessKey,
-		S3CredsSecretKey:     cfg.S3CredsSecretKey,
-		AWSRegion:            cfg.AWSRegion,
-		AWSEndpointURL:       cfg.AWSEndpointURL,
-		WorkerCPURequest:     cfg.WorkerCPURequest,
-		WorkerMemoryRequest:  cfg.WorkerMemoryRequest,
-		WorkerCPULimit:       cfg.WorkerCPULimit,
-		WorkerMemoryLimit:    cfg.WorkerMemoryLimit,
-		EphemeralRequest:     cfg.WorkerEphemeralRequest,
-		EphemeralLimit:       cfg.WorkerEphemeralLimit,
-		MaxTileCount:         cfg.WorkerMaxTileCount,
-		MaxEncodedBytes:      cfg.WorkerMaxEncodedBytes,
-
-		ActiveDeadlineSeconds:   cfg.WorkerActiveDeadlineSeconds,
-		JobTTLSeconds:           cfg.WorkerJobTTLSeconds,
-		TerminationGraceSeconds: cfg.WorkerTerminationGraceSeconds,
-	})
+	kc, err := k8s.New(cfg)
 	if err != nil {
 		log.Fatalf("k8s: %v", err)
 	}

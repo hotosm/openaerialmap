@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithy "github.com/aws/smithy-go"
 )
 
@@ -144,12 +143,10 @@ func (c *Client) DeleteObject(ctx context.Context, key string) error {
 // requests use to detect an in-progress generation. Body is empty -
 // only existence and LastModified matter.
 func (c *Client) PutLock(ctx context.Context, key string) error {
+	// Body intentionally nil - only existence and LastModified matter.
 	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(c.bucket),
-		Key:         aws.String(key),
-		ContentType: aws.String("text/plain"),
-		// Body intentionally nil - zero-length object is enough.
-		StorageClass: types.StorageClassStandard,
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
 	})
 	if err != nil {
 		log.Printf("s3 put lock failed: bucket=%s key=%s err=%v", c.bucket, key, err)

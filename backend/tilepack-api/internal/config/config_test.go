@@ -2,8 +2,6 @@ package config
 
 import "testing"
 
-// The lock must outlive the worst-case worker lifetime, and the three
-// values live in different places, so the invariant is checked at startup.
 func TestValidateTimeouts(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -20,8 +18,7 @@ func TestValidateTimeouts(t *testing.T) {
 			},
 		},
 		{
-			// Pre-0.6.0 production: a worker running to its deadline
-			// outlived its own lock, so a second request duplicated it.
+			// Pre-0.6.0 production: the worker outlived its own lock.
 			name: "the shipped-broken pairing is rejected",
 			cfg: Config{
 				LockTTLSeconds:                1800,

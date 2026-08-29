@@ -3,7 +3,8 @@
 This is deliberately separate from the production worker.  It renders every
 tile through the worker's rio-tiler path once, then materializes archives for
 the distinct zoom policies so archive byte counts are exact without repeatedly
-reading the source imagery.
+reading the source imagery.  It renders PNG, the encoding in use when the
+recorded results were measured; the worker now writes WebP.
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-import generate
 import numpy
 import rasterio
 import rasterio.crs
@@ -32,6 +32,8 @@ from rasterio.transform import from_bounds
 from rasterio.warp import Resampling, reproject
 from rio_tiler.errors import TileOutsideBounds
 from rio_tiler.io import Reader
+
+import generate
 
 MERCATOR_MAX_LATITUDE = 85.05112878
 MERCATOR_EQUATOR_RESOLUTION = 156543.03
@@ -144,9 +146,8 @@ def render_archives(
             counts = {"planned": 0, "outside": 0, "empty": 0, "ok": 0}
             encoded_bytes = {"all": 0, "skip_empty": 0}
             aggregate_tile_seconds = 0.0
-            # Submit in bounded batches: a whole zoom level at once queues
-            # every tile as a future and buffers completed PNG bytes until
-            # the single-threaded insert loop catches up.
+            # A whole zoom level at once queues every tile as a future and
+            # buffers the bytes until the insert loop catches up.
             for batch in tile_batches(xmin, xmax, ymin, ymax, BATCH_SIZE):
                 futures = {
                     pool.submit(render_tile, source, x, y, z): (x, y) for x, y in batch
@@ -337,8 +338,7 @@ def quality_pair(
     }
 
 
-# Rough PNG tile size used only for the disk preflight, from the z22 sample
-# measured for the size notes. Real archives vary; this is an order check.
+# Order-of-magnitude check for the disk preflight only, from the z22 sample.
 PREFLIGHT_BYTES_PER_TILE = 71 * 1024
 
 

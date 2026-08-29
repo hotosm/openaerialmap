@@ -14,4 +14,13 @@ dependencies = [
 [dependency-groups]
 test = [
   "pytest==8.3.5",
+  # Pinned else tests can flag as red in the CI
+  "ruff==0.16.5",
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint.isort]
+known-first-party = ["generate"]

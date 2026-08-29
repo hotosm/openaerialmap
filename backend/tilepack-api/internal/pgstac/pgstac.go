@@ -15,6 +15,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hotosm/openaerialmap/backend/tilepack-api/internal/stac"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,18 +39,6 @@ func New(ctx context.Context, dsn string) (*Client, error) {
 
 func (c *Client) Close() { c.pool.Close() }
 
-// Asset is the subset of STAC asset fields this service writes.
-type Asset struct {
-	Href     string   `json:"href"`
-	Type     string   `json:"type,omitempty"`
-	Roles    []string `json:"roles,omitempty"`
-	Title    string   `json:"title,omitempty"`
-	FileSize int64    `json:"file:size,omitempty"`
-	ProjCode int      `json:"proj:code,omitempty"`
-	MinZoom  *int     `json:"minzoom,omitempty"`
-	MaxZoom  *int     `json:"maxzoom,omitempty"`
-}
-
 // AddAsset reads the current STAC item via pgstac.get_item, merges
 // the given asset into its `assets` map under assetKey, and writes
 // it back via pgstac.update_item. The read+write runs in a
@@ -59,7 +48,7 @@ type Asset struct {
 // Serializable transactions can fail with Postgres error 40001
 // ("could not serialize access"); we retry those up to 3 times with
 // short backoffs before giving up.
-func (c *Client) AddAsset(ctx context.Context, itemID, collection, assetKey string, asset Asset) error {
+func (c *Client) AddAsset(ctx context.Context, itemID, collection, assetKey string, asset stac.ItemAsset) error {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -80,7 +69,7 @@ func (c *Client) AddAsset(ctx context.Context, itemID, collection, assetKey stri
 	return fmt.Errorf("pgstac.update_item: serialization failure after %d attempts: %w", maxAttempts, lastErr)
 }
 
-func (c *Client) addAssetOnce(ctx context.Context, itemID, collection, assetKey string, asset Asset) error {
+func (c *Client) addAssetOnce(ctx context.Context, itemID, collection, assetKey string, asset stac.ItemAsset) error {
 	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return err

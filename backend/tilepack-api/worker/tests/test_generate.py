@@ -44,7 +44,7 @@ def test_generate_mbtiles_raises_on_unexpected_failures(
         render_calls.append((x, y, z))
         if (x, y, z) == (0, 0, 0):
             return "failed", None
-        return "ok", b"png-bytes"
+        return "ok", b"tile-bytes"
 
     monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
     monkeypatch.setattr(
@@ -75,7 +75,7 @@ def test_generate_mbtiles_retries_failed_tile_and_writes_on_success(
         render_calls.append((x, y, z))
         if len(render_calls) == 1:
             return "failed", None
-        return "ok", b"png-bytes"
+        return "ok", b"tile-bytes"
 
     monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
     monkeypatch.setattr(
@@ -100,7 +100,7 @@ def test_generate_mbtiles_skips_outside_bounds(monkeypatch, tmp_mbtiles_path: Pa
         render_calls.append((x, y, z))
         if (x, y, z) == (0, 0, 0):
             return "outside", None
-        return "ok", b"png-bytes"
+        return "ok", b"tile-bytes"
 
     monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
     monkeypatch.setattr(
@@ -125,7 +125,7 @@ def test_generate_mbtiles_succeeds_for_all_ok_tiles(
     monkeypatch.setattr(generate, "Reader", FakeReader)
 
     def fake_render_tile(cog_url: str, x: int, y: int, z: int):
-        return "ok", b"png-bytes"
+        return "ok", b"tile-bytes"
 
     monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
     monkeypatch.setattr(
@@ -140,6 +140,30 @@ def test_generate_mbtiles_succeeds_for_all_ok_tiles(
     with sqlite3.connect(tmp_mbtiles_path) as conn:
         rows = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
     assert rows == 2
+
+
+def test_mbtiles_declares_the_encoding_it_actually_wrote(
+    monkeypatch, tmp_mbtiles_path: Path
+):
+    """`pmtiles convert` sets the PMTiles header tile type from this row
+    without inspecting the tiles, so a stale value mislabels the archive."""
+    assert generate.MBTILES_FORMAT.upper() == generate.TILE_FORMAT
+
+    monkeypatch.setattr(generate, "Reader", FakeReader)
+    monkeypatch.setattr(
+        generate, "_render_tile", lambda cog_url, x, y, z: ("ok", b"tile-bytes")
+    )
+    monkeypatch.setattr(
+        generate, "tile_ranges", lambda bounds, min_z, max_z: [(0, 0, 0, 0, 0)]
+    )
+
+    generate.generate_mbtiles("https://example.test/cog.tif", tmp_mbtiles_path, 0, 0)
+
+    with sqlite3.connect(tmp_mbtiles_path) as conn:
+        fmt = conn.execute(
+            "SELECT value FROM metadata WHERE name = 'format'"
+        ).fetchone()[0]
+    assert fmt == generate.MBTILES_FORMAT
 
 
 def test_main_does_not_upload_or_patch_after_generation_failure(
@@ -194,8 +218,7 @@ def clean_stop_rendering_flag():
 def test_render_tile_returns_cancelled_once_stop_rendering_is_set(
     clean_stop_rendering_flag,
 ):
-    """Queued tiles must retire without touching the COG - tens of
-    thousands may be submitted, and each has to cost nothing."""
+    """Tens of thousands may be queued, so each must retire for free."""
 
     def explode(_cog_url):
         raise AssertionError("must not open a reader while shutting down")
@@ -215,7 +238,7 @@ def test_render_tile_returns_cancelled_once_stop_rendering_is_set(
 def test_generate_mbtiles_aborts_on_cancelled_tile(
     monkeypatch, tmp_mbtiles_path: Path, clean_stop_rendering_flag
 ):
-    """A cancelled tile must abort, not INSERT png=None."""
+    """A cancelled tile must abort, not INSERT tile=None."""
     monkeypatch.setattr(generate, "Reader", FakeReader)
     monkeypatch.setattr(
         generate,
@@ -240,11 +263,8 @@ def test_generate_mbtiles_aborts_on_cancelled_tile(
 def test_install_signal_handlers_raises_terminated_in_main_thread(
     clean_stop_rendering_flag,
 ):
-    """SIGTERM must raise, and set the flag first.
-
-    The worker is PID 1, where an untrapped SIGTERM is ignored outright,
-    so without this the lock is never released on a deadline kill.
-    """
+    """SIGTERM must raise, and set the flag first. The worker is PID 1,
+    where an untrapped SIGTERM is ignored outright."""
     previous = signal.getsignal(signal.SIGTERM)
     try:
         generate._install_signal_handlers()
@@ -261,8 +281,7 @@ def test_install_signal_handlers_raises_terminated_in_main_thread(
 def test_generate_mbtiles_aborts_when_encoded_bytes_exceed_budget(
     monkeypatch, tmp_mbtiles_path: Path
 ):
-    """The byte budget keeps a run inside ephemeral storage; a tile
-    count cannot, since bytes-per-tile spans 15-78 KiB."""
+    """A tile count cannot bound disk: bytes-per-tile spans 15-78 KiB."""
     monkeypatch.setattr(generate, "Reader", FakeReader)
     monkeypatch.setattr(generate, "MAX_ENCODED_BYTES", 2_000)
     monkeypatch.setattr(
@@ -287,11 +306,8 @@ def test_generate_mbtiles_aborts_when_encoded_bytes_exceed_budget(
 def test_aborting_a_run_cancels_the_queued_tiles(
     monkeypatch, tmp_mbtiles_path: Path, clean_stop_rendering_flag
 ):
-    """An abort must drop the rest of the level, not render it anyway.
-
-    Waiting would render a failed run to completion and pin every PNG in
-    its future - an OOM on a large level.
-    """
+    """An abort must drop the rest of the level - rendering it anyway
+    pins every tile in its future, an OOM on a large level."""
     monkeypatch.setattr(generate, "Reader", FakeReader)
     monkeypatch.setattr(generate, "MAX_ENCODED_BYTES", 2_000)
     monkeypatch.setattr(
@@ -354,3 +370,72 @@ def test_oversized_existing_mbtiles_is_refused(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit, match="MAX_ENCODED_BYTES"):
         generate.main()
+
+
+def test_pmtiles_is_converted_before_any_stac_callback(monkeypatch, tmp_path: Path):
+    """A failing mbtiles callback must not strand the pmtiles the caller
+    asked for: the archive would never be built, and polling 409s for the
+    whole Job TTL."""
+    for key, value in {
+        "STAC_ITEM_ID": "item",
+        "FORMAT": "pmtiles",
+        "COG_URL": "https://example.test/x.tif",
+        "OUTPUT_KEY": "a/0/b.pmtiles",
+        "LOCK_KEY": "a/0/b.pmtiles.lock",
+        "MIN_ZOOM": "0",
+        "MAX_ZOOM": "6",
+        "CANONICAL": "true",
+        "GSD": "0.05",
+        "S3_BUCKET": "bucket",
+        "INTERNAL_BASE_URL": "http://x",
+        "INTERNAL_TOKEN": "t",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    calls = []
+    monkeypatch.setattr(generate, "s3_object_size", lambda bucket, key: None)
+    monkeypatch.setattr(generate, "delete_lock", lambda *a: None)
+    monkeypatch.setattr(
+        generate,
+        "generate_mbtiles",
+        lambda *a: calls.append("generate") or a[1].write_bytes(b"x"),
+    )
+    monkeypatch.setattr(
+        generate, "upload", lambda bucket, key, path, fmt: calls.append(f"upload:{fmt}")
+    )
+    monkeypatch.setattr(
+        generate,
+        "convert_to_pmtiles",
+        lambda mb, pm: calls.append("convert") or pm.write_bytes(b"y"),
+    )
+
+    def failing_patch(*args, **kwargs):
+        calls.append("patch")
+        raise RuntimeError("callback down")
+
+    monkeypatch.setattr(generate, "_patch_asset", failing_patch)
+
+    with pytest.raises(RuntimeError, match="callback down"):
+        generate.main()
+
+    assert "convert" in calls, f"pmtiles never converted: {calls}"
+    assert calls.index("convert") < calls.index("patch"), calls
+
+
+def test_s3_object_size_does_not_treat_errors_as_absent(monkeypatch):
+    """AccessDenied must not read as "no archive" - that silently
+    re-renders the whole pyramid."""
+
+    class Boom:
+        def head_object(self, **kwargs):
+            raise generate.botocore.exceptions.ClientError(
+                {
+                    "Error": {"Code": "AccessDenied"},
+                    "ResponseMetadata": {"HTTPStatusCode": 403},
+                },
+                "HeadObject",
+            )
+
+    monkeypatch.setattr(generate, "_s3_client", Boom)
+    with pytest.raises(generate.botocore.exceptions.ClientError):
+        generate.s3_object_size("bucket", "key")

@@ -1,5 +1,3 @@
-# Tilepack tests via `just test tilepack-api` (tasks/test) and chart lint via
-# `just chart tilepack-api lint` (tasks/chart.just).
 name: Test Tilepack API
 
 on:

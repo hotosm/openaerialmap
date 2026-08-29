@@ -77,8 +77,7 @@ stactools: _install-uv
   ./scripts/typecheck
   uv lock --check
 
-# Chart lint is separate: `just chart tilepack-api lint`.
-# Tilepack API Go tests and Python worker tests. Host + uv, not a container.
+# Tilepack API Go + Python worker tests. Chart lint: `just chart tilepack-api lint`.
 [no-cd]
 tilepack-api: _install-uv
   #!/usr/bin/env bash
@@ -100,8 +99,8 @@ tilepack-api: _install-uv
 
   cd worker
   echo "🔍 Worker lint..."
-  uv run --with ruff ruff check .
-  uv run --with ruff ruff format --check .
+  uv run --group test ruff check .
+  uv run --group test ruff format --check .
 
   echo "🐍 Worker tests..."
   uv run --group test pytest tests/ -q
