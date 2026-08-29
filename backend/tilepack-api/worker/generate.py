@@ -58,13 +58,21 @@ import rasterio.crs
 from rio_tiler.errors import TileOutsideBounds
 from rio_tiler.io import Reader
 
-# Two ceilings, both aborting before anything reaches S3. Neither
-# substitutes for the other: measured bytes-per-tile spans 15-78 KiB
-# across real scenes, so tile count is a poor proxy for disk.
-#
-# Runtime bound, sized against the Job's ActiveDeadlineSeconds.
+MEDIA_TYPES = {
+    "mbtiles": "application/vnd.mbtiles",
+    "pmtiles": "application/vnd.pmtiles",
+}
+
+# ~10x smaller than PNG and, unlike JPEG, keeps alpha. MBTILES_FORMAT must
+# track TILE_FORMAT: `pmtiles convert` reads that row to set the tile type.
+TILE_FORMAT = "WEBP"
+MBTILES_FORMAT = "webp"
+WEBP_QUALITY = 70  # 34.15 dB, above the JPEG q75 the catalogue accepts
+
+# Two ceilings, both aborting before anything reaches S3: bytes-per-tile
+# spans 15-78 KiB, so tile count is a poor proxy for disk.
 MAX_TILE_COUNT = int(os.environ.get("MAX_TILE_COUNT") or 150_000)
-# Disk bound. Peak is ~2x this: pmtiles holds the converted copy too.
+# Peak disk is ~2x this: pmtiles holds the converted copy too.
 MAX_ENCODED_BYTES = int(os.environ.get("MAX_ENCODED_BYTES") or 4 * 1024**3)
 
 # Number of concurrent tile-read threads.  The work is ~85% I/O-bound
@@ -72,27 +80,21 @@ MAX_ENCODED_BYTES = int(os.environ.get("MAX_ENCODED_BYTES") or 4 * 1024**3)
 # until network bandwidth saturates.
 TILE_WORKERS = 24
 
-# Set on a signal or a tripped cap. Tile threads check it so in-flight
-# work retires instead of running to completion.
+# Set on a signal or a tripped cap, so queued tiles retire cheaply.
 _stop_rendering = threading.Event()
 
 TERMINATED_EXIT_CODE = 143  # 128 + SIGTERM
 
 
 class Terminated(Exception):
-    """Termination signal, raised in the main thread.
-
-    An Exception rather than SystemExit so the existing ``except
-    Exception`` handlers still delete the partial archive.
-    """
+    """Termination signal. An Exception, not SystemExit, so the existing
+    ``except Exception`` handlers still delete the partial archive."""
 
 
 def _install_signal_handlers() -> None:
     """Trap SIGTERM/SIGINT so the S3 lock is released on the way out.
 
-    Without this the worker leaks its lock on every deadline kill: it is
-    PID 1, where an untrapped SIGTERM is ignored outright, so nothing
-    runs before SIGKILL.
+    The worker is PID 1, where an untrapped SIGTERM is ignored outright.
     """
 
     def handle(signum, _frame):
@@ -209,7 +211,7 @@ def _close_thread_readers(pool: ThreadPoolExecutor, cog_url: str) -> None:
 
 
 def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | None]:
-    """Fetch a single XYZ tile and return status + PNG bytes.
+    """Fetch a single XYZ tile and return status + encoded bytes.
 
     Uses a thread-local Reader so each thread reuses its GDAL dataset
     handle across tiles, avoiding repeated open/close overhead.
@@ -223,9 +225,8 @@ def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | Non
         return "outside", None
     except Exception:  # noqa: BLE001
         return "failed", None
-    # OAM imagery is 3-band RGB. Render as RGBA PNG so transparent
-    # pixels (padding around the actual footprint) come through.
-    return "ok", img.render(img_format="PNG", add_mask=True)
+    # add_mask keeps alpha, so footprint padding stays transparent.
+    return "ok", img.render(img_format=TILE_FORMAT, add_mask=True, quality=WEBP_QUALITY)
 
 
 def generate_mbtiles(
@@ -273,7 +274,7 @@ def generate_mbtiles(
             """
         )
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("name", out_path.stem))
-        cur.execute("INSERT INTO metadata VALUES (?, ?)", ("format", "png"))
+        cur.execute("INSERT INTO metadata VALUES (?, ?)", ("format", MBTILES_FORMAT))
         cur.execute(
             "INSERT INTO metadata VALUES (?, ?)",
             ("bounds", ",".join(str(b) for b in bounds)),
@@ -297,7 +298,7 @@ def generate_mbtiles(
                 outside = 0
                 for fut in as_completed(futures):
                     x, y = futures[fut]
-                    status, png = fut.result()
+                    status, tile = fut.result()
                     if status == "outside":
                         outside += 1
                         continue
@@ -305,7 +306,7 @@ def generate_mbtiles(
                         # Stop draining rather than insert a NULL blob.
                         raise Terminated("tile generation cancelled")
                     if status == "failed":
-                        status, png = _render_tile(cog_url, x, y, z)
+                        status, tile = _render_tile(cog_url, x, y, z)
                         if status == "outside":
                             outside += 1
                             continue
@@ -317,7 +318,7 @@ def generate_mbtiles(
                                 f"unexpected tile render failure for z={z}, "
                                 f"x={x}, y={y}"
                             )
-                    encoded_bytes += len(png)
+                    encoded_bytes += len(tile)
                     if encoded_bytes > MAX_ENCODED_BYTES:
                         should_cleanup = True
                         raise SystemExit(
@@ -328,7 +329,7 @@ def generate_mbtiles(
                     tms_y = (1 << z) - 1 - y
                     cur.execute(
                         "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
-                        (z, x, tms_y, png),
+                        (z, x, tms_y, tile),
                     )
                     written += 1
                 conn.commit()
@@ -344,8 +345,8 @@ def generate_mbtiles(
             aborting = False
         finally:
             if aborting:
-                # A whole level is queued at once, so waiting would render
-                # a failed run to completion and pin every PNG - an OOM.
+                # A level is queued at once, so waiting would render a
+                # failed run to completion and pin every tile - an OOM.
                 _stop_rendering.set()
                 pool.shutdown(wait=False, cancel_futures=True)
             else:
@@ -380,14 +381,10 @@ def _patch_asset(
     file_size: int = 0,
 ) -> None:
     """Register a tilepack asset on the STAC item."""
-    content_types = {
-        "mbtiles": "application/vnd.mbtiles",
-        "pmtiles": "application/vnd.pmtiles",
-    }
     href = f"{public_base.rstrip('/')}/{key}"
     asset = {
         "href": href,
-        "type": content_types[fmt],
+        "type": MEDIA_TYPES[fmt],
         "roles": ["tiles"],
         "title": f"{fmt.upper()} archive",
         "proj:code": 3857,
@@ -429,8 +426,8 @@ def download(bucket: str, key: str, path: Path) -> None:
     _s3_client().download_file(Bucket=bucket, Key=key, Filename=str(path))
 
 
-def upload(bucket: str, key: str, path: Path, content_type: str) -> None:
-    extra = {"ContentType": content_type}
+def upload(bucket: str, key: str, path: Path, fmt: str) -> None:
+    extra = {"ContentType": MEDIA_TYPES[fmt]}
     # S3-compatible stores need not implement ACL authorization, and RustFS
     # rejects a canned ACL with InvalidArgument rather than ignoring it. Those
     # buckets are made anonymously readable by bucket policy instead, so the ACL
@@ -455,8 +452,7 @@ def delete_lock(bucket: str, lock_key: str) -> None:
 def main() -> int:
     _install_signal_handlers()
 
-    # What the cleanup path needs, read before anything that can fail so
-    # the lock is released even if the rest of the setup does not finish.
+    # Read before anything that can fail, so the lock is always released.
     bucket = env("S3_BUCKET", "oin-hotosm-temp")
     lock_key = env("LOCK_KEY")
 
@@ -498,40 +494,48 @@ def main() -> int:
         try:
             mbtiles_path = workdir / f"{item_id}.mbtiles"
 
+            def register(key: str, fmt_name: str, path: Path) -> None:
+                """Record an archive already in S3 as a STAC asset."""
+                if not canonical:
+                    return
+                try:
+                    _patch_asset(
+                        internal_base,
+                        internal_token,
+                        public_base,
+                        item_id,
+                        key,
+                        fmt_name,
+                        min_zoom,
+                        max_zoom,
+                        path.stat().st_size,
+                    )
+                except Exception as exc:
+                    print(
+                        f"callback patch failed: item_id={item_id} "
+                        f"asset={fmt_name} key={key} err={exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    raise
+
+            def store(key: str, fmt_name: str, path: Path) -> None:
+                upload(bucket, key, path, fmt_name)
+                print(f"uploaded s3://{bucket}/{key}", flush=True)
+
+            # Every archive reaches S3 before any callback runs: a failed
+            # callback must not leave the requested format unbuilt.
             if fmt == "mbtiles":
                 generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
-                upload(bucket, output_key, mbtiles_path, "application/vnd.mbtiles")
-                print(f"uploaded s3://{bucket}/{output_key}")
-
-                if canonical:
-                    try:
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            output_key,
-                            "mbtiles",
-                            min_zoom,
-                            max_zoom,
-                            mbtiles_path.stat().st_size,
-                        )
-                    except Exception as exc:
-                        print(
-                            f"callback patch failed: item_id={item_id} asset=mbtiles err={exc}",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                        raise
+                store(output_key, "mbtiles", mbtiles_path)
+                register(output_key, "mbtiles", mbtiles_path)
             elif fmt == "pmtiles":
-                # If an mbtiles already exists in S3, skip the expensive
-                # COG tile rendering and just download + convert it.
+                # Reuse an existing mbtiles rather than re-rendering the COG.
                 mbtiles_key = output_key.replace(".pmtiles", ".mbtiles")
                 existing = s3_object_size(bucket, mbtiles_key)
                 if existing is not None:
-                    # Archives predating MAX_ENCODED_BYTES can be far
-                    # larger than the pod's ephemeral-storage limit, and
-                    # conversion needs room for a second copy.
+                    # Archives predating this cap can exceed ephemeral
+                    # storage, and conversion needs room for a second copy.
                     if existing > MAX_ENCODED_BYTES:
                         raise SystemExit(
                             f"existing s3://{bucket}/{mbtiles_key} is {existing} bytes, "
@@ -545,53 +549,20 @@ def main() -> int:
                     download(bucket, mbtiles_key, mbtiles_path)
                 else:
                     generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
-                    upload(bucket, mbtiles_key, mbtiles_path, "application/vnd.mbtiles")
-                    print(f"uploaded s3://{bucket}/{mbtiles_key}")
+                    store(mbtiles_key, "mbtiles", mbtiles_path)
 
                 pmtiles_path = workdir / f"{item_id}.pmtiles"
                 convert_to_pmtiles(mbtiles_path, pmtiles_path)
-                upload(bucket, output_key, pmtiles_path, "application/vnd.pmtiles")
-                print(f"uploaded s3://{bucket}/{output_key}")
-
-                if canonical:
-                    try:
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            output_key,
-                            "pmtiles",
-                            min_zoom,
-                            max_zoom,
-                            pmtiles_path.stat().st_size,
-                        )
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            mbtiles_key,
-                            "mbtiles",
-                            min_zoom,
-                            max_zoom,
-                            mbtiles_path.stat().st_size,
-                        )
-                    except Exception as exc:
-                        print(
-                            f"callback patch failed: item_id={item_id} asset=pmtiles_or_mbtiles err={exc}",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                        raise
+                store(output_key, "pmtiles", pmtiles_path)
+                register(output_key, "pmtiles", pmtiles_path)
+                register(mbtiles_key, "mbtiles", mbtiles_path)
             else:
                 raise SystemExit(f"unknown format: {fmt}")
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
         exit_code = 0
     except Terminated as exc:
-        # Not re-raised: the point is to reach the finally and release
-        # the lock, so the API stops reporting the artifact in-progress.
+        # Not re-raised: reaching the finally is what releases the lock.
         exit_code = TERMINATED_EXIT_CODE
         print(
             f"worker terminated: item_id={item_id} format={fmt} reason={exc}",
@@ -619,10 +590,8 @@ def main() -> int:
 if __name__ == "__main__":
     code = main()
     if code == TERMINATED_EXIT_CODE:
-        # The lock is already released. Skip the normal interpreter exit,
-        # whose atexit hook joins the pool threads and blocks on the
-        # slowest in-flight COG read - measured at 30s, past the grace
-        # period, which would earn the SIGKILL this exists to avoid.
+        # Lock already released. Skip atexit, which joins pool threads and
+        # blocks ~30s on an in-flight COG read - past the grace period.
         sys.stdout.flush()
         sys.stderr.flush()
         os._exit(code)
