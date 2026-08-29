@@ -26,7 +26,7 @@ default:
 
 # Run every unit test suite. CI splits these across workflows.
 [no-cd]
-all: uploader stactools stac-extension
+all: uploader stactools stac-extension tilepack-api
 
 # Chart rendering tests on the host, for iterating without a container rebuild.
 # `just test all` covers them too: the test image ships helm.
@@ -76,6 +76,35 @@ stactools: _install-uv
   ./scripts/lint
   ./scripts/typecheck
   uv lock --check
+
+# Chart lint is separate: `just chart tilepack-api lint`.
+# Tilepack API Go tests and Python worker tests. Host + uv, not a container.
+[no-cd]
+tilepack-api: _install-uv
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export PATH="$HOME/.local/bin:$PATH"
+  cd {{justfile_directory()}}/backend/tilepack-api
+
+  echo "🔍 Checking Go formatting..."
+  unformatted="$(gofmt -l .)"
+  if [ -n "$unformatted" ]; then
+      echo "❌ Not gofmt-clean:"; echo "$unformatted"; exit 1
+  fi
+
+  echo "🔍 go vet..."
+  go vet ./...
+
+  echo "🧪 Go tests..."
+  go test ./...
+
+  cd worker
+  echo "🔍 Worker lint..."
+  uv run --with ruff ruff check .
+  uv run --with ruff ruff format --check .
+
+  echo "🐍 Worker tests..."
+  uv run --group test pytest tests/ -q
 
 # Validates the OAM extension schema and its examples. Needs npm.
 [no-cd]

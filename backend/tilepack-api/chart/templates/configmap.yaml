@@ -11,6 +11,9 @@ data:
   AWS_REGION: {{ .Values.s3Credentials.region | quote }}
   AWS_ENDPOINT_URL: {{ .Values.config.s3Endpoint | quote }}
   LOCK_TTL_SECONDS: {{ .Values.config.lockTTLSeconds | quote }}
+  WORKER_ACTIVE_DEADLINE_SECONDS: {{ .Values.config.workerActiveDeadlineSeconds | quote }}
+  WORKER_JOB_TTL_SECONDS: {{ .Values.config.workerJobTTLSeconds | quote }}
+  WORKER_TERMINATION_GRACE_SECONDS: {{ .Values.config.workerTerminationGraceSeconds | quote }}
   MAX_CONCURRENT_JOBS: {{ .Values.config.maxConcurrentJobs | quote }}
   PER_IP_RATE_PER_SECOND: {{ .Values.config.perIpRatePerSecond | quote }}
   PER_IP_BURST: {{ .Values.config.perIpBurst | quote }}
@@ -24,3 +27,7 @@ data:
   WORKER_MEMORY_REQUEST: {{ .Values.worker.resources.requests.memory | quote }}
   WORKER_CPU_LIMIT: {{ .Values.worker.resources.limits.cpu | quote }}
   WORKER_MEMORY_LIMIT: {{ .Values.worker.resources.limits.memory | quote }}
+  WORKER_EPHEMERAL_REQUEST: {{ index .Values.worker.resources.requests "ephemeral-storage" | quote }}
+  WORKER_EPHEMERAL_LIMIT: {{ index .Values.worker.resources.limits "ephemeral-storage" | quote }}
+  WORKER_MAX_TILE_COUNT: {{ .Values.config.workerMaxTileCount | quote }}
+  WORKER_MAX_ENCODED_BYTES: {{ .Values.config.workerMaxEncodedBytes | quote }}

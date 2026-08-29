@@ -117,10 +117,15 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
         window.open(res.url, "_blank", "noopener,noreferrer");
       } else if (res.status === "started" || res.status === "in_progress") {
         setState({ kind: "pending" });
-      } else if (res.status === "rate_limited") {
+      } else if (res.status === "rate_limited" || res.status === "busy") {
+        // Both are 429 and retryable; neither carries a message.
+        const wait = res.retry_after ?? 30;
         setState({
           kind: "error",
-          message: `Rate limited. Try again in ${res.retry_after ?? 30}s.`,
+          message:
+            res.status === "busy"
+              ? `Packager is busy. Try again in ${wait}s.`
+              : `Rate limited. Try again in ${wait}s.`,
         });
       } else {
         setState({

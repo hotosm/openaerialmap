@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -30,6 +32,14 @@ type Client struct {
 	awsRegion            string
 	awsEndpointURL       string
 	workerResources      corev1.ResourceRequirements
+
+	// Ordered against the API's lock TTL; config.Load enforces it.
+	activeDeadlineSeconds   int64
+	jobTTLSeconds           int32
+	terminationGraceSeconds int64
+
+	maxTileCount    int
+	maxEncodedBytes int64
 }
 
 const (
@@ -52,6 +62,14 @@ type NewOpts struct {
 	WorkerMemoryRequest  string
 	WorkerCPULimit       string
 	WorkerMemoryLimit    string
+	EphemeralRequest     string
+	EphemeralLimit       string
+	MaxTileCount         int
+	MaxEncodedBytes      int64
+
+	ActiveDeadlineSeconds   int64
+	JobTTLSeconds           int32
+	TerminationGraceSeconds int64
 }
 
 func New(opts NewOpts) (*Client, error) {
@@ -75,14 +93,23 @@ func New(opts NewOpts) (*Client, error) {
 		s3CredsSecretKey:     opts.S3CredsSecretKey,
 		awsRegion:            opts.AWSRegion,
 		awsEndpointURL:       opts.AWSEndpointURL,
+
+		activeDeadlineSeconds:   opts.ActiveDeadlineSeconds,
+		jobTTLSeconds:           opts.JobTTLSeconds,
+		terminationGraceSeconds: opts.TerminationGraceSeconds,
+		maxTileCount:            opts.MaxTileCount,
+		maxEncodedBytes:         opts.MaxEncodedBytes,
+
 		workerResources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse(opts.WorkerCPURequest),
-				corev1.ResourceMemory: resource.MustParse(opts.WorkerMemoryRequest),
+				corev1.ResourceCPU:              resource.MustParse(opts.WorkerCPURequest),
+				corev1.ResourceMemory:           resource.MustParse(opts.WorkerMemoryRequest),
+				corev1.ResourceEphemeralStorage: resource.MustParse(opts.EphemeralRequest),
 			},
 			Limits: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse(opts.WorkerCPULimit),
-				corev1.ResourceMemory: resource.MustParse(opts.WorkerMemoryLimit),
+				corev1.ResourceCPU:              resource.MustParse(opts.WorkerCPULimit),
+				corev1.ResourceMemory:           resource.MustParse(opts.WorkerMemoryLimit),
+				corev1.ResourceEphemeralStorage: resource.MustParse(opts.EphemeralLimit),
 			},
 		},
 	}, nil
@@ -130,11 +157,12 @@ type JobSpec struct {
 // that two simultaneous requests for the same artifact race on Job creation
 // rather than producing two duplicate workers.
 func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
-	name := jobName(spec)
+	name := JobName(spec)
 
-	ttl := int32(3600)
-	deadline := int64(1800)
+	ttl := c.jobTTLSeconds
+	deadline := c.activeDeadlineSeconds
 	backoff := int32(1)
+	grace := c.terminationGraceSeconds
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -157,6 +185,8 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 				Spec: corev1.PodSpec{
 					RestartPolicy:      corev1.RestartPolicyNever,
 					ServiceAccountName: c.workerServiceAccount,
+					// Room for the worker to release its S3 lock on SIGTERM.
+					TerminationGracePeriodSeconds: &grace,
 					Containers: []corev1.Container{{
 						Name:            "worker",
 						Image:           c.workerImage,
@@ -172,6 +202,8 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 							{Name: "MAX_ZOOM", Value: itoa(spec.MaxZoom)},
 							{Name: "CANONICAL", Value: boolStr(spec.Canonical)},
 							{Name: "GSD", Value: fmt.Sprintf("%g", spec.GSD)},
+							{Name: "MAX_TILE_COUNT", Value: itoa(c.maxTileCount)},
+							{Name: "MAX_ENCODED_BYTES", Value: fmt.Sprintf("%d", c.maxEncodedBytes)},
 							{Name: "INTERNAL_BASE_URL", Value: c.internalBaseURL},
 							{Name: "AWS_REGION", Value: c.awsRegion},
 							{
@@ -226,7 +258,9 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 	return nil
 }
 
-func jobName(spec JobSpec) string {
+// JobName is the deterministic Job name for a request. The API looks a
+// Job up by this before deciding whether to create one.
+func JobName(spec JobSpec) string {
 	identity := fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%t", spec.StacID, spec.Format, spec.MinZoom, spec.MaxZoom, spec.Canonical)
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(identity)))[:32]
 	prefix := sanitize(spec.StacID)
@@ -258,4 +292,95 @@ func boolStr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// JobPhase is the coarse lifecycle state of a worker Job.
+type JobPhase string
+
+const (
+	JobPhaseAbsent JobPhase = "absent"
+	// Running, or created and not yet scheduled.
+	JobPhaseActive    JobPhase = "active"
+	JobPhaseSucceeded JobPhase = "succeeded"
+	// Terminal: BackoffLimit is 1, so nothing retries it.
+	JobPhaseFailed JobPhase = "failed"
+)
+
+type JobState struct {
+	Phase   JobPhase
+	Reason  string
+	Message string
+	// When TTLSecondsAfterFinished starts counting down. Zero if not terminal.
+	FinishedAt time.Time
+}
+
+// DeadlineExceededReason means "too big", not "broken" - worth reporting.
+const DeadlineExceededReason = "DeadlineExceeded"
+
+// GetJobState classifies one Job by name. A missing Job is
+// JobPhaseAbsent with a nil error, not an error.
+func (c *Client) GetJobState(ctx context.Context, name string) (JobState, error) {
+	job, err := c.cs.BatchV1().Jobs(c.namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return JobState{Phase: JobPhaseAbsent}, nil
+		}
+		log.Printf("k8s get job failed: namespace=%s name=%s err=%v", c.namespace, name, err)
+		return JobState{}, err
+	}
+	return classifyJob(job), nil
+}
+
+// TTLRemaining is how long a terminal Job lingers before Kubernetes
+// collects it. Until then the same Job cannot be recreated, so it is
+// also how long a caller must wait before a retry can do anything.
+func (c *Client) TTLRemaining(state JobState, now time.Time) time.Duration {
+	if state.FinishedAt.IsZero() {
+		return 0
+	}
+	remaining := state.FinishedAt.
+		Add(time.Duration(c.jobTTLSeconds) * time.Second).
+		Sub(now)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+// classifyJob is split from GetJobState so it can be tested without a
+// cluster. Matches condition types exactly: newer Kubernetes adds
+// interim ones (JobFailureTarget) that are not terminal.
+func classifyJob(job *batchv1.Job) JobState {
+	for _, cond := range job.Status.Conditions {
+		if cond.Status != corev1.ConditionTrue {
+			continue
+		}
+		switch cond.Type {
+		case batchv1.JobFailed:
+			return JobState{
+				Phase:      JobPhaseFailed,
+				Reason:     cond.Reason,
+				Message:    cond.Message,
+				FinishedAt: terminalTime(job, cond),
+			}
+		case batchv1.JobComplete:
+			return JobState{
+				Phase:      JobPhaseSucceeded,
+				Reason:     cond.Reason,
+				FinishedAt: terminalTime(job, cond),
+			}
+		}
+	}
+	// Running or not yet scheduled - both mean "a worker is on its way".
+	return JobState{Phase: JobPhaseActive}
+}
+
+func terminalTime(job *batchv1.Job, cond batchv1.JobCondition) time.Time {
+	if !cond.LastTransitionTime.IsZero() {
+		return cond.LastTransitionTime.Time
+	}
+	if job.Status.CompletionTime != nil {
+		return job.Status.CompletionTime.Time
+	}
+	return time.Time{}
 }

@@ -40,6 +40,7 @@ from __future__ import annotations
 import math
 import os
 import shutil
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -57,16 +58,51 @@ import rasterio.crs
 from rio_tiler.errors import TileOutsideBounds
 from rio_tiler.io import Reader
 
-# Hard ceiling on the total number of tiles any single run may
-# generate. With 256x256 PNGs this bounds worst-case runtime and
-# output file size. If exceeded the worker exits before touching S3
-# and tells the caller (via logs) to pass a lower max_zoom.
-MAX_TILE_COUNT = 500_000
+# Two ceilings, both aborting before anything reaches S3. Neither
+# substitutes for the other: measured bytes-per-tile spans 15-78 KiB
+# across real scenes, so tile count is a poor proxy for disk.
+#
+# Runtime bound, sized against the Job's ActiveDeadlineSeconds.
+MAX_TILE_COUNT = int(os.environ.get("MAX_TILE_COUNT") or 150_000)
+# Disk bound. Peak is ~2x this: pmtiles holds the converted copy too.
+MAX_ENCODED_BYTES = int(os.environ.get("MAX_ENCODED_BYTES") or 4 * 1024**3)
 
 # Number of concurrent tile-read threads.  The work is ~85% I/O-bound
 # (HTTP range reads to S3), so higher concurrency scales near-linearly
 # until network bandwidth saturates.
 TILE_WORKERS = 24
+
+# Set on a signal or a tripped cap. Tile threads check it so in-flight
+# work retires instead of running to completion.
+_stop_rendering = threading.Event()
+
+TERMINATED_EXIT_CODE = 143  # 128 + SIGTERM
+
+
+class Terminated(Exception):
+    """Termination signal, raised in the main thread.
+
+    An Exception rather than SystemExit so the existing ``except
+    Exception`` handlers still delete the partial archive.
+    """
+
+
+def _install_signal_handlers() -> None:
+    """Trap SIGTERM/SIGINT so the S3 lock is released on the way out.
+
+    Without this the worker leaks its lock on every deadline kill: it is
+    PID 1, where an untrapped SIGTERM is ignored outright, so nothing
+    runs before SIGKILL.
+    """
+
+    def handle(signum, _frame):
+        # Set first, so tile threads retire while the exception unwinds.
+        _stop_rendering.set()
+        raise Terminated(f"received signal {signal.Signals(signum).name}")
+
+    signal.signal(signal.SIGTERM, handle)
+    signal.signal(signal.SIGINT, handle)
+
 
 # Thread-local storage for reusing GDAL dataset handles.  rio-tiler's
 # Reader is not thread-safe, but each thread can safely keep its own
@@ -178,6 +214,8 @@ def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | Non
     Uses a thread-local Reader so each thread reuses its GDAL dataset
     handle across tiles, avoiding repeated open/close overhead.
     """
+    if _stop_rendering.is_set():
+        return "cancelled", None
     try:
         cog = _get_thread_reader(cog_url)
         img = cog.tile(x, y, z)
@@ -243,7 +281,10 @@ def generate_mbtiles(
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("minzoom", str(min_zoom)))
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("maxzoom", str(max_zoom)))
 
+        encoded_bytes = 0
         pool = ThreadPoolExecutor(max_workers=TILE_WORKERS)
+        # Cleared only on full success, so every abnormal exit cancels.
+        aborting = True
         try:
             for z, xmin, xmax, ymin, ymax in tile_ranges(bounds, min_zoom, max_zoom):
                 start = time.monotonic()
@@ -260,17 +301,30 @@ def generate_mbtiles(
                     if status == "outside":
                         outside += 1
                         continue
+                    if status == "cancelled":
+                        # Stop draining rather than insert a NULL blob.
+                        raise Terminated("tile generation cancelled")
                     if status == "failed":
                         status, png = _render_tile(cog_url, x, y, z)
                         if status == "outside":
                             outside += 1
                             continue
+                        if status == "cancelled":
+                            raise Terminated("tile generation cancelled")
                         if status == "failed":
                             should_cleanup = True
                             raise RuntimeError(
                                 f"unexpected tile render failure for z={z}, "
                                 f"x={x}, y={y}"
                             )
+                    encoded_bytes += len(png)
+                    if encoded_bytes > MAX_ENCODED_BYTES:
+                        should_cleanup = True
+                        raise SystemExit(
+                            f"encoded tile bytes {encoded_bytes} exceed "
+                            f"MAX_ENCODED_BYTES={MAX_ENCODED_BYTES} at z{z}; "
+                            f"rerun with a lower max_zoom"
+                        )
                     tms_y = (1 << z) - 1 - y
                     cur.execute(
                         "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
@@ -280,14 +334,22 @@ def generate_mbtiles(
                 conn.commit()
                 msg = (
                     f"z{z}: {written}/{len(futures)} tiles in "
-                    f"{time.monotonic() - start:.1f}s"
+                    f"{time.monotonic() - start:.1f}s, "
+                    f"{encoded_bytes / 1024**2:.1f} MiB total"
                 )
                 if outside > 0:
                     msg += f", outside={outside}"
                 print(msg, flush=True)
             _close_thread_readers(pool, cog_url)
+            aborting = False
         finally:
-            pool.shutdown(wait=True)
+            if aborting:
+                # A whole level is queued at once, so waiting would render
+                # a failed run to completion and pin every PNG - an OOM.
+                _stop_rendering.set()
+                pool.shutdown(wait=False, cancel_futures=True)
+            else:
+                pool.shutdown(wait=True)
     except Exception:
         should_cleanup = True
         raise
@@ -355,13 +417,12 @@ def _s3_client():
     return boto3.client("s3", **kwargs)
 
 
-def s3_exists(bucket: str, key: str) -> bool:
-    """Return True if the key exists in S3."""
+def s3_object_size(bucket: str, key: str) -> int | None:
+    """Size of the key in bytes, or None if it does not exist."""
     try:
-        _s3_client().head_object(Bucket=bucket, Key=key)
-        return True
+        return _s3_client().head_object(Bucket=bucket, Key=key)["ContentLength"]
     except botocore.exceptions.ClientError:
-        return False
+        return None
 
 
 def download(bucket: str, key: str, path: Path) -> None:
@@ -392,33 +453,40 @@ def delete_lock(bucket: str, lock_key: str) -> None:
 
 
 def main() -> int:
-    item_id = env("STAC_ITEM_ID")
-    fmt = env("FORMAT")
-    cog_url = env("COG_URL")
-    output_key = env("OUTPUT_KEY")
-    lock_key = env("LOCK_KEY")
-    min_zoom = int(env("MIN_ZOOM", "0"))
-    max_zoom = int(env("MAX_ZOOM", "0"))
-    canonical = env("CANONICAL", "false").lower() == "true"
-    gsd = float(env("GSD", "0") or "0")
+    _install_signal_handlers()
 
+    # What the cleanup path needs, read before anything that can fail so
+    # the lock is released even if the rest of the setup does not finish.
     bucket = env("S3_BUCKET", "oin-hotosm-temp")
-    public_base = env(
-        "S3_PUBLIC_BASE_URL",
-        "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com",
-    )
-    internal_base = env("INTERNAL_BASE_URL")
-    internal_token = env("INTERNAL_TOKEN")
+    lock_key = env("LOCK_KEY")
 
+    item_id = fmt = "unknown"  # for the summary line in the finally
     start = time.monotonic()
-    print(
-        f"worker run start: item_id={item_id} format={fmt} canonical={canonical} "
-        f"min_zoom={min_zoom} max_zoom={max_zoom} output_key={output_key}",
-        flush=True,
-    )
 
     exit_code = 1
     try:
+        item_id = env("STAC_ITEM_ID")
+        fmt = env("FORMAT")
+        cog_url = env("COG_URL")
+        output_key = env("OUTPUT_KEY")
+        min_zoom = int(env("MIN_ZOOM", "0"))
+        max_zoom = int(env("MAX_ZOOM", "0"))
+        canonical = env("CANONICAL", "false").lower() == "true"
+        gsd = float(env("GSD", "0") or "0")
+
+        public_base = env(
+            "S3_PUBLIC_BASE_URL",
+            "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com",
+        )
+        internal_base = env("INTERNAL_BASE_URL")
+        internal_token = env("INTERNAL_TOKEN")
+
+        print(
+            f"worker run start: item_id={item_id} format={fmt} canonical={canonical} "
+            f"min_zoom={min_zoom} max_zoom={max_zoom} output_key={output_key}",
+            flush=True,
+        )
+
         if min_zoom == 0 and max_zoom == 0:
             # Default range: from z0 up to whatever the source GSD
             # supports (bounded by derive_max_zoom_from_gsd).
@@ -459,9 +527,20 @@ def main() -> int:
                 # If an mbtiles already exists in S3, skip the expensive
                 # COG tile rendering and just download + convert it.
                 mbtiles_key = output_key.replace(".pmtiles", ".mbtiles")
-                if s3_exists(bucket, mbtiles_key):
+                existing = s3_object_size(bucket, mbtiles_key)
+                if existing is not None:
+                    # Archives predating MAX_ENCODED_BYTES can be far
+                    # larger than the pod's ephemeral-storage limit, and
+                    # conversion needs room for a second copy.
+                    if existing > MAX_ENCODED_BYTES:
+                        raise SystemExit(
+                            f"existing s3://{bucket}/{mbtiles_key} is {existing} bytes, "
+                            f"over MAX_ENCODED_BYTES={MAX_ENCODED_BYTES}; "
+                            f"rebuild the mbtiles first"
+                        )
                     print(
-                        f"found existing s3://{bucket}/{mbtiles_key}, skipping tile generation"
+                        f"found existing s3://{bucket}/{mbtiles_key} "
+                        f"({existing / 1024**2:.1f} MiB), skipping tile generation"
                     )
                     download(bucket, mbtiles_key, mbtiles_path)
                 else:
@@ -509,6 +588,20 @@ def main() -> int:
                 raise SystemExit(f"unknown format: {fmt}")
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
+        exit_code = 0
+    except Terminated as exc:
+        # Not re-raised: the point is to reach the finally and release
+        # the lock, so the API stops reporting the artifact in-progress.
+        exit_code = TERMINATED_EXIT_CODE
+        print(
+            f"worker terminated: item_id={item_id} format={fmt} reason={exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+    except SystemExit as exc:
+        # Raised by env() and by the caps. Re-raised so the finally runs.
+        exit_code = exc.code if isinstance(exc.code, int) else 1
+        raise
     except Exception:
         exit_code = 1
         raise
@@ -520,8 +613,17 @@ def main() -> int:
             flush=True,
         )
 
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    code = main()
+    if code == TERMINATED_EXIT_CODE:
+        # The lock is already released. Skip the normal interpreter exit,
+        # whose atexit hook joins the pool threads and blocks on the
+        # slowest in-flight COG read - measured at 30s, past the grace
+        # period, which would earn the SIGKILL this exists to avoid.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+    raise SystemExit(code)

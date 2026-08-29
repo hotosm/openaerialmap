@@ -50,7 +50,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("Tilepack API\n\nUsage\n\nGenerate a PMTiles archive for a STAC item:\n\ncurl -X POST \"https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles\"\n\nPoll the same endpoint until it returns 200 with a download URL (returns 202 while the worker is still running).\n\nOnce complete, view the updated STAC record with the new asset:\n\nhttps://api.imagery.hotosm.org/stac/collections/openaerialmap/items/67ac270a43f18e3e3665bef7\n"))
+		_, _ = w.Write([]byte("Tilepack API\n\nUsage\n\nGenerate a PMTiles archive for a STAC item:\n\ncurl -X POST \"https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles\"\n\nPoll the same endpoint until it returns 200 with a download URL (returns 202 while the worker is still running, 409 if the last build failed - terminal, stop polling; 429 is retryable after retry_after).\n\nOnce complete, view the updated STAC record with the new asset:\n\nhttps://api.imagery.hotosm.org/stac/collections/openaerialmap/items/67ac270a43f18e3e3665bef7\n"))
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -171,6 +171,11 @@ type response struct {
 // Typical statuses:
 //   - 202 {"status":"started"} or {"status":"in_progress"}
 //   - 200 {"status":"ready","url":"https://..."}
+//   - 409 {"status":"failed","message":"...","retry_after":N}
+//
+// "failed" is terminal for retry_after seconds: the worker Job died and
+// no replacement starts until Kubernetes collects it. Clients should
+// stop on 409, and back off on 429.
 func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
 	id := r.PathValue("id")
@@ -316,9 +321,47 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In-progress detection via the lock object. Stale locks (older
-	// than the configured TTL) are ignored so a crashed worker
-	// doesn't permanently block regeneration.
+	jobSpec := k8s.JobSpec{
+		StacID:    id,
+		Format:    format,
+		COGURL:    cogURL,
+		OutputKey: outputKey,
+		LockKey:   lockKey,
+		MinZoom:   minZoom,
+		MaxZoom:   maxZoom,
+		Canonical: canonical,
+		GSD:       gsd,
+	}
+
+	// Kubernetes, not the lock, is the source of truth for whether a
+	// worker is running. A failed Job lingers for its TTL and blocks a
+	// replacement; reporting that as in-progress strands the caller.
+	jobName := k8s.JobName(jobSpec)
+	jobState, err := h.k8s.GetJobState(ctx, jobName)
+	if err != nil {
+		log.Printf("job state check failed: stac_id=%s format=%s job=%s err=%v", id, format, jobName, err)
+		respond(http.StatusBadGateway, response{Status: "error", Message: "could not check job state"}, "job_state_check_failed")
+		return
+	}
+	switch jobState.Phase {
+	case k8s.JobPhaseActive:
+		log.Printf("in-progress job: stac_id=%s format=%s job=%s", id, format, jobName)
+		respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
+		return
+	case k8s.JobPhaseFailed:
+		h.respondJobFailed(ctx, respond, id, format, jobName, lockKey, jobState)
+		return
+	case k8s.JobPhaseSucceeded:
+		// Finished, but the ready paths above returned nothing, so the
+		// upload or callback did not land. Nothing will retry it.
+		log.Printf("job succeeded but output missing: stac_id=%s format=%s job=%s key=%s", id, format, jobName, outputKey)
+		h.respondJobFailed(ctx, respond, id, format, jobName, lockKey, jobState)
+		return
+	}
+
+	// No Job exists. The lock now only covers the window between PutLock
+	// and Job creation. Stale locks are ignored - LOCK_TTL_SECONDS
+	// outlives a worker running to its deadline, so stale means gone.
 	if exists, modified, _, err := h.s3.HeadObject(ctx, lockKey); err == nil && exists {
 		lockAge := time.Since(modified)
 		if lockAge < time.Duration(h.cfg.LockTTLSeconds)*time.Second {
@@ -352,23 +395,13 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.k8s.CreateJob(ctx, k8s.JobSpec{
-		StacID:    id,
-		Format:    format,
-		COGURL:    cogURL,
-		OutputKey: outputKey,
-		LockKey:   lockKey,
-		MinZoom:   minZoom,
-		MaxZoom:   maxZoom,
-		Canonical: canonical,
-		GSD:       gsd,
-	})
+	err = h.k8s.CreateJob(ctx, jobSpec)
 	if err != nil {
-		// AlreadyExists means another concurrent request beat us to
-		// it; that's success from the caller's point of view. Leave
-		// the lock in place - the other worker will clean it up.
+		// The Job did not exist when we checked, so this is a genuine
+		// race: another request just created it. A lingering finished
+		// Job cannot reach here - the JobPhase switch above catches it.
 		if k8serrors.IsAlreadyExists(err) {
-			log.Printf("job already exists: stac_id=%s format=%s key=%s", id, format, outputKey)
+			log.Printf("job already exists (race): stac_id=%s format=%s job=%s", id, format, jobName)
 			respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
 			return
 		}
@@ -387,6 +420,46 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		log.Printf("worker started: stac_id=%s format=%s zoom=%d-%d", id, format, minZoom, maxZoom)
 	}
 	respond(http.StatusAccepted, response{Status: "started"}, "started")
+}
+
+// respondJobFailed reports a terminal worker failure.
+//
+// Deliberately leaves the failed Job in place and starts no replacement:
+// clients poll in a loop, and a job killed by its deadline would just
+// exceed it again. The Job's TTL is therefore the retry cooldown, which
+// retry_after counts down to. An operator can delete the Job to skip it.
+// The orphan lock left by a SIGKILLed worker is removed.
+func (h *Handler) respondJobFailed(
+	ctx context.Context,
+	respond func(int, response, string),
+	id, format, jobName, lockKey string,
+	state k8s.JobState,
+) {
+	if err := h.s3.DeleteObject(ctx, lockKey); err != nil {
+		log.Printf("orphan lock cleanup failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
+	}
+
+	retryAfter := int(h.k8s.TTLRemaining(state, time.Now()).Seconds())
+	message := "tilepack generation failed"
+	outcome := "job_failed"
+	switch {
+	case state.Phase == k8s.JobPhaseSucceeded:
+		// Not a worker crash - worth its own outcome so it pages separately.
+		outcome = "job_output_missing"
+	case state.Reason == k8s.DeadlineExceededReason:
+		// Actionable: the caller can ask for a lower max_zoom.
+		message = "tilepack generation exceeded its time limit; retry with a lower max_zoom"
+		outcome = "job_deadline_exceeded"
+	}
+
+	log.Printf("job failed: stac_id=%s format=%s job=%s phase=%s reason=%s retry_after_s=%d msg=%q",
+		id, format, jobName, state.Phase, state.Reason, retryAfter, state.Message)
+
+	if retryAfter > 0 {
+		respond(http.StatusConflict, response{Status: "failed", Message: message, RetryAfter: retryAfter}, outcome)
+		return
+	}
+	respond(http.StatusConflict, response{Status: "failed", Message: message}, outcome)
 }
 
 func canonicalTilepackAsset(format, href string, fileSize int64, maxZoom int) pgstac.Asset {

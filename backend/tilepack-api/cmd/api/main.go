@@ -41,6 +41,14 @@ func main() {
 		WorkerMemoryRequest:  cfg.WorkerMemoryRequest,
 		WorkerCPULimit:       cfg.WorkerCPULimit,
 		WorkerMemoryLimit:    cfg.WorkerMemoryLimit,
+		EphemeralRequest:     cfg.WorkerEphemeralRequest,
+		EphemeralLimit:       cfg.WorkerEphemeralLimit,
+		MaxTileCount:         cfg.WorkerMaxTileCount,
+		MaxEncodedBytes:      cfg.WorkerMaxEncodedBytes,
+
+		ActiveDeadlineSeconds:   cfg.WorkerActiveDeadlineSeconds,
+		JobTTLSeconds:           cfg.WorkerJobTTLSeconds,
+		TerminationGraceSeconds: cfg.WorkerTerminationGraceSeconds,
 	})
 	if err != nil {
 		log.Fatalf("k8s: %v", err)

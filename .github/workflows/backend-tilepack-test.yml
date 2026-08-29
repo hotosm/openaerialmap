@@ -1,0 +1,31 @@
+# Tilepack tests via `just test tilepack-api` (tasks/test) and chart lint via
+# `just chart tilepack-api lint` (tasks/chart.just).
+name: Test Tilepack API
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "backend/tilepack-api/**"
+      - "tasks/test"
+      - ".github/workflows/backend-tilepack-test.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    if: github.event.pull_request.draft == false
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
+    with:
+      environment: "test"
+      command: "test tilepack-api"
+
+  chart-lint:
+    if: github.event.pull_request.draft == false
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
+    with:
+      environment: "test"
+      command: "chart tilepack-api lint"
