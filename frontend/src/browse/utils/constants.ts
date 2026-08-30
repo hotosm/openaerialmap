@@ -37,11 +37,17 @@ export const UPLOADER_URL = getRuntimeConfig(
   "https://upload.imagery.hotosm.org",
 );
 
-// STAC Browser root for item metadata pages.
-export const STAC_BROWSER_URL = getRuntimeConfig(
-  "VITE_STAC_BROWSER_URL",
-  "https://api.imagery.hotosm.org/browser",
-);
+// eoAPI serves both viewers, so they sit under the API - unless a deployment
+// runs no copy of its own and borrows another's, as staging borrows prod's.
+export const STAC_BROWSER_URL = getRuntimeConfig("VITE_STAC_BROWSER_URL", `${API_URL}/browser`);
+export const STAC_MAP_URL = getRuntimeConfig("VITE_STAC_MAP_URL", `${API_URL}/map`);
+
+// A borrowed viewer opens the catalog it was built against, so steer it at ours.
+export const STAC_BROWSER_CATALOG_URL = STAC_BROWSER_URL.startsWith(new URL(STAC_URL).origin)
+  ? `${STAC_BROWSER_URL}/`
+  : `${STAC_BROWSER_URL}/external/${STAC_URL.replace(/^https?:\/\//, "")}`;
+
+export const STAC_MAP_CATALOG_URL = `${STAC_MAP_URL}/?href=${encodeURIComponent(STAC_URL)}`;
 
 // On-demand per-item PMTiles and MBTiles service.
 export const PACKAGER_URL = getRuntimeConfig(

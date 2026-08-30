@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import SiteHeader from "./SiteHeader";
 import {
-  API_URL,
   PACKAGER_URL,
-  STAC_BROWSER_URL,
+  STAC_BROWSER_CATALOG_URL,
+  STAC_MAP_CATALOG_URL,
   STAC_TITILER_URL,
   STAC_URL,
   UPLOADER_URL,
@@ -49,7 +49,7 @@ const COMPONENTS = [
     tag: "Catalog",
     description:
       "Walk the raw STAC catalog: collections, items, assets. Useful for inspecting metadata and asset URLs directly.",
-    href: `${STAC_BROWSER_URL}/?.language=en`,
+    href: `${STAC_BROWSER_CATALOG_URL}?.language=en`,
     icon: "folder-tree",
   },
   {
@@ -57,7 +57,7 @@ const COMPONENTS = [
     tag: "Map catalog",
     description:
       "STAC Browser, but on a map. Explore items spatially, filter by area and time, and preview COGs live from the catalog.",
-    href: `${API_URL}/map/`,
+    href: STAC_MAP_CATALOG_URL,
     icon: "map-location-dot",
   },
   {
