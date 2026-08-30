@@ -125,13 +125,14 @@
     <script>
       (function () {
         const MAIN = "{{ main_site_url }}";
+        const API = "{{ api_site_url }}";
         const header = document.getElementById("oam-header");
         header.tabs = [
           { label: "Home", clickEvent: () => (window.location.href = MAIN + "/") },
           { label: "Browse", clickEvent: () => (window.location.href = MAIN + "/browse") },
           {
             label: "API",
-            clickEvent: () => window.open("https://api.imagery.hotosm.org", "_blank"),
+            clickEvent: () => window.open(API, "_blank"),
           },
           {
             label: "Docs",

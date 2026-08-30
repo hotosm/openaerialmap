@@ -1,6 +1,7 @@
 // config.js supplies deployed values; Vite env vars support local development.
 
 type RuntimeConfigKey =
+  | "VITE_API_URL"
   | "VITE_PMTILES_URL"
   | "VITE_DENSITY_PMTILES_URL"
   | "VITE_STAC_TITILER_URL"

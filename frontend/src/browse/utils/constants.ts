@@ -1,5 +1,7 @@
 import { getRuntimeConfig } from "../../runtimeConfig";
 
+export const API_URL = getRuntimeConfig("VITE_API_URL", "https://api.imagery.hotosm.org");
+
 // global-data.pmtiles has footprints; global-coverage.pmtiles is density-only.
 export const PMTILES_URL = getRuntimeConfig(
   "VITE_PMTILES_URL",

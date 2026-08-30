@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { ANNOUNCEMENT_URL, UPLOADER_URL } from "./browse/utils/constants";
+import { ANNOUNCEMENT_URL, API_URL, UPLOADER_URL } from "./browse/utils/constants";
 
 // Keep these tabs aligned with backend/uploader-api/app/templates/layout.html.
 
@@ -19,7 +19,7 @@ const HEADER_TABS: HeaderTab[] = [
   },
   {
     label: "API",
-    clickEvent: () => window.open("https://api.imagery.hotosm.org", "_blank"),
+    clickEvent: () => window.open(API_URL, "_blank"),
   },
   {
     label: "Docs",
