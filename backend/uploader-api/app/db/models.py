@@ -165,6 +165,15 @@ class DbUpload:
     # Non-fatal notice shown with the status (e.g. duplicate bytes detected).
     warning: str | None = None
 
+    def __post_init__(self) -> None:
+        """Normalise the primary key to the `str` this class advertises.
+
+        The column is `uuid`, so `RETURNING *` hands the row factory a UUID.
+        The Kubernetes client type-inspects it and fails the workflow submit.
+        """
+        if self.id is not None and not isinstance(self.id, str):
+            self.id = str(self.id)
+
     @classmethod
     async def create(cls, db: AsyncConnection, upload_in: Self) -> Self:
         """Insert a new upload job row."""

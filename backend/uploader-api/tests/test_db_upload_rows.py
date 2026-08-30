@@ -97,3 +97,14 @@ async def test_a_stalled_upload_stops_counting_against_the_quota(db, new_upload)
             {"id": upload.id},
         )
     assert await DbUpload.count_active(db, upload.user_sub) == 0
+
+
+def test_the_id_is_normalised_to_a_string():
+    """The column is `uuid`, so psycopg's row factory hands back a UUID.
+
+    DbUpload advertises `str`, and the Argo manifest depends on that holding.
+    """
+    raw = uuid.uuid4()
+
+    assert DbUpload(id=raw).id == str(raw)
+    assert DbUpload(id=None).id is None

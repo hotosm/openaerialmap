@@ -243,12 +243,16 @@ seed:
   maxGiB: 10
   # Skip items missing any of these assets.
   requiredAssets: [visual]
+  # Threads copying objects. Each is bounded to two 16MiB parts in flight, so
+  # this is also what sets the job's peak memory: raise it and raise resources.
   concurrency: 8
   dryRun: false
   reseed: false
   backoffLimit: 2
-  # Keep the Helm or ArgoCD timeout at least this high.
-  activeDeadlineSeconds: 3600
+  # maxGiB of imagery pulled from public S3 and pushed into the store, which on
+  # a bundled RustFS is CPU-bound on a fraction of a core. An hour is not enough
+  # for the default 10GiB. Keep the Helm or ArgoCD timeout at least this high.
+  activeDeadlineSeconds: 7200
   ttlSecondsAfterFinished: 3600
   resources:
     requests: { cpu: 250m, memory: 512Mi }
