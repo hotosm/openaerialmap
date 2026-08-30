@@ -1,5 +1,7 @@
 const PART_SIZE = 100 * 1024 * 1024; // 100 MiB
 
+const byId = (id) => document.getElementById(id);
+
 async function postJSON(url, body) {
   const resp = await fetch(url, {
     method: "POST",
@@ -14,11 +16,54 @@ async function postJSON(url, body) {
   return resp.json();
 }
 
+// A null fraction means "working, but no measurable progress yet".
 function setProgress(fraction, label) {
-  const wrap = document.getElementById("upload-progress");
+  const wrap = byId("upload-progress");
   wrap.hidden = false;
-  document.getElementById("progress-bar").value = Math.round(fraction * 100);
-  document.getElementById("progress-label").textContent = label;
+  const bar = byId("progress-bar");
+  // Attribute, not property: it survives the custom element upgrading late.
+  bar.toggleAttribute("indeterminate", fraction == null);
+  bar.value = fraction == null ? 0 : Math.round(fraction * 100);
+  byId("progress-label").textContent = label;
+}
+
+// Freeze the bar where it stopped: an error is not progress, and a spinning
+// indeterminate bar next to an error claims work that is no longer happening.
+function haltProgress(label) {
+  byId("progress-bar").removeAttribute("indeterminate");
+  byId("progress-label").textContent = label;
+}
+
+function formatBytes(bytes) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+// XHR, not fetch: only XHR reports bytes sent, so a 100 MiB part moves the bar.
+function putPart(url, blob, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) onProgress(e.loaded);
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.getResponseHeader("ETag"));
+      } else {
+        reject(new Error(`Failed uploading part: ${xhr.status}`));
+      }
+    });
+    xhr.addEventListener("error", () => reject(new Error("Network error while uploading")));
+    xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+    xhr.send(blob);
+  });
 }
 
 function fieldValue(form, name) {
@@ -175,6 +220,15 @@ function sourceHint(raw) {
   return "";
 }
 
+// Locking the source while a submission runs keeps applySourceMode from
+// relabelling the button under a running upload.
+function setSourceControlsDisabled(disabled) {
+  for (const id of ["source-choice", "file-input", "source-url"]) {
+    const el = byId(id);
+    if (el) el.disabled = disabled;
+  }
+}
+
 function currentMode(form) {
   const picked = form.querySelector('input[name="source_mode"]:checked');
   return picked ? picked.value : "file";
@@ -183,25 +237,25 @@ function currentMode(form) {
 // `required` has to come off the input the user cannot see, or submit blocks silently.
 function applySourceMode(form) {
   const mode = currentMode(form);
-  const fileInput = document.getElementById("file-input");
-  const urlInput = document.getElementById("source-url");
-  document.getElementById("file-picker").hidden = mode !== "file";
-  document.getElementById("url-picker").hidden = mode !== "url";
+  const fileInput = byId("file-input");
+  const urlInput = byId("source-url");
+  byId("file-picker").hidden = mode !== "file";
+  byId("url-picker").hidden = mode !== "url";
   if (fileInput) fileInput.required = mode === "file";
   if (urlInput) urlInput.required = mode === "url";
-  const submit = document.getElementById("submit-btn");
+  const submit = byId("submit-btn");
   if (submit) submit.textContent = mode === "url" ? "Import imagery" : "Start upload";
 }
 
 // Switch the form from "pick a file" to "confirm this source".
 function enterRemoteSourceMode(sourceUrl) {
-  const fileInput = document.getElementById("file-input");
+  const fileInput = byId("file-input");
   if (fileInput) fileInput.required = false;
-  const urlInput = document.getElementById("source-url");
+  const urlInput = byId("source-url");
   if (urlInput) urlInput.required = false;
   // The source is already decided, so the choice would only be misleading.
   for (const id of ["source-choice", "file-picker", "url-picker"]) {
-    const el = document.getElementById(id);
+    const el = byId(id);
     if (el) el.hidden = true;
   }
 
@@ -211,20 +265,20 @@ function enterRemoteSourceMode(sourceUrl) {
   } catch {
     // Leave the raw value; the server rejects anything unfetchable anyway.
   }
-  const panel = document.getElementById("remote-source");
-  const detail = document.getElementById("remote-source-detail");
+  const panel = byId("remote-source");
+  const detail = byId("remote-source-detail");
   // textContent, not innerHTML: this string comes from the query string.
   if (detail) {
     detail.textContent = `OpenAerialMap will download the imagery from ${host} after you confirm. You do not need to upload a file.`;
   }
   if (panel) panel.hidden = false;
-  const submit = document.getElementById("submit-btn");
+  const submit = byId("submit-btn");
   if (submit) submit.textContent = "Create OAM record";
 }
 
 async function submitRemoteSource(form, sourceUrl) {
   const metadata = collectMetadata(form);
-  setProgress(0.5, "Registering the dataset…");
+  setProgress(null, "Registering the dataset…");
   const result = await postJSON("/api/v1/uploads", {
     source_url: sourceUrl,
     title: metadata.title,
@@ -249,10 +303,13 @@ function sessionKey(file, metadata) {
 }
 
 async function uploadFile(form, file) {
-  const errorBox = document.getElementById("upload-error");
-  errorBox.innerHTML = "";
   const metadata = collectMetadata(form);
   const title = metadata.title;
+  const totalParts = Math.ceil(file.size / PART_SIZE);
+  const totalLabel = formatBytes(file.size);
+
+  // The first part takes minutes to land, so say so before any request goes out.
+  setProgress(null, `Preparing upload — 0/${totalParts} parts of ${totalLabel}`);
 
   // Reuse a session for the same file + metadata across reloads.
   const store = sessionKey(file, metadata);
@@ -282,42 +339,55 @@ async function uploadFile(form, file) {
   // Skip parts already stored by the resumed session.
   const doneByNumber = new Map(existing.map((p) => [p.PartNumber, p.ETag]));
 
-  const totalParts = Math.ceil(file.size / PART_SIZE);
   const parts = [];
+  let sentBytes = 0;
+  // `loaded` is the in-flight part's bytes, which are not in sentBytes yet.
+  const report = (verb, n, loaded = 0) =>
+    setProgress(
+      (sentBytes + loaded) / file.size,
+      `${verb} part ${n}/${totalParts} — ${formatBytes(sentBytes + loaded)} of ${totalLabel}`,
+    );
+
   for (let n = 1; n <= totalParts; n++) {
+    const blob = file.slice((n - 1) * PART_SIZE, n * PART_SIZE);
     if (doneByNumber.has(n)) {
       parts.push({ ETag: doneByNumber.get(n), PartNumber: n });
-      setProgress(n / totalParts, `Resumed part ${n}/${totalParts}`);
+      sentBytes += blob.size;
+      report("Resumed", n);
       continue;
     }
-    const blob = file.slice((n - 1) * PART_SIZE, n * PART_SIZE);
+    report("Uploading", n);
     const { url } = await postJSON("/api/v1/s3/signedurl", {
       key,
       upload_id,
       part_number: n,
     });
-    const put = await fetch(url, { method: "PUT", body: blob });
-    if (!put.ok) throw new Error(`Failed uploading part ${n}`);
-    parts.push({ ETag: put.headers.get("ETag"), PartNumber: n });
-    setProgress(n / totalParts, `Uploaded part ${n}/${totalParts}`);
+    const etag = await putPart(url, blob, (loaded) => report("Uploading", n, loaded));
+    parts.push({ ETag: etag, PartNumber: n });
+    sentBytes += blob.size;
+    report("Uploaded", n);
   }
 
-  setProgress(1, "Finalising and queueing for processing…");
+  setProgress(null, "Finalising and queueing for processing…");
   await postJSON("/api/v1/s3/completemultipart", { key, upload_id, parts });
   localStorage.removeItem(store);
   setProgress(1, "Queued! Track progress in ‘Your uploads’ below.");
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
 }
 
+function clearError() {
+  byId("upload-error").innerHTML = "";
+}
+
 function showError(message) {
-  const errBox = document.getElementById("upload-error");
+  const errBox = byId("upload-error");
   errBox.innerHTML = '<wa-callout variant="danger"><span></span></wa-callout>';
   // textContent prevents server messages from injecting HTML.
   errBox.querySelector("span").textContent = message;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("upload-form");
+  const form = byId("upload-form");
   if (!form) return;
   // A prefilled URL is a partner handoff: it answers this form's first question.
   const prefilledUrl = applyPrefill(form);
@@ -328,8 +398,8 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const radio of form.querySelectorAll('input[name="source_mode"]')) {
       radio.addEventListener("change", () => applySourceMode(form));
     }
-    const urlInput = document.getElementById("source-url");
-    const note = document.getElementById("source-url-note");
+    const urlInput = byId("source-url");
+    const note = byId("source-url-note");
     if (urlInput && note) {
       const showHint = () => {
         const hint = sourceHint(urlInput.value || "");
@@ -345,13 +415,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const submit = document.getElementById("submit-btn");
-    document.getElementById("upload-error").innerHTML = "";
-    const urlInput = document.getElementById("source-url");
+    const submit = byId("submit-btn");
+    clearError();
+    const urlInput = byId("source-url");
     const typedUrl = urlInput && !prefilledUrl ? (urlInput.value || "").trim() : "";
     const remoteMode = Boolean(prefilledUrl) || currentMode(form) === "url";
     const sourceUrl = prefilledUrl || typedUrl;
-    const file = remoteMode ? null : document.getElementById("file-input").files[0];
+    const file = remoteMode ? null : byId("file-input").files[0];
 
     if (remoteMode && !sourceUrl) {
       showError("Paste a link to the orthophoto, or upload a file instead.");
@@ -360,6 +430,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!remoteMode && !file) return;
 
     submit.disabled = true;
+    setSourceControlsDisabled(true);
+    const submitLabel = submit.textContent;
+    submit.textContent = remoteMode ? "Registering…" : "Uploading…";
+    // Show the bar before the first request so the click never looks ignored.
+    setProgress(null, remoteMode ? "Starting…" : "Preparing upload…");
     try {
       if (remoteMode) {
         await submitRemoteSource(form, sourceUrl);
@@ -368,8 +443,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       showError(err.message);
+      // Completed parts survive in the upload session, so a retry picks them up.
+      haltProgress(remoteMode ? "Stopped." : "Stopped. Start the upload again to resume it.");
     } finally {
       submit.disabled = false;
+      submit.textContent = submitLabel;
+      setSourceControlsDisabled(false);
     }
   });
 });
