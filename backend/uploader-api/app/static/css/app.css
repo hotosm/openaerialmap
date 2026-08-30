@@ -33,6 +33,8 @@
   --oam-text-small: var(--hot-font-size-small); /* 0.875rem */
   --oam-text-x-small: var(--hot-font-size-x-small); /* 0.75rem */
 
+  --oam-line-height-heading: 1.3;
+
   /* Brand red into WebAwesome so hotosm-ui buttons/tags match Drone-TM. */
   --wa-color-brand-fill-loud: var(--oam-red);
   --wa-color-brand-border-loud: #ed5c5e;
@@ -118,22 +120,21 @@ hotosm-auth {
   box-shadow: var(--oam-shadow-light);
 }
 
-.oam-card h1,
-.oam-card h2 {
-  margin-top: 0;
+/* WA gives h1-h6 their own family and line-height; keep them on the body's. */
+.oam-card :is(h1, h2, h3, h4),
+.oam-card legend {
+  font-family: inherit;
+  line-height: var(--oam-line-height-heading);
+  letter-spacing: normal;
   color: var(--oam-bluedark);
-  font-weight: var(--hot-font-weight-bold);
-  letter-spacing: -0.01em;
 }
 
-/* WA's native typography sizes a page h1 at 3rem, far too loud here. `>` keeps
-   this off `.oam-form__heading`, the h2 that labels a step. */
-.oam-card > h1 {
-  font-size: var(--oam-text-title);
-}
-
+/* One card, one title. `>` keeps this off the h2 that labels a form step. */
+.oam-card > h1,
 .oam-card > h2 {
-  font-size: var(--oam-text-subtitle);
+  margin: 0 0 1rem;
+  font-size: var(--oam-text-title);
+  font-weight: var(--hot-font-weight-bold);
 }
 
 /* No max-width: a cap narrower than the card strands the fields inside it. */
@@ -169,10 +170,12 @@ hotosm-auth {
 /* The form reads as two steps; a legend and an h2 have to be made to match. */
 .oam-form__heading,
 .oam-source legend {
-  margin: 0.5rem 0 0;
+  /* A legend sits outside its fieldset's flex layout, so gap misses it. */
+  margin: 0 0 0.5rem;
   padding: 0;
-  font-size: var(--oam-text-body);
-  font-weight: var(--hot-font-weight-bold);
+  font-size: var(--oam-text-subtitle);
+  font-weight: var(--hot-font-weight-semibold);
+  line-height: var(--oam-line-height-heading);
   color: var(--oam-bluedark);
 }
 

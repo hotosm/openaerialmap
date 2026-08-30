@@ -62,6 +62,24 @@ def submit_geotiff_workflow(
     read access could see.
     """
     name = workflow_name_for(upload_id)
+    parameters = {
+        "s3-path": s3_path,
+        "filename": filename,
+        "bucket": settings.S3_BUCKET,
+        "key": key,
+        "id": upload_id,
+        "uuid": user_sub,
+        "state": callback_token,
+        "externalaws": _public_asset_base_url(),
+        "awsurl": settings.S3_ENDPOINT or "",
+        "fronturl": settings.WF_CALLBACK_URL,
+        "image-tag": settings.PIPELINE_IMAGE_TAG,
+        "source-type": "url" if remote_source else "s3",
+        "max-fetch-bytes": settings.MAX_UPLOAD_BYTES,
+        # The fetch step applies the same address rules as the API, so it needs
+        # the same answer about private hosts.
+        "allow-private-hosts": str(settings.FETCH_ALLOW_PRIVATE_HOSTS).lower(),
+    }
     manifest = {
         "apiVersion": "argoproj.io/v1alpha1",
         "kind": "Workflow",
@@ -69,32 +87,11 @@ def submit_geotiff_workflow(
         "spec": {
             "workflowTemplateRef": {"name": settings.ARGO_WORKFLOW_TEMPLATE},
             "arguments": {
+                # Argo parameters are strings, and the Kubernetes client reads
+                # a stray UUID or int as one of its models and dies on it.
                 "parameters": [
-                    {"name": "s3-path", "value": s3_path},
-                    {"name": "filename", "value": filename},
-                    {"name": "bucket", "value": settings.S3_BUCKET},
-                    {"name": "key", "value": key},
-                    {"name": "id", "value": upload_id},
-                    {"name": "uuid", "value": user_sub},
-                    {"name": "state", "value": callback_token},
-                    {
-                        "name": "externalaws",
-                        "value": _public_asset_base_url(),
-                    },
-                    {"name": "awsurl", "value": settings.S3_ENDPOINT or ""},
-                    {"name": "fronturl", "value": settings.WF_CALLBACK_URL},
-                    {"name": "image-tag", "value": settings.PIPELINE_IMAGE_TAG},
-                    {"name": "source-type", "value": "url" if remote_source else "s3"},
-                    {
-                        "name": "max-fetch-bytes",
-                        "value": str(settings.MAX_UPLOAD_BYTES),
-                    },
-                    # The fetch step applies the same address rules as the API,
-                    # so it needs the same answer about private hosts.
-                    {
-                        "name": "allow-private-hosts",
-                        "value": str(settings.FETCH_ALLOW_PRIVATE_HOSTS).lower(),
-                    },
+                    {"name": key_, "value": str(value)}
+                    for key_, value in parameters.items()
                 ]
             },
         },

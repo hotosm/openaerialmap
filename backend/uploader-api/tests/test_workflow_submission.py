@@ -5,7 +5,10 @@ The name is derived from the upload rather than generated, so a resubmit is a
 processing the same imagery.
 """
 
+import uuid
+
 import pytest
+from kubernetes.client.api_client import ApiClient
 from kubernetes.client.exceptions import ApiException
 
 from app.config import settings
@@ -101,3 +104,27 @@ def test_a_bare_endpoint_gets_the_bucket_appended(api, monkeypatch):
     argo.submit_geotiff_workflow(**SUBMIT)
     (call,) = fake.created
     assert params(call)["externalaws"] == "http://localhost:9000/oam"
+
+
+def test_a_uuid_upload_id_still_submits(api):
+    """`uploads.id` is a UUID column, so psycopg hands the row back a UUID.
+
+    It reached `obj.openapi_types` in the client and 500'd the completion.
+    """
+    fake = api()
+    upload_id = uuid.UUID(SUBMIT["upload_id"])
+    argo.submit_geotiff_workflow(**{**SUBMIT, "upload_id": upload_id})
+    (call,) = fake.created
+
+    assert params(call)["id"] == SUBMIT["upload_id"]
+    # The sanitizer is what actually broke; a fake api never reaches it.
+    ApiClient().sanitize_for_serialization(call["body"])
+
+
+def test_every_parameter_value_is_a_string(api):
+    """Argo parameters are strings, and the client chokes on anything else."""
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT)
+    (call,) = fake.created
+
+    assert all(isinstance(v, str) for v in params(call).values())

@@ -128,6 +128,7 @@ class Settings(BaseSettings):
     OAM_UPLOAD_DOMAIN: str = "upload.imagery.hotosm.org"
     OAM_UPLOAD_DEV_PORT: str | None = None
     OAM_FRONTEND_URL: str = "https://imagery.hotosm.org"
+    OAM_API_URL: str = "https://api.imagery.hotosm.org"
     DEBUG: bool = False
     ENVIRONMENT: Environment = Environment.DEVELOPMENT
     LOG_LEVEL: str = "INFO"

@@ -123,6 +123,7 @@ def _configure_templates(engine: JinjaTemplateEngine) -> None:
         hanko_public_url=settings.HANKO_PUBLIC_URL or settings.HANKO_API_URL or "",
         frontend_url=settings.frontend_url,
         main_site_url=settings.OAM_FRONTEND_URL.rstrip("/"),
+        api_site_url=settings.OAM_API_URL.rstrip("/"),
     )
 
 
