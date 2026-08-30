@@ -77,6 +77,20 @@ def of_kind(docs: list[dict], kind: str) -> list[dict]:
     return [doc for doc in docs if doc.get("kind") == kind]
 
 
+def credential_secrets(docs: list[dict]) -> list[dict]:
+    """Secrets the chart puts material into.
+
+    The workflow ServiceAccount's token Secret is deliberately excluded: it
+    ships empty and the token controller fills it in, so it carries nothing
+    these tests are guarding against being copied around.
+    """
+    return [
+        doc
+        for doc in of_kind(docs, "Secret")
+        if doc.get("type") != "kubernetes.io/service-account-token"
+    ]
+
+
 def db_pod_spec(docs: list[dict]) -> dict:
     (sts,) = of_kind(docs, "StatefulSet")
     return sts["spec"]["template"]["spec"]
@@ -174,6 +188,33 @@ def test_enabling_the_policy_without_apiserver_access_refuses_to_render():
     assert "apiServerCIDRs" in err.value.stderr
 
 
+def test_the_workflow_service_account_gets_a_token_secret():
+    """Argo's executor mounts `<sa>.service-account-token`, and Kubernetes has
+    not minted one per ServiceAccount since 1.24. Without it the step pods sit
+    in Init on a FailedMount, with no container log to explain why."""
+    docs = render()
+    (token,) = (
+        doc
+        for doc in of_kind(docs, "Secret")
+        if doc["type"] == "kubernetes.io/service-account-token"
+    )
+    name = "argo-odm"
+    assert token["metadata"]["name"] == f"{name}.service-account-token"
+    assert (
+        token["metadata"]["annotations"]["kubernetes.io/service-account.name"] == name
+    )
+
+
+def test_a_renamed_workflow_service_account_renames_its_token():
+    docs = render(workflowServiceAccount__name="pipeline-runner")
+    (token,) = (
+        doc
+        for doc in of_kind(docs, "Secret")
+        if doc["type"] == "kubernetes.io/service-account-token"
+    )
+    assert token["metadata"]["name"] == "pipeline-runner.service-account-token"
+
+
 def test_workflow_egress_allows_the_kubernetes_api():
     docs = render(
         workflowNetworkPolicy__enabled=True,
@@ -232,7 +273,7 @@ def test_extra_egress_covers_an_in_cluster_object_store():
 def test_the_bundled_database_password_is_not_a_plain_pod_value():
     """`get pod` is a much commoner grant than `get secret`."""
     docs = render(db__enabled=True)
-    (secret,) = of_kind(docs, "Secret")
+    (secret,) = credential_secrets(docs)
     assert secret["stringData"]["password"]
 
     for doc in of_kind(docs, "StatefulSet") + of_kind(docs, "Deployment"):
@@ -248,7 +289,7 @@ def test_the_bundled_database_password_is_not_a_plain_pod_value():
 
 def test_an_operators_own_database_secret_is_used_instead():
     docs = render(db__enabled=True, db__auth__existingSecret="my-db-secret")
-    assert of_kind(docs, "Secret") == [], "the chart should not create its own"
+    assert credential_secrets(docs) == [], "the chart should not create its own"
     (sts,) = of_kind(docs, "StatefulSet")
     (env,) = (
         e
@@ -569,7 +610,7 @@ def test_the_store_reads_the_apps_own_credentials_without_copying_them():
         },
     ]
     # No second copy of the material anywhere, and no keypair of the store's own.
-    assert of_kind(docs, "Secret") == []
+    assert credential_secrets(docs) == []
 
 
 def test_nothing_needs_adding_to_the_apps_s3_secret():
@@ -579,7 +620,7 @@ def test_nothing_needs_adding_to_the_apps_s3_secret():
         s3Secret__accessKeyId="key",
         s3Secret__secretAccessKey="secret",
     )
-    (secret,) = of_kind(docs, "Secret")
+    (secret,) = credential_secrets(docs)
     assert secret["stringData"] == {"S3_ACCESS_KEY": "key", "S3_SECRET_KEY": "secret"}
 
 
