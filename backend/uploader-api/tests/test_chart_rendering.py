@@ -22,18 +22,30 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture(scope="session", autouse=True)
 def _subcharts_present():
     """Fetch the subchart archives, which charts/ is gitignored so CI lacks."""
+    charts = CHART_DIR / "charts"
+    charts.mkdir(exist_ok=True)
     chart_yaml = yaml.safe_load((CHART_DIR / "Chart.yaml").read_text())
-    if any(
-        not list((CHART_DIR / "charts").glob(f"{dep['name']}-*.tgz"))
-        for dep in chart_yaml.get("dependencies", [])
-    ):
+    for dep in chart_yaml.get("dependencies", []):
+        if list(charts.glob(f"{dep['name']}-*.tgz")):
+            continue
+        # Not `helm dependency build`: that wants every repository added first.
         done = subprocess.run(
-            ["helm", "dependency", "build", str(CHART_DIR)],
+            [
+                "helm",
+                "pull",
+                dep["name"],
+                "--repo",
+                dep["repository"],
+                "--version",
+                str(dep["version"]),
+                "--destination",
+                str(charts),
+            ],
             capture_output=True,
             text=True,
             check=False,
         )
-        assert done.returncode == 0, f"helm dependency build failed:\n{done.stderr}"
+        assert done.returncode == 0, f"helm pull {dep['name']} failed:\n{done.stderr}"
 
 
 # The name earlier chart versions used. Hard-coded so a refactor has to argue.
