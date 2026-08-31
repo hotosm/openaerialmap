@@ -399,6 +399,18 @@ class DbUpload:
             return await cur.fetchone()
 
     @classmethod
+    async def is_finished(cls, db: AsyncConnection, upload_id: str) -> bool:
+        """Return whether a terminal upload has spent its callback token."""
+        async with db.cursor() as cur:
+            await cur.execute(
+                "SELECT status FROM uploads "
+                "WHERE id = %(id)s AND callback_token IS NULL;",
+                {"id": upload_id},
+            )
+            row = await cur.fetchone()
+        return bool(row) and row[0] in TERMINAL_STATUSES
+
+    @classmethod
     async def update_status(
         cls,
         db: AsyncConnection,

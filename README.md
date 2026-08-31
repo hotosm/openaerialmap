@@ -77,7 +77,7 @@ We would really welcome contributions for:
 Please take a look at our [Documentation][1] and
 [contributor guidance][2] for more details!
 
-Reach out to us if any questions!
+Reach out to us if you have any questions!
 
 ## Roadmap
 

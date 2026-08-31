@@ -11,27 +11,35 @@ func TestValidateTimeouts(t *testing.T) {
 		{
 			name: "shipped defaults",
 			cfg: Config{
+				LockTTLSeconds:                300,
+				WorkerActiveDeadlineSeconds:   10800,
+				WorkerTerminationGraceSeconds: 60,
+				WorkerJobTTLSeconds:           3600,
+			},
+		},
+		{
+			name: "a lock that outlives its job is rejected",
+			cfg: Config{
 				LockTTLSeconds:                11400,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: 60,
 				WorkerJobTTLSeconds:           3600,
 			},
-		},
-		{
-			// Pre-0.6.0 production: the worker outlived its own lock.
-			name: "the shipped-broken pairing is rejected",
-			cfg: Config{
-				LockTTLSeconds:                1800,
-				WorkerActiveDeadlineSeconds:   1800,
-				WorkerTerminationGraceSeconds: 30,
-				WorkerJobTTLSeconds:           3600,
-			},
 			wantErr: true,
 		},
 		{
-			name: "lock ttl must also cover the grace period",
+			name: "a lock ttl equal to the job ttl is allowed",
 			cfg: Config{
-				LockTTLSeconds:                10830,
+				LockTTLSeconds:                3600,
+				WorkerActiveDeadlineSeconds:   10800,
+				WorkerTerminationGraceSeconds: 60,
+				WorkerJobTTLSeconds:           3600,
+			},
+		},
+		{
+			name: "one second past the job ttl is rejected",
+			cfg: Config{
+				LockTTLSeconds:                3601,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: 60,
 				WorkerJobTTLSeconds:           3600,
@@ -39,18 +47,19 @@ func TestValidateTimeouts(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "one second of headroom is enough",
+			name: "zero lock ttl is rejected",
 			cfg: Config{
-				LockTTLSeconds:                10861,
+				LockTTLSeconds:                0,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: 60,
 				WorkerJobTTLSeconds:           3600,
 			},
+			wantErr: true,
 		},
 		{
 			name: "deadline must be positive",
 			cfg: Config{
-				LockTTLSeconds:                11400,
+				LockTTLSeconds:                300,
 				WorkerActiveDeadlineSeconds:   0,
 				WorkerTerminationGraceSeconds: 60,
 				WorkerJobTTLSeconds:           3600,
@@ -58,10 +67,9 @@ func TestValidateTimeouts(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// Immediate SIGKILL: the handler never runs, the lock leaks.
 			name: "zero grace is rejected",
 			cfg: Config{
-				LockTTLSeconds:                11400,
+				LockTTLSeconds:                300,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: 0,
 				WorkerJobTTLSeconds:           3600,
@@ -69,10 +77,9 @@ func TestValidateTimeouts(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// Collects the failed Job instantly, removing the cooldown.
 			name: "zero job ttl is rejected",
 			cfg: Config{
-				LockTTLSeconds:                11400,
+				LockTTLSeconds:                300,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: 60,
 				WorkerJobTTLSeconds:           0,
@@ -82,7 +89,7 @@ func TestValidateTimeouts(t *testing.T) {
 		{
 			name: "negative grace is rejected",
 			cfg: Config{
-				LockTTLSeconds:                11400,
+				LockTTLSeconds:                300,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: -1,
 				WorkerJobTTLSeconds:           3600,
@@ -92,7 +99,7 @@ func TestValidateTimeouts(t *testing.T) {
 		{
 			name: "negative job ttl is rejected",
 			cfg: Config{
-				LockTTLSeconds:                11400,
+				LockTTLSeconds:                300,
 				WorkerActiveDeadlineSeconds:   10800,
 				WorkerTerminationGraceSeconds: 60,
 				WorkerJobTTLSeconds:           -1,

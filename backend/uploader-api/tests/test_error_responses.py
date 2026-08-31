@@ -5,12 +5,13 @@ exception handler has to render them, not just the message.
 """
 
 import json
+import logging
 
 import pytest
 from litestar import status_codes as status
 from litestar.exceptions import HTTPException
 
-from app.main import _htmx_exception_handler, redact_query_string
+from app.main import _AccessLogFilter, _htmx_exception_handler, redact_query_string
 
 
 class _Request:
@@ -83,3 +84,33 @@ def test_an_unexpected_error_does_not_leak_its_message():
 )
 def test_a_presigned_url_is_kept_out_of_the_access_log(path, expected):
     assert redact_query_string(path) == (expected or path)
+
+
+def _access_record(method: str, path: str, status_code: int) -> logging.LogRecord:
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 0, '%s - "%s %s HTTP/%s" %d', (), None
+    )
+    record.args = ("10.0.0.1:1", method, path, "1.1", status_code)
+    return record
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "status_code", "logged"),
+    [
+        ("GET", "/uploads", 200, False),
+        ("GET", "/__lbheartbeat__", 200, False),
+        ("GET", "/uploads", 500, True),
+        ("GET", "/__lbheartbeat__", 503, True),
+        ("GET", "/uploads/up-1", 200, True),
+        ("POST", "/uploads", 201, True),
+    ],
+)
+def test_only_uninformative_access_lines_are_dropped(method, path, status_code, logged):
+    record = _access_record(method, path, status_code)
+    assert _AccessLogFilter().filter(record) is logged
+
+
+def test_a_dropped_line_is_still_redacted_if_it_is_kept():
+    record = _access_record("GET", "/?source_url=https://s3/o.tif", 200)
+    assert _AccessLogFilter().filter(record) is True
+    assert record.args[2] == "/?source_url=[redacted]"

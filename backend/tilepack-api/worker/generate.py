@@ -23,7 +23,7 @@ Environment variables:
     FORMAT              "mbtiles" or "pmtiles".
     COG_URL             Source COG URL (already resolved from STAC).
     OUTPUT_KEY          S3 key to write the final archive to.
-    LOCK_KEY            S3 key of the lock object to delete on exit.
+    LOCK_KEY            S3 lock key; failures use "<LOCK_KEY>.error".
     MIN_ZOOM            Integer; 0 is "use default".
     MAX_ZOOM            Integer; 0 is "derive from GSD".
     CANONICAL           "true" if this run should patch STAC.
@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import shutil
 import signal
 import sqlite3
@@ -87,18 +88,14 @@ TERMINATED_EXIT_CODE = 143  # 128 + SIGTERM
 
 
 class Terminated(Exception):
-    """Termination signal. An Exception, not SystemExit, so the existing
-    ``except Exception`` handlers still delete the partial archive."""
+    """Termination signal handled like other cleanup-triggering exceptions."""
 
 
 def _install_signal_handlers() -> None:
-    """Trap SIGTERM/SIGINT so the S3 lock is released on the way out.
-
-    The worker is PID 1, where an untrapped SIGTERM is ignored outright.
-    """
+    """Trap termination signals so cleanup releases the S3 lock."""
 
     def handle(signum, _frame):
-        # Set first, so tile threads retire while the exception unwinds.
+        # Stop queued tiles before unwinding cleanup.
         _stop_rendering.set()
         raise Terminated(f"received signal {signal.Signals(signum).name}")
 
@@ -455,6 +452,59 @@ def delete_lock(bucket: str, lock_key: str) -> None:
         print(f"warning: could not delete lock {lock_key}: {exc}", file=sys.stderr)
 
 
+def error_key(lock_key: str) -> str:
+    """Where this run leaves its failure reason, beside its lock."""
+    return f"{lock_key}.error"
+
+
+# Keep failure notes short enough for API responses.
+MAX_ERROR_BYTES = 300
+
+# Remove infrastructure details before exposing a failure note.
+_REDACTIONS = (
+    (re.compile(r"\b[a-z][a-z0-9+.-]*://\S+", re.IGNORECASE), "<url>"),
+    (re.compile(r"(?<![\w.])/(?:[\w.-]+/)+[\w.-]*"), "<path>"),
+    (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b"), "<address>"),
+)
+
+
+def redact(reason: str) -> str:
+    """Strip addresses and paths from text that will be shown to a caller."""
+    for pattern, replacement in _REDACTIONS:
+        reason = pattern.sub(replacement, reason)
+    return " ".join(reason.split())[:MAX_ERROR_BYTES]
+
+
+def put_error(bucket: str, lock_key: str, reason: str) -> None:
+    """Persist a short failure reason for the API."""
+    reason = redact(reason)
+    if not reason:
+        return
+    try:
+        _s3_client().put_object(
+            Bucket=bucket,
+            Key=error_key(lock_key),
+            Body=reason.encode(),
+            ContentType="text/plain; charset=utf-8",
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"warning: could not record failure at {error_key(lock_key)}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def clear_error(bucket: str, lock_key: str) -> None:
+    """Drop a previous run's reason, so a retry is not reported by its ancestor."""
+    try:
+        _s3_client().delete_object(Bucket=bucket, Key=error_key(lock_key))
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"warning: could not clear {error_key(lock_key)}: {exc}",
+            file=sys.stderr,
+        )
+
+
 def main() -> int:
     _install_signal_handlers()
 
@@ -464,6 +514,9 @@ def main() -> int:
 
     item_id = fmt = "unknown"  # for the summary line in the finally
     start = time.monotonic()
+
+    # Clear the previous attempt's reason before retrying.
+    clear_error(bucket, lock_key)
 
     exit_code = 1
     try:
@@ -490,8 +543,7 @@ def main() -> int:
         )
 
         if min_zoom == 0 and max_zoom == 0:
-            # Default range: from z0 up to whatever the source GSD
-            # supports (bounded by derive_max_zoom_from_gsd).
+            # Derive the canonical range from the source GSD.
             max_zoom = derive_max_zoom_from_gsd(gsd)
             min_zoom = 0
             print(f"derived zoom range from gsd={gsd}: {min_zoom}..{max_zoom}")
@@ -529,8 +581,7 @@ def main() -> int:
                 upload(bucket, key, path, fmt_name)
                 print(f"uploaded s3://{bucket}/{key}", flush=True)
 
-            # Every archive reaches S3 before any callback runs: a failed
-            # callback must not leave the requested format unbuilt.
+            # Upload before callbacks so callback failure cannot lose the archive.
             if fmt == "mbtiles":
                 generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
                 store(output_key, "mbtiles", mbtiles_path)
@@ -540,8 +591,7 @@ def main() -> int:
                 mbtiles_key = output_key.replace(".pmtiles", ".mbtiles")
                 existing = s3_object_size(bucket, mbtiles_key)
                 if existing is not None:
-                    # Archives predating this cap can exceed ephemeral
-                    # storage, and conversion needs room for a second copy.
+                    # PMTiles conversion needs room for a second encoded copy.
                     if existing > MAX_ENCODED_BYTES:
                         raise SystemExit(
                             f"existing s3://{bucket}/{mbtiles_key} is {existing} bytes, "
@@ -568,19 +618,28 @@ def main() -> int:
             shutil.rmtree(workdir, ignore_errors=True)
         exit_code = 0
     except Terminated as exc:
-        # Not re-raised: reaching the finally is what releases the lock.
+        # Return 143 after cleanup releases the lock.
         exit_code = TERMINATED_EXIT_CODE
         print(
             f"worker terminated: item_id={item_id} format={fmt} reason={exc}",
             file=sys.stderr,
             flush=True,
         )
+        put_error(bucket, lock_key, f"generation was stopped early ({exc})")
     except SystemExit as exc:
-        # Raised by env() and by the caps. Re-raised so the finally runs.
+        # Preserve deliberate exit codes after cleanup.
         exit_code = exc.code if isinstance(exc.code, int) else 1
+        if exit_code != 0:
+            put_error(bucket, lock_key, str(exc.code or "generation stopped"))
         raise
-    except Exception:
+    except Exception as exc:
         exit_code = 1
+        # Store a short summary; the pod log keeps the traceback.
+        put_error(
+            bucket,
+            lock_key,
+            f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__,
+        )
         raise
     finally:
         delete_lock(bucket, lock_key)
@@ -596,8 +655,7 @@ def main() -> int:
 if __name__ == "__main__":
     code = main()
     if code == TERMINATED_EXIT_CODE:
-        # Lock already released. Skip atexit, which joins pool threads and
-        # blocks ~30s on an in-flight COG read - past the grace period.
+        # Avoid atexit waiting on in-flight GDAL threads after lock release.
         sys.stdout.flush()
         sys.stderr.flush()
         os._exit(code)

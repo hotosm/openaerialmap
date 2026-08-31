@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"strings"
@@ -122,6 +123,35 @@ func (c *Client) HeadObject(ctx context.Context, key string) (exists bool, lastM
 		contentLength = *out.ContentLength
 	}
 	return true, lastModified, contentLength, nil
+}
+
+// ErrorKey is where a failed worker leaves its reason, beside its lock.
+func (c *Client) ErrorKey(lockKey string) string { return lockKey + ".error" }
+
+// maxErrorBytes bounds worker failure text before it reaches a response.
+const maxErrorBytes = 2000
+
+// ReadText returns a small text object, treating a missing key as empty.
+func (c *Client) ReadText(ctx context.Context, key string) (string, error) {
+	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var ae smithy.APIError
+		if errors.As(err, &ae) && (ae.ErrorCode() == "NotFound" || ae.ErrorCode() == "NoSuchKey") {
+			return "", nil
+		}
+		log.Printf("s3 read text failed: bucket=%s key=%s err=%v", c.bucket, key, err)
+		return "", err
+	}
+	defer func() { _ = out.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(out.Body, maxErrorBytes))
+	if err != nil {
+		log.Printf("s3 read text body failed: bucket=%s key=%s err=%v", c.bucket, key, err)
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
 }
 
 // DeleteObject removes a key. Used by the handler to clean up a

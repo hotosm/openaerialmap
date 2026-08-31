@@ -204,8 +204,7 @@ class Settings(BaseSettings):
     # asks Argo directly about uploads that have gone quiet.
     RECONCILE_ENABLED: bool = True
     RECONCILE_INTERVAL_SECONDS: int = 60
-    # Must stay well under the template's ttlStrategy.secondsAfterCompletion
-    # (600), or every lost outcome is a deleted workflow by the time we look.
+    # Reconcile before Argo's 24-hour failure TTL loses the failure detail.
     RECONCILE_QUIET_MINUTES: int = 5
     # Backstop for an upload Argo can tell us nothing about, matching the window
     # `count_active` already stops counting a stuck upload against the quota.

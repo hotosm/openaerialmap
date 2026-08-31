@@ -3,7 +3,7 @@ name: uploader-api
 description: OpenAerialMap imagery uploader API + htmx UI (Litestar), triggering Argo processing
 type: application
 icon: https://raw.githubusercontent.com/hotosm/openaerialmap/refs/heads/main/docs/images/favicon.svg
-version: 0.5.1
+version: 0.6.0
 appVersion: "main"
 home: https://github.com/hotosm/openaerialmap/tree/main/backend/uploader-api
 maintainers:

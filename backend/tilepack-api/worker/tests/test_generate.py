@@ -205,6 +205,92 @@ def test_main_does_not_upload_or_patch_after_generation_failure(
     assert patch_calls == []
 
 
+def test_a_failed_run_records_why_where_the_api_can_read_it(
+    monkeypatch, tmp_path: Path
+):
+    for key, value in {
+        "STAC_ITEM_ID": "item-123",
+        "FORMAT": "mbtiles",
+        "COG_URL": "https://example.test/cog.tif",
+        "OUTPUT_KEY": "tilepacks/item-123.mbtiles",
+        "LOCK_KEY": "tilepacks/item-123.lock",
+        "MIN_ZOOM": "0",
+        "MAX_ZOOM": "0",
+        "CANONICAL": "true",
+        "GSD": "1",
+        "S3_BUCKET": "example-bucket",
+        "S3_PUBLIC_BASE_URL": "https://cdn.example.test",
+        "INTERNAL_BASE_URL": "https://internal.example.test",
+        "INTERNAL_TOKEN": "token",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    written = {}
+    cleared = []
+
+    def fake_generate_mbtiles(*args, **kwargs):
+        raise MemoryError("tile buffer at zoom 19")
+
+    monkeypatch.setattr(generate, "generate_mbtiles", fake_generate_mbtiles)
+    monkeypatch.setattr(generate, "delete_lock", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        generate,
+        "put_error",
+        lambda bucket, lock_key, reason: written.update(
+            {"bucket": bucket, "key": lock_key, "reason": reason}
+        ),
+    )
+    monkeypatch.setattr(generate, "clear_error", lambda b, k: cleared.append(k))
+
+    with pytest.raises(MemoryError):
+        generate.main()
+
+    assert cleared == ["tilepacks/item-123.lock"]
+    assert written["bucket"] == "example-bucket"
+    assert written["key"] == "tilepacks/item-123.lock"
+    assert written["reason"] == "MemoryError: tile buffer at zoom 19"
+    assert "\n" not in written["reason"]
+
+
+@pytest.mark.parametrize(
+    ("raw", "want"),
+    [
+        ("MemoryError: tile buffer at zoom 19", "MemoryError: tile buffer at zoom 19"),
+        (
+            "SystemExit: tile budget exceeded: 4.2 GB over the 3.0 GB limit",
+            "SystemExit: tile budget exceeded: 4.2 GB over the 3.0 GB limit",
+        ),
+        (
+            "HTTPError: 500 from https://10.43.2.7:8080/internal/assets?token=abc",
+            "HTTPError: 500 from <url>",
+        ),
+        (
+            "ConnectionRefusedError: 10.43.0.1:5432 refused",
+            "ConnectionRefusedError: <address> refused",
+        ),
+        (
+            "FileNotFoundError: /data/workdir/tmp3f9/tile.png",
+            "FileNotFoundError: <path>",
+        ),
+    ],
+)
+def test_the_failure_note_keeps_the_reason_and_drops_the_infrastructure(raw, want):
+    assert generate.redact(raw) == want
+
+
+def test_a_redacted_note_is_one_bounded_line():
+    reason = generate.redact("RuntimeError: broke\n  at zoom 19\n" + "x" * 5000)
+    assert "\n" not in reason
+    assert len(reason) <= generate.MAX_ERROR_BYTES
+
+
+def test_the_failure_note_sits_beside_the_lock_and_is_bounded():
+    assert generate.error_key("tilepacks/item-123.lock") == (
+        "tilepacks/item-123.lock.error"
+    )
+    assert generate.MAX_ERROR_BYTES <= 2000
+
+
 @pytest.fixture
 def clean_stop_rendering_flag():
     """Keep the module-level flag from leaking between tests."""

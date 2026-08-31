@@ -114,13 +114,40 @@ def submit_geotiff_workflow(
     return name
 
 
-def get_workflow_phase(name: str) -> str | None:
-    """Return an Argo workflow's phase, or None if the object is gone.
+# Keep failure details short enough to show directly to the uploader.
+_MAX_DETAIL_CHARS = 300
 
-    `None` is the normal answer for a workflow that finished a while ago: the
-    template's `ttlStrategy` deletes it 10 minutes after completion, so an
-    outcome nobody recorded before then is no longer retrievable from Argo.
-    """
+# Prefer a failed child's reason over Argo's generic parent messages.
+_UNHELPFUL_PREFIXES = ("child ", "No more retries left")
+
+
+def _failure_detail(workflow_status: dict) -> str | None:
+    """Summarise failure messages from failed pod nodes."""
+    parts = []
+    for node in (workflow_status.get("nodes") or {}).values():
+        if node.get("type") != "Pod" or node.get("phase") not in ("Failed", "Error"):
+            continue
+        message = (node.get("message") or "").strip()
+        if not message or message.startswith(_UNHELPFUL_PREFIXES):
+            continue
+        step = node.get("displayName") or node.get("templateName") or "step"
+        parts.append(f"{step}: {message}")
+    if not parts:
+        message = (workflow_status.get("message") or "").strip()
+        # A running workflow's status message is progress, not a failure reason.
+        if workflow_status.get("phase") not in ("Failed", "Error"):
+            return None
+        if not message or message.startswith(_UNHELPFUL_PREFIXES):
+            return None
+        parts = [message]
+    detail = "; ".join(sorted(parts))
+    if len(detail) > _MAX_DETAIL_CHARS:
+        detail = detail[: _MAX_DETAIL_CHARS - 1].rstrip() + "\u2026"
+    return detail
+
+
+def get_workflow_outcome(name: str) -> tuple[str | None, str | None]:
+    """Return an Argo workflow's phase and best available failure detail."""
     try:
         workflow = _api().get_namespaced_custom_object(
             group="argoproj.io",
@@ -132,6 +159,7 @@ def get_workflow_phase(name: str) -> str | None:
         )
     except ApiException as err:
         if err.status == 404:
-            return None
+            return None, None
         raise
-    return (workflow.get("status") or {}).get("phase") or "Pending"
+    workflow_status = workflow.get("status") or {}
+    return workflow_status.get("phase") or "Pending", _failure_detail(workflow_status)

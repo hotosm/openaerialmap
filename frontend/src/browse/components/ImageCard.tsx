@@ -51,6 +51,15 @@ function stacBrowserItemUrl(itemId: string): string {
 //   ready      -> URL known from a previous "ready" packager response;
 //                 click just downloads without re-POSTing
 //   error      -> last request failed; button offers a retry
+function formatWait(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest} min` : `${hours}h`;
+}
+
 type TilepackState =
   | { kind: "idle" }
   | { kind: "working" }
@@ -128,9 +137,13 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               : `Rate limited. Try again in ${wait}s.`,
         });
       } else {
+        // Failed Jobs cannot be retried until their TTL expires.
+        const failure = res.message || `Request failed (${res.httpStatus}).`;
         setState({
           kind: "error",
-          message: res.message || `Request failed (${res.httpStatus}).`,
+          message: res.retry_after
+            ? `${failure} Retry available in ${formatWait(res.retry_after)}.`
+            : failure,
         });
       }
     } catch (err) {

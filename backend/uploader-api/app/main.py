@@ -46,6 +46,9 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 _HEALTHCHECK_PATHS = ("/__lbheartbeat__", "/__heartbeat__")
 
+# Successful upload-list polls are routine noise; failures remain visible.
+_POLLED_PATHS = ("/uploads",)
+
 # A prefill link can carry a presigned source_url, which has no business in a
 # log. The page prefers the URL fragment, which never reaches us at all.
 _SOURCE_URL_PARAM = re.compile(r"([?&]source_url=)[^&]*")
@@ -57,17 +60,16 @@ def redact_query_string(path: str) -> str:
 
 
 class _AccessLogFilter(logging.Filter):
-    """Drop successful health-check lines and redact credential-bearing URLs.
-
-    Uvicorn stores the request path at ``record.args[2]``. Health-check failures
-    remain visible.
-    """
+    """Drop routine successes and redact credential-bearing URLs."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
         if isinstance(args, tuple) and len(args) >= 5:
-            path, status_code = str(args[2]), args[4]
-            if path in _HEALTHCHECK_PATHS and str(status_code).startswith(("2", "3")):
+            method, path, status_code = str(args[1]), str(args[2]), args[4]
+            succeeded = str(status_code).startswith(("2", "3"))
+            if succeeded and path in _HEALTHCHECK_PATHS:
+                return False
+            if succeeded and method == "GET" and path in _POLLED_PATHS:
                 return False
             redacted = redact_query_string(path)
             if redacted != path:
@@ -75,7 +77,7 @@ class _AccessLogFilter(logging.Filter):
         return True
 
 
-def _silence_healthcheck_logs() -> None:
+def _silence_routine_access_logs() -> None:
     """Attach the access-log filter to uvicorn's access logger."""
     logging.getLogger("uvicorn.access").addFilter(_AccessLogFilter())
 
@@ -182,8 +184,10 @@ def _get_logging_config() -> LoggingConfig:
             for name in quiet_loggers
         },
         log_exceptions="always",
-        # Avoid stack traces for routine 404 and 405 responses.
+        # Access lines are enough for routine client errors.
         disable_stack_trace={
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
             status.HTTP_404_NOT_FOUND,
             status.HTTP_405_METHOD_NOT_ALLOWED,
         },
@@ -192,7 +196,7 @@ def _get_logging_config() -> LoggingConfig:
 
 def create_app() -> Litestar:
     """Build and configure the Litestar app."""
-    _silence_healthcheck_logs()
+    _silence_routine_access_logs()
 
     route_handlers: list = [
         _root_router(),
