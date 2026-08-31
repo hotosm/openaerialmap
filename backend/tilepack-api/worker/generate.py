@@ -147,7 +147,7 @@ def patch_item_assets(
     assets: list[tuple[str, dict]],
 ) -> None:
     """POST multiple canonical assets in one atomic STAC update."""
-    url = f"{internal_base.rstrip('/')}/internal/items/{item_id}/assets/batch"
+    url = f"{internal_base.rstrip('/')}/internal/items/{item_id}/assets"
     payload = {
         "assets": [{"key": asset_key, "asset": asset} for asset_key, asset in assets]
     }

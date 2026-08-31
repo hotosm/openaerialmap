@@ -63,7 +63,6 @@ func (h *Handler) Routes() http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /internal/items/{id}/assets", h.postInternalAsset)
-	mux.HandleFunc("POST /internal/items/{id}/assets/batch", h.postInternalAssetBatch)
 	return corsMiddleware(mux)
 }
 
@@ -87,13 +86,13 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// internalAssetRequest supports both single and batch asset updates.
+// Single asset: {"key": "...", "asset": {...}}
+// Batch assets: {"assets": [{"key": "...", "asset": {...}}, ...]}
 type internalAssetRequest struct {
-	Key   string       `json:"key"`
-	Asset pgstac.Asset `json:"asset"`
-}
-
-type internalAssetBatchRequest struct {
-	Assets []internalAssetRequest `json:"assets"`
+	Key    string              `json:"key,omitempty"`
+	Asset  pgstac.Asset        `json:"asset,omitempty"`
+	Assets []pgstac.AssetUpdate `json:"assets,omitempty"`
 }
 
 // postInternalAsset is the worker-facing write path. It is mounted on
@@ -131,80 +130,49 @@ func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid body"})
 		return
 	}
-	// The only asset keys the worker is ever allowed to set, to
-	// prevent a compromised worker from overwriting arbitrary assets.
-	if req.Key != "pmtiles" && req.Key != "mbtiles" {
-		log.Printf("internal asset rejected: stac_id=%s reason=asset_key_not_allowed key=%q", id, req.Key)
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "asset key not allowed"})
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-	if err := h.pgstac.AddAsset(ctx, id, h.cfg.STACCollection, req.Key, req.Asset); err != nil {
-		log.Printf("internal asset patch failed: stac_id=%s asset=%s err=%v", id, req.Key, err)
-		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: err.Error()})
-		return
-	}
-	log.Printf("internal asset patch succeeded: stac_id=%s asset=%s", id, req.Key)
-	writeJSON(w, http.StatusOK, response{Status: "ok"})
-}
 
-func (h *Handler) postInternalAssetBatch(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	got, ok := bearerToken(r.Header.Get("Authorization"))
-	if !ok {
-		log.Printf("internal asset batch auth failed: stac_id=%s reason=missing_or_malformed_bearer", id)
-		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
-		return
-	}
-	expected := h.internalToken()
-	if expected == "" {
-		log.Printf("internal asset batch auth failed: stac_id=%s reason=internal_token_not_configured", id)
-		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
-		return
-	}
-	if subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
-		log.Printf("internal asset batch auth failed: stac_id=%s reason=token_mismatch", id)
-		writeJSON(w, http.StatusUnauthorized, response{Status: "error", Message: "unauthorized"})
-		return
-	}
-	if !stacIDPattern.MatchString(id) {
-		log.Printf("internal asset batch rejected: stac_id=%s reason=invalid_stac_id", id)
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid stac id"})
-		return
-	}
-	var req internalAssetBatchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("internal asset batch rejected: stac_id=%s reason=invalid_body err=%v", id, err)
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "invalid body"})
-		return
-	}
-	if len(req.Assets) == 0 {
-		log.Printf("internal asset batch rejected: stac_id=%s reason=no_assets", id)
-		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "no assets provided"})
-		return
-	}
-	for _, entry := range req.Assets {
-		if entry.Key != "pmtiles" && entry.Key != "mbtiles" {
-			log.Printf("internal asset batch rejected: stac_id=%s reason=asset_key_not_allowed key=%q", id, entry.Key)
+	// Determine if this is a single or batch request
+	var updates []pgstac.AssetUpdate
+	if len(req.Assets) > 0 {
+		// Batch mode: validate all asset keys
+		updates = req.Assets
+		for _, entry := range updates {
+			if entry.Key != "pmtiles" && entry.Key != "mbtiles" {
+				log.Printf("internal asset rejected: stac_id=%s reason=asset_key_not_allowed key=%q", id, entry.Key)
+				writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "asset key not allowed"})
+				return
+			}
+		}
+	} else if req.Key != "" {
+		// Single asset mode: validate key
+		if req.Key != "pmtiles" && req.Key != "mbtiles" {
+			log.Printf("internal asset rejected: stac_id=%s reason=asset_key_not_allowed key=%q", id, req.Key)
 			writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "asset key not allowed"})
 			return
 		}
+		updates = []pgstac.AssetUpdate{{Key: req.Key, Asset: req.Asset}}
+	} else {
+		log.Printf("internal asset rejected: stac_id=%s reason=no_assets_provided", id)
+		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: "no assets provided"})
+		return
 	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	updates := make([]pgstac.AssetUpdate, 0, len(req.Assets))
-	for _, entry := range req.Assets {
-		updates = append(updates, pgstac.AssetUpdate{Key: entry.Key, Asset: entry.Asset})
-	}
 	if err := h.pgstac.AddAssets(ctx, id, h.cfg.STACCollection, updates); err != nil {
-		log.Printf("internal asset batch patch failed: stac_id=%s err=%v", id, err)
+		log.Printf("internal asset patch failed: stac_id=%s asset_count=%d err=%v", id, len(updates), err)
 		writeJSON(w, http.StatusBadGateway, response{Status: "error", Message: err.Error()})
 		return
 	}
-	log.Printf("internal asset batch patch succeeded: stac_id=%s asset_count=%d", id, len(req.Assets))
+	if len(updates) == 1 {
+		log.Printf("internal asset patch succeeded: stac_id=%s asset=%s", id, updates[0].Key)
+	} else {
+		log.Printf("internal asset patch succeeded: stac_id=%s asset_count=%d", id, len(updates))
+	}
 	writeJSON(w, http.StatusOK, response{Status: "ok"})
 }
+
+
 
 type response struct {
 	Status     string `json:"status"`
