@@ -39,8 +39,8 @@ config:
   # there instead. The API passes it to each worker Job, and both halves switch
   # to path-style addressing, which a store without wildcard DNS needs.
   s3Endpoint: ""
-  # Must exceed deadline + grace; the API refuses to start otherwise.
-  lockTTLSeconds: 11400
+  # Must not exceed workerJobTTLSeconds, so a leaked lock cannot outlive its Job.
+  lockTTLSeconds: 300
   workerActiveDeadlineSeconds: 10800
   # How long a finished Job lingers; also the retry cooldown.
   workerJobTTLSeconds: 3600

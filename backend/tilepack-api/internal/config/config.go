@@ -28,8 +28,7 @@ type Config struct {
 	// in STAC, e.g. https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
 	S3PublicBaseURL string
 
-	// LockTTLSeconds - stale locks re-trigger generation. Must outlive a
-	// worker running to its deadline; validateTimeouts enforces that.
+	// LockTTLSeconds bounds how long a lock without a Job reads as active.
 	LockTTLSeconds int64
 
 	// WorkerActiveDeadlineSeconds caps worker Job runtime.
@@ -105,7 +104,7 @@ func Load() (*Config, error) {
 		STACCollection:  getenv("STAC_COLLECTION", "openaerialmap"),
 		S3Bucket:        getenv("S3_BUCKET", "oin-hotosm-temp"),
 		S3PublicBaseURL: getenv("S3_PUBLIC_BASE_URL", "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com"),
-		LockTTLSeconds:  getenvInt64("LOCK_TTL_SECONDS", 11400),
+		LockTTLSeconds:  getenvInt64("LOCK_TTL_SECONDS", 300),
 
 		WorkerActiveDeadlineSeconds:   getenvInt64("WORKER_ACTIVE_DEADLINE_SECONDS", 10800),
 		WorkerJobTTLSeconds:           int32(getenvInt("WORKER_JOB_TTL_SECONDS", 3600)),
@@ -192,8 +191,7 @@ func getenvFloat(k string, def float64) float64 {
 	return def
 }
 
-// validateTimeouts rejects a lock TTL that could expire while its worker
-// is still running, which would let a second request start a duplicate.
+// validateTimeouts ensures a leaked lock cannot outlive its Job.
 func (c *Config) validateTimeouts() error {
 	if c.WorkerActiveDeadlineSeconds <= 0 {
 		return fmt.Errorf("WORKER_ACTIVE_DEADLINE_SECONDS must be > 0, got %d", c.WorkerActiveDeadlineSeconds)
@@ -206,12 +204,16 @@ func (c *Config) validateTimeouts() error {
 	if c.WorkerJobTTLSeconds <= 0 {
 		return fmt.Errorf("WORKER_JOB_TTL_SECONDS must be > 0, got %d", c.WorkerJobTTLSeconds)
 	}
-	minLockTTL := c.WorkerActiveDeadlineSeconds + c.WorkerTerminationGraceSeconds
-	if c.LockTTLSeconds <= minLockTTL {
+	if c.LockTTLSeconds <= 0 {
+		return fmt.Errorf("LOCK_TTL_SECONDS must be > 0, got %d", c.LockTTLSeconds)
+	}
+	// A Job must remain authoritative for the full lifetime of its lock.
+	if c.LockTTLSeconds > int64(c.WorkerJobTTLSeconds) {
 		return fmt.Errorf(
-			"LOCK_TTL_SECONDS (%d) must exceed WORKER_ACTIVE_DEADLINE_SECONDS + WORKER_TERMINATION_GRACE_SECONDS (%d + %d = %d), "+
-				"otherwise a lock can go stale while its worker is still running",
-			c.LockTTLSeconds, c.WorkerActiveDeadlineSeconds, c.WorkerTerminationGraceSeconds, minLockTTL)
+			"LOCK_TTL_SECONDS (%d) must not exceed WORKER_JOB_TTL_SECONDS (%d), "+
+				"otherwise a leaked lock outlives the Job that would explain it "+
+				"and reports a dead worker as in-progress",
+			c.LockTTLSeconds, c.WorkerJobTTLSeconds)
 	}
 	return nil
 }

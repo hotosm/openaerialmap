@@ -4,8 +4,7 @@ metadata:
   name: {{ include "chart.fullname" . }}
   labels: {{- include "chart.labels" . | nindent 4 }}
 rules:
-  # Create, get one by name to classify it, list for the concurrency cap.
-  # No delete: a failed Job expires on its own, and its TTL is the cooldown.
+  # Failed Jobs expire by TTL; the API never deletes them.
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["create", "get", "list"]

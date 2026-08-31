@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"net"
@@ -33,12 +34,38 @@ import (
 // before it can reach those systems.
 var stacIDPattern = regexp.MustCompile(`^[A-Za-z0-9_\-]{1,128}$`)
 
+type jobClient interface {
+	GetJobState(ctx context.Context, name string) (k8s.JobState, error)
+	CountActiveJobs(ctx context.Context) (int, error)
+	CreateJob(ctx context.Context, spec k8s.JobSpec) error
+	TTLRemaining(state k8s.JobState, now time.Time) time.Duration
+}
+
+type objectStore interface {
+	KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int) (string, error)
+	LockKey(outputKey string) string
+	ErrorKey(lockKey string) string
+	PublicURL(key string) string
+	HeadObject(ctx context.Context, key string) (bool, time.Time, int64, error)
+	ReadText(ctx context.Context, key string) (string, error)
+	PutLock(ctx context.Context, key string) error
+	DeleteObject(ctx context.Context, key string) error
+}
+
+type catalogue interface {
+	GetItem(ctx context.Context, id string) (*stac.Item, error)
+}
+
+type assetWriter interface {
+	AddAsset(ctx context.Context, itemID, collection, assetKey string, asset stac.ItemAsset) error
+}
+
 type Handler struct {
 	cfg     *config.Config
-	stac    *stac.Client
-	s3      *tps3.Client
-	k8s     *k8s.Client
-	pgstac  *pgstac.Client
+	stac    catalogue
+	s3      objectStore
+	k8s     jobClient
+	pgstac  assetWriter
 	limiter *ratelimit.PerIP
 }
 
@@ -332,8 +359,6 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		GSD:       gsd,
 	}
 
-	// Kubernetes, not the lock, decides whether a worker is running: a
-	// failed Job lingers for its TTL and blocks a replacement.
 	jobName := k8s.JobName(jobSpec)
 	jobState, err := h.k8s.GetJobState(ctx, jobName)
 	if err != nil {
@@ -356,8 +381,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No Job, so the lock only covers the PutLock -> CreateJob window.
-	// LOCK_TTL_SECONDS outlives a worker, so a stale lock means gone.
+	// Without a Job, the lock only covers the PutLock-to-CreateJob window.
 	if exists, modified, _, err := h.s3.HeadObject(ctx, lockKey); err == nil && exists {
 		lockAge := time.Since(modified)
 		if lockAge < time.Duration(h.cfg.LockTTLSeconds)*time.Second {
@@ -370,8 +394,6 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 		log.Printf("lock state check failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
 	}
 
-	// Global concurrency cap - counted live from the cluster so the
-	// API is stateless across restarts.
 	active, err := h.k8s.CountActiveJobs(ctx)
 	if err != nil {
 		log.Printf("active job count failed: stac_id=%s format=%s err=%v", id, format, err)
@@ -393,15 +415,13 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 
 	err = h.k8s.CreateJob(ctx, jobSpec)
 	if err != nil {
-		// A genuine race - the JobPhase switch above catches lingering Jobs.
+		// The prior lookup and this create can race another request.
 		if k8serrors.IsAlreadyExists(err) {
 			log.Printf("job already exists (race): stac_id=%s format=%s job=%s", id, format, jobName)
 			respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
 			return
 		}
 		log.Printf("job create failed: stac_id=%s format=%s key=%s err=%v", id, format, outputKey, err)
-		// Any other error means no worker will ever run, so the
-		// lock we just wrote would block retries for LOCK_TTL_SECONDS.
 		h.releaseLock(ctx, id, format, lockKey)
 		respond(http.StatusBadGateway, response{Status: "error", Message: "could not create job"}, "job_create_failed")
 		return
@@ -414,8 +434,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	respond(http.StatusAccepted, response{Status: "started"}, "started")
 }
 
-// respondJobFailed clears the orphan lock and reports a terminal failure.
-// The failed Job is left to expire, so its TTL is the retry cooldown.
+// respondJobFailed reports a terminal Job and includes any worker-written reason.
 func (h *Handler) respondJobFailed(
 	ctx context.Context,
 	respond func(int, response, string),
@@ -429,15 +448,23 @@ func (h *Handler) respondJobFailed(
 	outcome := "job_failed"
 	switch {
 	case state.Phase == k8s.JobPhaseSucceeded:
-		// Not a worker crash - worth its own outcome so it pages separately.
 		outcome = "job_output_missing"
 	case state.Reason == k8s.DeadlineExceededReason:
 		message = "tilepack generation exceeded its time limit; retry with a lower max_zoom"
 		outcome = "job_deadline_exceeded"
 	}
 
-	log.Printf("job failed: stac_id=%s format=%s job=%s phase=%s reason=%s retry_after_s=%d msg=%q",
-		id, format, jobName, state.Phase, state.Reason, retryAfter, state.Message)
+	workerReason, err := h.s3.ReadText(ctx, h.s3.ErrorKey(lockKey))
+	if err != nil {
+		log.Printf("worker reason unreadable: stac_id=%s format=%s err=%v", id, format, err)
+	}
+	if workerReason != "" && outcome == "job_failed" {
+		// Use the worker reason only when the Job has no specific diagnosis.
+		message = fmt.Sprintf("tilepack generation failed: %s", workerReason)
+	}
+
+	log.Printf("job failed: stac_id=%s format=%s job=%s phase=%s reason=%s retry_after_s=%d msg=%q worker_reason=%q",
+		id, format, jobName, state.Phase, state.Reason, retryAfter, state.Message, workerReason)
 
 	if retryAfter > 0 {
 		respond(http.StatusConflict, response{Status: "failed", Message: message, RetryAfter: retryAfter}, outcome)
@@ -451,10 +478,7 @@ var tilepackMediaTypes = map[string]string{
 	"pmtiles": "application/vnd.pmtiles",
 }
 
-// releaseLock deletes a lock the request is responsible for, on a context
-// detached from the request. A disconnected client or a job-create call
-// that failed on the deadline cancels ctx, and the lock would otherwise
-// survive for the full LOCK_TTL_SECONDS.
+// releaseLock uses a detached timeout so client cancellation cannot leak a lock.
 func (h *Handler) releaseLock(ctx context.Context, id, format, lockKey string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()

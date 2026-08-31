@@ -103,9 +103,7 @@ type JobSpec struct {
 	GSD float64
 }
 
-// CreateJob launches a one-shot worker Job. The Job name is deterministic so
-// that two simultaneous requests for the same artifact race on Job creation
-// rather than producing two duplicate workers.
+// CreateJob launches a deterministic one-shot Job to deduplicate concurrent requests.
 func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 	name := JobName(spec)
 
@@ -242,7 +240,7 @@ type JobState struct {
 	Phase   JobPhase
 	Reason  string
 	Message string
-	// When TTLSecondsAfterFinished starts counting down. Zero if not terminal.
+	// FinishedAt starts the Job TTL and is zero for active Jobs.
 	FinishedAt time.Time
 }
 
@@ -262,8 +260,7 @@ func (c *Client) GetJobState(ctx context.Context, name string) (JobState, error)
 	return classifyJob(job), nil
 }
 
-// TTLRemaining is how long a terminal Job lingers before Kubernetes
-// collects it, and so how long before a retry can do anything.
+// TTLRemaining returns how long a terminal Job blocks recreation.
 func (c *Client) TTLRemaining(state JobState, now time.Time) time.Duration {
 	if state.FinishedAt.IsZero() {
 		return 0
@@ -277,8 +274,7 @@ func (c *Client) TTLRemaining(state JobState, now time.Time) time.Duration {
 	return remaining
 }
 
-// Split from GetJobState so it is testable without a cluster. Matches
-// condition types exactly: JobFailureTarget is interim, not terminal.
+// classifyJob ignores interim conditions such as JobFailureTarget.
 func classifyJob(job *batchv1.Job) JobState {
 	for _, cond := range job.Status.Conditions {
 		if cond.Status != corev1.ConditionTrue {
