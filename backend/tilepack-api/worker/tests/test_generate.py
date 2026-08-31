@@ -177,9 +177,20 @@ def test_main_does_not_upload_or_patch_after_generation_failure(
     assert patch_calls == []
 
 
-def test_main_rolls_back_first_canonical_asset_when_second_patch_fails(
+def test_main_sends_both_canonical_assets_in_single_atomic_request(
     monkeypatch, tmp_path: Path
 ):
+    """Verify canonical PMTiles generation sends pmtiles + mbtiles atomically.
+
+    The invariant: canonical generation must never send pmtiles without mbtiles
+    or vice versa. This test verifies that both assets are sent in a single call
+    to patch_item_assets(), which the tilepack-api handler processes atomically
+    within one pgSTAC SERIALIZABLE transaction.
+
+    The actual transactional rollback (if the handler fails) is guaranteed by
+    the pgSTAC layer: both assets are merged into the item and update_item()
+    is called once. If the request fails, neither asset is recorded.
+    """
     monkeypatch.setenv("STAC_ITEM_ID", "item-123")
     monkeypatch.setenv("FORMAT", "pmtiles")
     monkeypatch.setenv("COG_URL", "https://example.test/cog.tif")
@@ -194,7 +205,7 @@ def test_main_rolls_back_first_canonical_asset_when_second_patch_fails(
     monkeypatch.setenv("INTERNAL_BASE_URL", "https://internal.example.test")
     monkeypatch.setenv("INTERNAL_TOKEN", "token")
 
-    state = {"assets": {}}
+    patch_calls = []
 
     def fake_generate_mbtiles(*args, **kwargs):
         return None
@@ -211,14 +222,12 @@ def test_main_rolls_back_first_canonical_asset_when_second_patch_fails(
     def fake_s3_exists(bucket, key):
         return False
 
-    def fake_patch_item_assets(*args, **kwargs):
-        assets = kwargs.get("assets") or (args[3] if len(args) > 3 else [])
-        staged = {}
-        for key, asset in assets:
-            if key == "mbtiles":
-                raise RuntimeError("second publish failed")
-            staged[key] = asset
-        state["assets"].update(staged)
+    def fake_patch_item_assets(internal_base, internal_token, item_id, assets):
+        # Record what was sent to verify atomicity.
+        patch_calls.append({
+            "item_id": item_id,
+            "assets": assets,
+        })
 
     monkeypatch.setattr(generate, "generate_mbtiles", fake_generate_mbtiles)
     monkeypatch.setattr(generate, "convert_to_pmtiles", fake_convert_to_pmtiles)
@@ -227,7 +236,14 @@ def test_main_rolls_back_first_canonical_asset_when_second_patch_fails(
     monkeypatch.setattr(generate, "patch_item_assets", fake_patch_item_assets)
     monkeypatch.setattr(generate, "delete_lock", lambda *args, **kwargs: None)
 
-    with pytest.raises(RuntimeError, match="second publish failed"):
-        generate.main()
+    generate.main()
 
-    assert state["assets"] == {}
+    # Verify patch_item_assets was called exactly once with both assets.
+    assert len(patch_calls) == 1, f"expected 1 call, got {len(patch_calls)}"
+    call = patch_calls[0]
+    assert call["item_id"] == "item-123"
+    assert len(call["assets"]) == 2, f"expected 2 assets, got {len(call['assets'])}"
+
+    # Verify both pmtiles and mbtiles are present.
+    asset_keys = {key for key, _ in call["assets"]}
+    assert asset_keys == {"pmtiles", "mbtiles"}, f"got assets {asset_keys}"

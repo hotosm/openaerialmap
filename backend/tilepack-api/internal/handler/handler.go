@@ -172,8 +172,6 @@ func (h *Handler) postInternalAsset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response{Status: "ok"})
 }
 
-
-
 type response struct {
 	Status     string `json:"status"`
 	URL        string `json:"url,omitempty"`
