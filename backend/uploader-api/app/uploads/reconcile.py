@@ -43,13 +43,13 @@ _GONE_MESSAGE = (
 )
 
 
-def _outcome(phase: str | None) -> tuple[str, str] | None:
-    """Map an Argo phase to the status and message to write, or None to wait."""
+def _outcome(phase: str | None, detail: str | None = None) -> tuple[str, str] | None:
+    """Map an Argo phase and detail to a terminal upload outcome."""
     if phase is None:
         # Deleted by ttlStrategy after it completed, or never created at all.
         return UploadStatus.ERROR, _GONE_MESSAGE
     if phase in _FAILED_PHASES:
-        return _FAILED_PHASES[phase], "Processing failed."
+        return _FAILED_PHASES[phase], detail or "Processing failed."
     # Running, Pending, or a Succeeded whose register callback we somehow
     # missed: nothing here is safe to end on our own guess.
     return None
@@ -71,7 +71,9 @@ async def _reconcile_one(pool: AsyncConnectionPool, upload: DbUpload) -> bool:
     """
     if upload.workflow_name and settings.ARGO_ENABLED:
         try:
-            phase = await run_blocking(argo.get_workflow_phase, upload.workflow_name)
+            phase, detail = await run_blocking(
+                argo.get_workflow_outcome, upload.workflow_name
+            )
         except Exception as err:
             # An unreachable apiserver is a reason to ask again next sweep, not
             # a reason to fail somebody's upload.
@@ -81,7 +83,14 @@ async def _reconcile_one(pool: AsyncConnectionPool, upload: DbUpload) -> bool:
                 upload.id,
             )
             raise _LookupFailed from err
-        outcome = _outcome(phase)
+        outcome = _outcome(phase, detail)
+        if detail and phase in _FAILED_PHASES:
+            log.warning(
+                "Workflow %s for upload %s failed: %s",
+                upload.workflow_name,
+                upload.id,
+                detail,
+            )
         if phase == "Succeeded":
             log.warning(
                 "Workflow %s succeeded but upload %s is still %s",
@@ -91,7 +100,7 @@ async def _reconcile_one(pool: AsyncConnectionPool, upload: DbUpload) -> bool:
             )
     else:
         # Nothing was ever handed to a cluster, so only age can end this one.
-        phase, outcome = None, None
+        phase, detail, outcome = None, None, None
 
     if outcome is None:
         age_hours = settings.RECONCILE_MAX_AGE_HOURS

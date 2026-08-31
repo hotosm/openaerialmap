@@ -58,7 +58,7 @@ Zoom behavior has two modes:
 | 202    | Worker is now generating it        |
 | 400    | Bad input                          |
 | 404    | Item not in OAM collection         |
-| 409    | Last build failed (terminal)       |
+| 409    | Last build failed; `retry_after`   |
 | 422    | Item has no COG asset              |
 | 429    | Per-IP limit or global cap reached |
 
@@ -137,10 +137,8 @@ with rate limiting to reduce DDoS risk.
 - **K8s Jobs as a task queue** -- Job state is the source of truth for
   whether a build is running, failed or done. Job names are
   deterministic, so the API looks one up before doing anything else.
-- **S3 lock as a backstop** -- covers only the gap between writing the
-  lock and creating the Job. It expires after `LOCK_TTL_SECONDS`, which
-  must outlive a worker running to its deadline (the API refuses to
-  start otherwise).
+- **S3 lock as a backstop** -- covers the gap between writing the lock and
+  creating the Job. Its TTL must not exceed the finished Job TTL.
 - **WebP q70 tiles** -- ~10x smaller than PNG, and unlike JPEG it keeps
   the alpha band, so the padding around a rotated footprint stays
   transparent instead of rendering as a black collar.

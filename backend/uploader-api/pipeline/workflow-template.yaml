@@ -15,11 +15,16 @@ spec:
   # Lever: raise this, remembering the PVC is held until the workflow completes.
   # Lever: lower COG_LEVEL from 12, where most of the conversion time goes.
   activeDeadlineSeconds: 21600
+  # Archive step logs before pod garbage collection.
+  archiveLogs: true
+  # Keep failed workflows for diagnosis and discard successful ones quickly.
   ttlStrategy:
-    secondsAfterCompletion: 600
     secondsAfterSuccess: 60
+    secondsAfterFailure: 86400
+    secondsAfterCompletion: 86400
+  # Keep pods through the run, then release their shared 300Gi PVC.
   podGC:
-    strategy: OnPodCompletion
+    strategy: OnWorkflowCompletion
   volumeClaimGC:
     strategy: OnWorkflowCompletion
   # These pods parse imagery a stranger supplied, through GDAL, which is a large
@@ -170,6 +175,7 @@ spec:
     # Only failure. The register step's own API call is what marks an upload
     # Succeeded, so reporting it again here would be a second message to lose,
     # against a callback token that terminal status has already expired.
+    # The API resolves an empty failure message from the workflow's pod nodes.
     - name: exit-handler
       steps:
         - - name: report-failure
@@ -178,7 +184,7 @@ spec:
             arguments:
               parameters:
                 - { name: step-id, value: "Failed" }
-                - { name: message, value: "Workflow ended with a failure." }
+                - { name: message, value: "" }
 
     # Gets the imagery onto the workspace volume, whichever way it arrived, and
     # leaves /data/input.tif + /data/meta.json for every later step. Everything

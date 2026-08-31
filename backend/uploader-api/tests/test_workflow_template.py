@@ -58,6 +58,31 @@ def test_a_stuck_workflow_gives_its_volume_back():
     assert SPEC["volumeClaimGC"]["strategy"] == "OnWorkflowCompletion"
 
 
+def test_pods_do_not_outlive_the_workflow():
+    assert SPEC["podGC"]["strategy"] == "OnWorkflowCompletion"
+
+
+def test_a_failure_outlives_a_success():
+    ttl = SPEC["ttlStrategy"]
+    assert ttl["secondsAfterFailure"] >= 86400
+    assert ttl["secondsAfterSuccess"] < ttl["secondsAfterFailure"]
+    assert ttl.get("secondsAfterCompletion", 0) >= ttl["secondsAfterFailure"]
+
+
+def test_step_logs_are_archived():
+    assert SPEC["archiveLogs"] is True
+
+
+def test_the_exit_handler_leaves_the_reason_to_the_api():
+    steps = {step["name"]: step for step in _exit_handler_steps()}
+    params = {
+        p["name"]: p["value"]
+        for p in steps["report-failure"]["arguments"]["parameters"]
+    }
+    assert params["step-id"] == "Failed"
+    assert params["message"] == ""
+
+
 def test_the_workspace_volume_is_writable_without_root():
     """Non-root plus a ReadWriteOnce PVC needs an fsGroup or nothing can write."""
     assert _pod_security()["fsGroup"] == 1000
