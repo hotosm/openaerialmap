@@ -1,15 +1,18 @@
 """Validate an uploaded raster before processing.
 
-Require a CRS and bounded decoded size. Only visual products require uint8 RGB(A);
+Require a CRS and a plausible grid. Only visual products require uint8 RGB(A);
 other types retain their native data.
 
-Exit codes let workflow cleanup report the specific validation failure.
+Exit codes let workflow cleanup report the specific validation failure, and the
+reason file beside them carries the numbers.
 """
 
 import json
 import logging
 import os
+import re
 import sys
+from typing import NoReturn
 
 import numpy as np
 import rasterio
@@ -26,9 +29,30 @@ log = logging.getLogger("validate")
 READ_DRIVER = "GTiff"
 
 PRODUCT_TYPES = {"visual", "multispectral", "sar", "elevation", "pseudocolor"}
-# Bound both grid operations and decoded memory for many-band rasters.
-MAX_GIGAPIXELS = float(os.environ.get("OAM_VALIDATE_MAX_GIGAPIXELS", "2"))
-MAX_DECODED_GB = float(os.environ.get("OAM_VALIDATE_MAX_DECODED_GB", "32"))
+
+# Every step reads in blocks or decimated windows, so these bound disk, not
+# memory: the workspace has to hold the input plus a worst-case incompressible
+# COG. Derived from the PVC in workflow-template.yaml. 0 disables either check.
+MAX_DECODED_GB = float(os.environ.get("OAM_VALIDATE_MAX_DECODED_GB", "130"))
+MAX_GIGAPIXELS = float(os.environ.get("OAM_VALIDATE_MAX_GIGAPIXELS", "0"))
+
+# Cleanup reports this verbatim; without it the uploader only gets the exit
+# code mapped to a fixed sentence. The API truncates at 300.
+REASON_PATH = os.environ.get("OAM_VALIDATE_REASON_PATH", "/data/validation-error.txt")
+MAX_REASON_CHARS = 300
+
+
+def _reject(code: int, reason: str) -> NoReturn:
+    """Log why, leave the reason for cleanup to report, and exit."""
+    log.error("Rejected: %s", reason)
+    # Cleanup interpolates this through shell into a JSON payload.
+    safe = re.sub(r"[^\x20-\x7e]", " ", reason).replace("\\", " ").replace('"', "'")
+    try:
+        with open(REASON_PATH, "w") as f:
+            f.write(safe[:MAX_REASON_CHARS])
+    except OSError:
+        log.warning("Could not write %s; cleanup falls back to the code", REASON_PATH)
+    sys.exit(code)
 
 
 def _declared_product_type(meta_path: str | None) -> str:
@@ -48,8 +72,8 @@ def validate_raster(path: str, meta_path: str | None = None) -> bool:
     try:
         src = rasterio.open(path, driver=READ_DRIVER)
     except rasterio.errors.RasterioIOError:
-        log.error("Rejected: not a GeoTIFF (%s could not be read as one)", path)
-        sys.exit(8)
+        log.error("%s could not be read as a GeoTIFF", path)
+        _reject(8, "This file is not a GeoTIFF.")
     with src:
         dtype = src.dtypes[0]
         log.info(
@@ -63,44 +87,39 @@ def validate_raster(path: str, meta_path: str | None = None) -> bool:
             [ci.name for ci in src.colorinterp],
         )
         if src.crs is None:
-            log.error("Rejected: not georeferenced (no CRS)")
-            sys.exit(5)
+            _reject(5, "Not georeferenced: the GeoTIFF declares no CRS.")
 
         gigapixels = (src.width * src.height) / 1e9
-        if gigapixels > MAX_GIGAPIXELS:
-            log.error(
-                "Rejected: %.2f gigapixels exceeds the %.2f limit",
-                gigapixels,
-                MAX_GIGAPIXELS,
+        if MAX_GIGAPIXELS and gigapixels > MAX_GIGAPIXELS:
+            _reject(
+                6,
+                f"Image too large: {gigapixels:.2f} gigapixels "
+                f"({src.width} x {src.height}) is over the {MAX_GIGAPIXELS:g} "
+                "gigapixel limit.",
             )
-            sys.exit(6)
 
         bytes_per_sample = np.dtype(dtype).itemsize
         decoded_gb = (src.width * src.height * src.count * bytes_per_sample) / 1e9
-        if decoded_gb > MAX_DECODED_GB:
-            log.error(
-                "Rejected: %.2f GB decoded (%s bands x %s, %sx%s) exceeds the "
-                "%.2f GB limit",
-                decoded_gb,
-                src.count,
-                dtype,
-                src.width,
-                src.height,
-                MAX_DECODED_GB,
+        if MAX_DECODED_GB and decoded_gb > MAX_DECODED_GB:
+            _reject(
+                6,
+                f"Image too large: {decoded_gb:.1f} GB decoded "
+                f"({src.width} x {src.height}, {src.count} band(s), {dtype}) is "
+                f"over the {MAX_DECODED_GB:g} GB limit.",
             )
-            sys.exit(6)
+        log.info(
+            "Size accepted: %.2f gigapixels, %.1f GB decoded", gigapixels, decoded_gb
+        )
 
         # Only visual data has a uint8 RGB(A) contract; other types stay native.
         declared = _declared_product_type(meta_path)
         is_uint8_rgb = dtype == "uint8" and src.count in (3, 4)
         if declared == "visual" and not is_uint8_rgb:
-            log.error(
-                "Rejected: product_type=visual needs 8-bit 3-4 band RGB(A), "
-                "got dtype=%s bands=%s",
-                dtype,
-                src.count,
+            _reject(
+                7,
+                "Declared product_type=visual needs 8-bit 3-4 band RGB(A); this "
+                f"file is {dtype} with {src.count} band(s).",
             )
-            sys.exit(7)
         if not declared and not is_uint8_rgb:
             log.warning(
                 "No product_type declared for non-RGB data; metadata.py will "

@@ -62,6 +62,11 @@ def test_pods_do_not_outlive_the_workflow():
     assert SPEC["podGC"]["strategy"] == "OnWorkflowCompletion"
 
 
+def test_a_failed_pod_survives_long_enough_to_read_its_logs():
+    """`argo logs` reads live pods, and podGC deletes them on completion."""
+    assert SPEC["podGC"]["deleteDelayDuration"]
+
+
 def test_a_failure_outlives_a_success():
     ttl = SPEC["ttlStrategy"]
     assert ttl["secondsAfterFailure"] >= 86400
@@ -148,6 +153,51 @@ def test_the_fetch_step_gets_the_size_limit_it_has_to_enforce():
     assert env["MAX_FETCH_BYTES"] == "{{workflow.parameters.max-fetch-bytes}}"
 
 
+# Sizing.
+
+
+def test_the_validate_step_takes_its_size_guards_from_parameters():
+    """Otherwise retuning them for a deployment means editing Python."""
+    env = {
+        e["name"]: e.get("value") for e in STEPS["validate-geotiff"]["container"]["env"]
+    }
+    assert (
+        env["OAM_VALIDATE_MAX_DECODED_GB"] == "{{workflow.parameters.max-decoded-gb}}"
+    )
+    assert (
+        env["OAM_VALIDATE_MAX_GIGAPIXELS"] == "{{workflow.parameters.max-gigapixels}}"
+    )
+
+
+def test_pixels_are_not_capped():
+    """100 GiB of compressed imagery is tens of gigapixels; a pixel cap would
+    reject the uploads this service exists to take."""
+    defaults = {p["name"]: p.get("value") for p in SPEC["arguments"]["parameters"]}
+    assert defaults["max-gigapixels"] == "0"
+
+
+def test_the_fallback_ceiling_fits_the_fallback_workspace():
+    """uploader-api computes both per upload; these are the manual-submit
+    defaults, and they have to agree the same way."""
+    defaults = {p["name"]: p.get("value") for p in SPEC["arguments"]["parameters"]}
+    storage = SPEC["volumeClaimTemplates"][0]["spec"]["resources"]["requests"]
+    usable = (
+        float(storage["storage"].removesuffix("Gi")) * 2**30 * argo.WORKSPACE_USABLE
+    )
+    input_bytes = float(defaults["max-fetch-bytes"])
+    output = float(defaults["max-decoded-gb"]) * 1e9 * argo.COG_TEMP_FACTOR
+    assert input_bytes + output <= usable
+
+
+def test_a_rebuilt_step_image_actually_reaches_the_node():
+    """PIPELINE_IMAGE_TAG is mutable, and only `latest` defaults to Always."""
+    for name, step in STEPS.items():
+        container = step["container"]
+        if "{{workflow.parameters.image-tag}}" not in container["image"]:
+            continue
+        assert container.get("imagePullPolicy") == "Always", name
+
+
 # Rejected bytes must not outlive the workflow that rejected them.
 
 
@@ -177,6 +227,22 @@ def test_every_validation_exit_code_has_a_message():
     args = TEMPLATES["cleanup"]["container"]["args"][0]
     for code in ("5", "6", "7", "8"):
         assert f'[ "$CODE" = "{code}" ]' in args
+
+
+def test_cleanup_prefers_the_reason_validate_wrote():
+    """The exit-code map cannot say which limit was hit, or by how much."""
+    cleanup = TEMPLATES["cleanup"]["container"]
+    args = cleanup["args"][0]
+    assert "/data/validation-error.txt" in args
+    assert '[ -n "$REASON" ] && MSG="$REASON"' in args
+    # Only readable if cleanup mounts the workspace validate wrote it to.
+    assert {"name": "workspace", "mountPath": "/data"} in cleanup["volumeMounts"]
+
+
+def test_a_reason_cannot_break_out_of_the_cleanup_payload():
+    """It goes through shell into JSON unescaped; validate.py strips the rest."""
+    args = TEMPLATES["cleanup"]["container"]["args"][0]
+    assert "tr -d '\\r\\\\\"'" in args
 
 
 # What the API sends has to be what the template expects.

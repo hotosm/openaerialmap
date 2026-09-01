@@ -20,7 +20,7 @@ from app.blocking import run_blocking
 from app.config import settings
 from app.db.models import DbUpload, UploadStatus
 from app.uploads import argo, source_links, url_guard
-from app.uploads.s3 import build_key, safe_filename
+from app.uploads.s3 import build_key, internal_client, safe_filename
 from app.uploads.schemas import (
     CreateMultipartBody,
     CreateRemoteUploadBody,
@@ -92,6 +92,18 @@ async def _checked_source_url(source_url: str) -> str:
         ) from err
 
 
+async def _object_size(key: str) -> int | None:
+    """Read an uploaded object's size, None if it cannot be read."""
+    try:
+        head = await run_blocking(
+            internal_client().head_object, Bucket=settings.S3_BUCKET, Key=key
+        )
+    except Exception:  # noqa: BLE001
+        log.warning("Could not size %s; the workspace falls back", key, exc_info=True)
+        return None
+    return head.get("ContentLength")
+
+
 async def start_processing(db: AsyncConnection, upload: DbUpload) -> str | None:
     """Submit the processing workflow for a stored upload row.
 
@@ -128,6 +140,9 @@ async def start_processing(db: AsyncConnection, upload: DbUpload) -> str | None:
         await db.commit()
         return None
 
+    # Sizes the workspace volume: the object itself, not the browser's claim
+    # about it. A remote source has no object yet and gets the ceiling.
+    size_bytes = None if remote else await _object_size(upload.s3_key)
     try:
         workflow_name = await run_blocking(
             argo.submit_geotiff_workflow,
@@ -138,6 +153,7 @@ async def start_processing(db: AsyncConnection, upload: DbUpload) -> str | None:
             user_sub=upload.user_sub,
             callback_token=token,
             remote_source=remote,
+            size_bytes=size_bytes,
         )
     except Exception as err:  # noqa: BLE001
         log.exception("Submitting the workflow for upload %s failed", upload.id)
