@@ -24,6 +24,7 @@ import os
 import re
 import shutil
 import sys
+import uuid
 import zipfile
 from urllib.parse import urljoin, urlsplit
 
@@ -100,13 +101,16 @@ def is_odm_archive_url(url: str) -> bool:
     return bool(_NODEODM_ARCHIVE_PATH.match(path) or _WEBODM_ARCHIVE_PATH.match(path))
 
 
-def clear_workspace(data_dir: str) -> None:
+def clear_workspace(data_dir: str, keep: tuple[str, ...] = ()) -> None:
     """Empty the workspace without failing on what we may not delete.
 
-    A retried step starts from a used volume, and an ext4 PVC has a root-owned
-    lost+found that this step, running unprivileged, cannot remove.
+    A retried step gets a used volume, with a root-owned lost+found this
+    unprivileged step cannot remove. `keep` names what a later step may hold open.
     """
     for name in os.listdir(data_dir):
+        if name in keep:
+            log.info("fetch: keeping %s from an earlier attempt", name)
+            continue
         path = os.path.join(data_dir, name)
         try:
             if os.path.isdir(path) and not os.path.islink(path):
@@ -115,6 +119,38 @@ def clear_workspace(data_dir: str) -> None:
                 os.unlink(path)
         except OSError as err:
             log.info("fetch: leaving %s in place (%s)", path, err)
+
+
+# Published only by atomic rename, so their presence means "finished".
+WORKSPACE_OUTPUTS = ("input.tif", "meta.json")
+PARTIAL_SUFFIX = ".part"
+
+
+def _partial_for(dest: str) -> str:
+    """Return a path to build `dest` at, unique to this writer.
+
+    Two pods streaming into one file would publish a corrupt input.tif.
+    """
+    return f"{dest}.{uuid.uuid4().hex[:12]}{PARTIAL_SUFFIX}"
+
+
+def _publish(partial: str, dest: str) -> None:
+    """Move a finished temporary file into place, atomically."""
+    try:
+        os.replace(partial, dest)
+    except FileNotFoundError:
+        # Another pod's cleanup unlinked it; only whole files reach `dest`.
+        if not os.path.exists(dest):
+            raise
+        log.info("fetch: another attempt published %s first", dest)
+
+
+def _write_atomic(dest: str, payload: bytes) -> None:
+    """Write bytes to `dest` without ever leaving it partly written."""
+    partial = _partial_for(dest)
+    with open(partial, "wb") as f:
+        f.write(payload)
+    _publish(partial, dest)
 
 
 def _stream_to_file(
@@ -370,6 +406,26 @@ def _object_size(s3, bucket: str, key: str) -> int | None:
         return None
 
 
+def _complete_input(s3, dest: str, *, bucket: str, key: str) -> bool:
+    """Whether `dest` already holds the whole of this upload's imagery."""
+    try:
+        local = os.path.getsize(dest)
+    except OSError:
+        return False
+    if not local:
+        return False
+    archived = _object_size(s3, bucket, key)
+    if archived != local:
+        log.info(
+            "fetch: %s holds %s bytes against %s archived; fetching again",
+            dest,
+            local,
+            archived,
+        )
+        return False
+    return True
+
+
 def _sha256(path: str) -> str:
     """Checksum a local file without reading it all into memory."""
     digest = hashlib.sha256()
@@ -388,7 +444,8 @@ def _fetch_from_url(
 ) -> None:
     """Download the caller's source URL and archive the bytes we accepted."""
     archive_source = is_odm_archive_url(url)
-    download_dest = f"{dest}.zip" if archive_source else dest
+    partial = _partial_for(dest)
+    download_dest = f"{partial}.zip" if archive_source else partial
     with httpx.Client(
         timeout=httpx.Timeout(READ_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
         trust_env=False,
@@ -405,17 +462,18 @@ def _fetch_from_url(
     log.info("fetch: retrieved %s bytes", size)
     if archive_source:
         try:
-            size = extract_odm_orthophoto(download_dest, dest, max_bytes)
+            size = extract_odm_orthophoto(download_dest, partial, max_bytes)
         finally:
             try:
                 os.unlink(download_dest)
             except FileNotFoundError:
                 pass
         log.info("fetch: extracted %s orthophoto bytes from the ODM archive", size)
-    # Archive under this upload's key, and only now that the bytes have been
-    # checked: this bucket is world-readable.
+    # Only now that the bytes are checked: this bucket is world-readable. Before
+    # input.tif, so a later attempt finds the object it sizes the file against.
     log.info("fetch: archiving the original")
-    s3.upload_file(dest, bucket, key, ExtraArgs={"ContentType": "image/tiff"})
+    s3.upload_file(partial, bucket, key, ExtraArgs={"ContentType": "image/tiff"})
+    _publish(partial, dest)
 
 
 def _fetch_from_bucket(
@@ -428,13 +486,15 @@ def _fetch_from_bucket(
     if total > max_bytes:
         raise FetchError(f"The upload is larger than the {max_bytes}-byte limit.")
     log.info("%s: starting (%s bytes)", label, total)
-    s3.download_file(bucket, key, dest, Callback=_Progress(total, label))
+    partial = _partial_for(dest)
+    s3.download_file(bucket, key, partial, Callback=_Progress(total, label))
     log.info("%s: complete", label)
-    with open(dest, "rb") as f:
+    with open(partial, "rb") as f:
         if not looks_like_tiff(f.read(SNIFF_BYTES)):
             # Not fatal here: validate rejects it with an exit code the workflow
             # maps to a message, and its cleanup removes these bytes.
             log.warning("%s: this object does not start like a TIFF", label)
+    _publish(partial, dest)
 
 
 def run() -> None:
@@ -447,7 +507,6 @@ def run() -> None:
     dest = os.path.join(data_dir, "input.tif")
 
     os.makedirs(data_dir, exist_ok=True)
-    clear_workspace(data_dir)
 
     s3 = _s3(
         os.environ.get("S3_ENDPOINT", ""),
@@ -457,6 +516,9 @@ def run() -> None:
         or os.environ.get("AWS_DEFAULT_REGION")
         or "us-east-1",
     )
+
+    # Emptying the workspace under a running validate is what this guards against.
+    clear_workspace(data_dir, keep=WORKSPACE_OUTPUTS)
 
     # No proxy from the environment: it would carry the request for us, and then
     # the host we checked is not the host that gets connected to.
@@ -470,8 +532,13 @@ def run() -> None:
             os.environ.get("INTERNAL_TOKEN", ""),
         )
         try:
-            with open(os.path.join(data_dir, "meta.json"), "wb") as f:
-                f.write(api.metadata())
+            _write_atomic(os.path.join(data_dir, "meta.json"), api.metadata())
+
+            # An earlier attempt already did this.
+            if _complete_input(s3, dest, bucket=bucket, key=key):
+                log.info("fetch: %s is already complete; keeping it", dest)
+                api.report_checksum(_sha256(dest))
+                return
 
             url = api.source() if mode == "url" else ""
             if mode == "url" and not url:

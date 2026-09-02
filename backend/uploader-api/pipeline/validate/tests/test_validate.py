@@ -4,6 +4,7 @@ import json
 
 import pytest
 import rasterio
+import rasterio.errors
 import validate
 from rasterio.crs import CRS
 from rasterio.enums import ColorInterp
@@ -146,3 +147,33 @@ def test_declared_visual_must_actually_be_rgb(opens, reason, tmp_path):
 def test_native_data_types_pass_when_nothing_is_declared(opens):
     opens(_FakeSrc(1024, 1024, count=1, dtype="float32"))
     assert validate.validate_raster("/data/input.tif") is True
+
+
+# A duplicate fetch pod emptied the workspace, and validate blamed the file.
+
+
+def _open_fails(monkeypatch):
+    def _raise(*a, **k):
+        raise rasterio.errors.RasterioIOError("No such file or directory")
+
+    monkeypatch.setattr(rasterio, "open", _raise)
+
+
+def test_a_missing_input_is_not_blamed_on_the_file(tmp_path, monkeypatch, reason):
+    _open_fails(monkeypatch)
+    missing = tmp_path / "input.tif"
+    with pytest.raises(SystemExit) as exit_:
+        validate.validate_raster(str(missing))
+    assert exit_.value.code == validate.EXIT_INPUT_MISSING
+    assert "GeoTIFF" not in reason()
+
+
+def test_a_file_that_is_present_and_unreadable_still_is(tmp_path, monkeypatch, reason):
+    """GDAL raises the same exception either way."""
+    _open_fails(monkeypatch)
+    present = tmp_path / "input.tif"
+    present.write_bytes(b"<!DOCTYPE html>")
+    with pytest.raises(SystemExit) as exit_:
+        validate.validate_raster(str(present))
+    assert exit_.value.code == 8
+    assert "not a GeoTIFF" in reason()

@@ -12,11 +12,14 @@ import threading
 import zipfile
 from pathlib import Path
 
+import botocore.exceptions
+import fetch
 import httpx
 import pytest
 import url_guard
 from fetch import (
     FetchError,
+    _fetch_from_bucket,
     _fetch_from_url,
     clear_workspace,
     download,
@@ -263,7 +266,7 @@ def test_nodeodm_archive_flow_stores_only_the_extracted_tiff(
     )
     assert dest.read_bytes() == TIFF
     assert s3.uploaded == TIFF
-    assert not (tmp_path / "input.tif.zip").exists()
+    assert not list(tmp_path.glob("*.zip"))
 
 
 @pytest.mark.parametrize(
@@ -312,3 +315,133 @@ def test_clearing_the_workspace_survives_what_it_cannot_delete(tmp_path, monkeyp
 def test_the_redirect_limit_is_the_shared_one():
     """The API's message about too many hops has to mean the same number."""
     assert url_guard.MAX_REDIRECTS >= 2
+
+
+def test_a_finished_input_survives_a_second_fetch_pod(tmp_path):
+    """A duplicate fetch pod emptied /data while validate was reading it."""
+    (tmp_path / "input.tif").write_bytes(TIFF)
+    (tmp_path / "meta.json").write_text("{}")
+    (tmp_path / "output.tif").write_bytes(b"stale COG")
+    (tmp_path / "input.tif.part").write_bytes(b"half a download")
+    (tmp_path / "tmp").mkdir()
+
+    clear_workspace(str(tmp_path), keep=fetch.WORKSPACE_OUTPUTS)
+
+    assert (tmp_path / "input.tif").read_bytes() == TIFF
+    assert (tmp_path / "meta.json").exists()
+    assert not (tmp_path / "output.tif").exists()
+    assert not (tmp_path / "input.tif.part").exists()
+    assert not (tmp_path / "tmp").exists()
+
+
+def test_the_input_is_only_ever_published_whole(tmp_path, monkeypatch):
+    """A reader sees the previous file or the new one, never a truncated one."""
+    dest = tmp_path / "input.tif"
+
+    class _S3:
+        def head_object(self, Bucket, Key):
+            return {"ContentLength": len(TIFF)}
+
+        def download_file(self, bucket, key, path, Callback=None):
+            assert path.endswith(fetch.PARTIAL_SUFFIX) and path != str(dest)
+            assert not dest.exists()
+            Path(path).write_bytes(TIFF)
+
+    _fetch_from_bucket(
+        _S3(),
+        dest=str(dest),
+        bucket="oam",
+        key="k",
+        max_bytes=1024**2,
+        label="download",
+    )
+    assert dest.read_bytes() == TIFF
+    assert not list(tmp_path.glob("*" + fetch.PARTIAL_SUFFIX))
+
+
+def test_a_partial_removed_by_another_pod_is_not_a_failure(tmp_path):
+    """A later pod unlinked our partial, having published `dest` itself."""
+    dest = tmp_path / "input.tif"
+    dest.write_bytes(TIFF)
+    fetch._publish(str(tmp_path / ("gone" + fetch.PARTIAL_SUFFIX)), str(dest))
+    assert dest.read_bytes() == TIFF
+
+
+def test_a_lost_partial_with_nothing_published_still_fails(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        fetch._publish(
+            str(tmp_path / ("gone" + fetch.PARTIAL_SUFFIX)), str(tmp_path / "input.tif")
+        )
+
+
+def test_two_concurrent_fetches_never_publish_a_mixed_file(tmp_path):
+    """Sharing one temporary file would publish a mix of both writers."""
+    dest = tmp_path / "input.tif"
+    bodies = {"a": TIFF + b"a" * 4096, "b": TIFF + b"b" * 4096}
+    both_writing = threading.Barrier(len(bodies))
+    paths: list[str] = []
+    failures: list[BaseException] = []
+
+    class _S3:
+        def __init__(self, body):
+            self.body = body
+
+        def head_object(self, Bucket, Key):
+            return {"ContentLength": len(self.body)}
+
+        def download_file(self, bucket, key, path, Callback=None):
+            paths.append(path)
+            with open(path, "wb") as out:
+                # Hold both open at once, so a shared path would interleave.
+                out.write(self.body[:2048])
+                out.flush()
+                both_writing.wait()
+                out.write(self.body[2048:])
+
+    def _run(body):
+        try:
+            _fetch_from_bucket(
+                _S3(body),
+                dest=str(dest),
+                bucket="oam",
+                key="k",
+                max_bytes=1024**2,
+                label="download",
+            )
+        except BaseException as err:  # noqa: BLE001
+            failures.append(err)
+
+    threads = [threading.Thread(target=_run, args=(b,)) for b in bodies.values()]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not failures, f"a concurrent fetch failed: {failures}"
+    assert len(set(paths)) == len(bodies), f"writers shared a file: {paths}"
+    assert dest.read_bytes() in bodies.values(), "published a mix of both writers"
+    assert not list(tmp_path.glob("*" + fetch.PARTIAL_SUFFIX))
+
+
+@pytest.mark.parametrize(
+    ("local", "archived", "complete"),
+    [
+        (TIFF, len(TIFF), True),
+        (TIFF, len(TIFF) + 1, False),  # an earlier attempt did not finish
+        (TIFF, None, False),  # never archived, so nothing to trust it against
+        (b"", 0, False),
+        (None, len(TIFF), False),
+    ],
+)
+def test_a_finished_download_is_not_done_twice(tmp_path, local, archived, complete):
+    dest = tmp_path / "input.tif"
+    if local is not None:
+        dest.write_bytes(local)
+
+    class _S3:
+        def head_object(self, Bucket, Key):
+            if archived is None:
+                raise botocore.exceptions.ClientError({}, "HeadObject")
+            return {"ContentLength": archived}
+
+    assert fetch._complete_input(_S3(), str(dest), bucket="oam", key="k") is complete

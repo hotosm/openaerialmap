@@ -30,6 +30,10 @@ READ_DRIVER = "GTiff"
 
 PRODUCT_TYPES = {"visual", "multispectral", "sar", "elevation", "pseudocolor"}
 
+# The input never arrived, which is our fault and not the file's. EX_TEMPFAIL,
+# so the step's retryStrategy retries it; every other code here is a rejection.
+EXIT_INPUT_MISSING = 75
+
 # Every step reads in blocks or decimated windows, so these bound disk, not
 # memory: the workspace has to hold the input plus a worst-case incompressible
 # COG. Derived from the PVC in workflow-template.yaml. 0 disables either check.
@@ -71,8 +75,15 @@ def validate_raster(path: str, meta_path: str | None = None) -> bool:
     """Check a raster is georeferenced, within size limits, and self-consistent."""
     try:
         src = rasterio.open(path, driver=READ_DRIVER)
-    except rasterio.errors.RasterioIOError:
-        log.error("%s could not be read as a GeoTIFF", path)
+    except rasterio.errors.RasterioIOError as err:
+        # GDAL raises this for "no such file" as readily as for "not a TIFF".
+        if not os.path.exists(path):
+            log.error("%s is missing: the fetch step's output never arrived", path)
+            _reject(
+                EXIT_INPUT_MISSING,
+                "The imagery did not reach the validation step; please try again.",
+            )
+        log.error("%s could not be read as a GeoTIFF: %s", path, err)
         _reject(8, "This file is not a GeoTIFF.")
     with src:
         dtype = src.dtypes[0]

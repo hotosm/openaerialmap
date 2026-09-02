@@ -101,72 +101,74 @@ spec:
     - name: entry
       dag:
         tasks:
+          # Sibling tasks, not `hooks: running:`: a hook on a retrying task
+          # becomes a child of the retry node, which then completes early and
+          # lets Argo start a second pod on the workspace.
+          - name: report-fetching
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Fetching" }
+                - { name: message, value: "Retrieving the imagery…" }
+
           - name: fetch
             template: fetch-source
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Fetching" }
-                    - { name: message, value: "Retrieving the imagery…" }
+
+          - name: report-validating
+            depends: "fetch.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Validating" }
+                - { name: message, value: "Validating GeoTIFF…" }
 
           - name: validate
             depends: "fetch.Succeeded"
             template: validate-geotiff
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Validating" }
-                    - { name: message, value: "Validating GeoTIFF…" }
+
+          - name: report-converting
+            depends: "validate.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Converting" }
+                - { name: message, value: "Converting to Cloud-Optimized GeoTIFF…" }
 
           - name: convert
             depends: "validate.Succeeded"
             template: convert-cog
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Converting" }
-                    - { name: message, value: "Converting to Cloud-Optimized GeoTIFF…" }
 
           - name: metadata
             depends: "convert.Succeeded"
             template: build-metadata
 
+          - name: report-uploading
+            depends: "convert.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Uploading" }
+                - { name: message, value: "Uploading COG to storage…" }
+
           - name: upload-cog
             depends: "convert.Succeeded"
             template: s3-upload-cog
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Uploading" }
-                    - { name: message, value: "Uploading COG to storage…" }
 
           - name: upload-meta
             depends: "metadata.Succeeded"
             template: s3-upload-meta
 
+          - name: report-registering
+            depends: "upload-cog.Succeeded && upload-meta.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Registering" }
+                - { name: message, value: "Registering item with STAC catalog…" }
+
           - name: register
             depends: "upload-cog.Succeeded && upload-meta.Succeeded"
             template: register-stac
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Registering" }
-                    - { name: message, value: "Registering item with STAC catalog…" }
 
           # Bytes that failed the fetch reached the bucket only if they got as
           # far as being archived, and bytes that failed validation are not
@@ -275,6 +277,11 @@ spec:
         resources:
           requests: { memory: "2Gi", cpu: "1" }
           limits: { memory: "4Gi", cpu: "2" }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+        # Only 75, the one exit that is about the workspace and not the file.
+        expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) == 75"
 
     - name: convert-cog
       container:
@@ -428,6 +435,7 @@ spec:
             [ "$CODE" = "6" ] && MSG="Invalid raster: image is too large."
             [ "$CODE" = "7" ] && MSG="Invalid raster: content does not match the declared product type."
             [ "$CODE" = "8" ] && MSG="This file is not a GeoTIFF."
+            [ "$CODE" = "75" ] && MSG="Processing could not read the imagery; please try again."
             # validate.py leaves the numbers here; the map above is the
             # fallback for a step that died before writing one.
             REASON=""
@@ -472,6 +480,10 @@ spec:
             # Keep the workflow failed; the step that failed said why.
             exit 1
 
+    # Exits 0 always: `continueOn` is not allowed beside `depends`, so failing
+    # here would fail an upload that worked. `Always` retries what curl cannot -
+    # eviction, a failed image pull - and cannot mask a failed report.
+    # A lost terminal callback is what app/uploads/reconcile.py is for.
     - name: report-status
       inputs:
         parameters:
@@ -483,12 +495,13 @@ spec:
         command: [sh, -c]
         args:
           - |
-            curl -sf -X POST {{workflow.parameters.fronturl}}/api/v1/workflowstatus \
+            curl -sS --fail --max-time 30 \
+              --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 120 \
+              -X POST {{workflow.parameters.fronturl}}/api/v1/workflowstatus \
               -H "Content-Type: application/json" \
               -H "X-Internal-Token: {{workflow.parameters.state}}" \
-              -d '{"id":"{{workflow.parameters.id}}","status":"{{inputs.parameters.step-id}}","message":"{{inputs.parameters.message}}"}'
-      # A dropped status message leaves the upload showing the previous stage,
-      # and for the exit handler it is the only report the uploader gets.
+              -d '{"id":"{{workflow.parameters.id}}","status":"{{inputs.parameters.step-id}}","message":"{{inputs.parameters.message}}"}' \
+              || echo "report-status: giving up on {{inputs.parameters.step-id}}"
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
