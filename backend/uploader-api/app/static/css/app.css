@@ -161,7 +161,7 @@ hotosm-auth {
   padding: 0;
   border: none;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.5rem;
   /* Undo the UA `min-content`, which lets a long child push past the form. */
   min-inline-size: 0;
@@ -184,10 +184,11 @@ hotosm-auth {
   border-top: var(--oam-border-hairline) solid var(--oam-greylight);
 }
 
-/* width, not align-self: a fieldset's anonymous content box is sized to fit. */
+/* Equal halves that stack, rather than squash, once they no longer fit. */
 .oam-source__option {
   display: flex;
-  width: 100%;
+  flex: 1 1 14rem;
+  min-inline-size: 0;
   box-sizing: border-box;
   align-items: flex-start;
   gap: 0.625rem;

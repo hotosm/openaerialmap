@@ -375,6 +375,23 @@ async function uploadFile(form, file) {
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
 }
 
+// The submission is now listed under 'Your uploads', so clear the form
+function clearImageFields(form) {
+  const fileInput = byId("file-input");
+  if (fileInput) fileInput.value = "";
+  const urlInput = byId("source-url");
+  if (urlInput) setFieldValue(urlInput, "");
+  const title = form.querySelector('[name="title"]');
+  if (title) setFieldValue(title, "");
+}
+
+function lockRemoteForm() {
+  const submit = byId("submit-btn");
+  if (!submit) return;
+  submit.disabled = true;
+  submit.textContent = "Submitted";
+}
+
 function clearError() {
   byId("upload-error").innerHTML = "";
 }
@@ -435,20 +452,27 @@ document.addEventListener("DOMContentLoaded", () => {
     submit.textContent = remoteMode ? "Registering…" : "Uploading…";
     // Show the bar before the first request so the click never looks ignored.
     setProgress(null, remoteMode ? "Starting…" : "Preparing upload…");
+    let submitted = false;
     try {
       if (remoteMode) {
         await submitRemoteSource(form, sourceUrl);
       } else {
         await uploadFile(form, file);
       }
+      submitted = true;
     } catch (err) {
       showError(err.message);
       // Completed parts survive in the upload session, so a retry picks them up.
       haltProgress(remoteMode ? "Stopped." : "Stopped. Start the upload again to resume it.");
     } finally {
-      submit.disabled = false;
       submit.textContent = submitLabel;
       setSourceControlsDisabled(false);
+      if (submitted && prefilledUrl) {
+        lockRemoteForm();
+      } else {
+        submit.disabled = false;
+        if (submitted) clearImageFields(form);
+      }
     }
   });
 });
