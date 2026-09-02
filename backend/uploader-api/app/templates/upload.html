@@ -164,6 +164,20 @@ content %}
       </wa-select>
     </wa-details>
 
+    <!-- Hint slot, not the attribute: it needs a link, which a tooltip would hide. -->
+    <wa-checkbox id="anonymous" name="anonymous">
+      Upload anonymously
+      <div slot="hint">
+        Your account is not recorded against this imagery and no contact details are
+        published with it. It will not appear in “Your uploads” below either, so we
+        cannot change or withdraw it for you afterwards — ask through a
+        <a href="https://roadmap.hotosm.org/#tech-request" target="_blank" rel="noreferrer">
+          tech request</a
+        >
+        if you need it altered.
+      </div>
+    </wa-checkbox>
+
     <wa-button type="submit" variant="brand" id="submit-btn">Start upload</wa-button>
 
     <div id="upload-another" hidden>

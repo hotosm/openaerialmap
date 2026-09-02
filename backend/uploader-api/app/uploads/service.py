@@ -18,7 +18,7 @@ from psycopg import AsyncConnection
 from app.auth.auth_deps import get_user_display_name, mirror_user
 from app.blocking import run_blocking
 from app.config import settings
-from app.db.models import DbUpload, UploadStatus
+from app.db.models import ANONYMOUS_SUB, DbUpload, UploadStatus
 from app.uploads import argo, source_links, url_guard
 from app.uploads.s3 import build_key, internal_client, safe_filename
 from app.uploads.schemas import (
@@ -31,17 +31,24 @@ from app.uploads.schemas import (
 log = logging.getLogger(__name__)
 
 
-async def _require_quota(db: AsyncConnection, auth_user: object) -> str:
-    """Mirror the identity from the auth session and check the upload quota."""
-    user_sub = (await mirror_user(db, auth_user)).sub
+async def _require_quota(
+    db: AsyncConnection, auth_user: object, anonymous: bool
+) -> str:
+    """Mirror the auth session, then quota-check whoever will own the upload.
+
+    An anonymous upload is owned by a shared account, so it is that pool - not
+    the caller - the quota applies to: nothing can attribute the row afterwards.
+    """
+    caller_sub = (await mirror_user(db, auth_user)).sub
+    user_sub = ANONYMOUS_SUB if anonymous else caller_sub
+    limit = settings.MAX_ACTIVE_UPLOADS_PER_USER
     active = await DbUpload.count_active(db, user_sub)
-    if active >= settings.MAX_ACTIVE_UPLOADS_PER_USER:
+    if active >= limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
-                f"You have {active} uploads in progress "
-                f"(max {settings.MAX_ACTIVE_UPLOADS_PER_USER}); "
-                "wait for one to finish."
+                f"{active} {'anonymous ' if anonymous else ''}uploads are in "
+                f"progress (max {limit}); wait for one to finish."
             ),
         )
     return user_sub
@@ -211,9 +218,12 @@ async def create_upload_row(
     dataset_meta = clean_metadata(
         data.metadata, title, contact_default=get_user_display_name(auth_user)
     )
+    if data.anonymous:
+        # The one published field that names a person, however it was filled in.
+        dataset_meta.pop("contact", None)
     external_id, external_url = clean_external(data)
 
-    user_sub = await _require_quota(db, auth_user)
+    user_sub = await _require_quota(db, auth_user, data.anonymous)
     existing = await DbUpload.find_by_external_id(db, external_id or "")
     if existing:
         raise _external_id_conflict(external_id, existing)

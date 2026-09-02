@@ -48,6 +48,7 @@ class CreateMultipartBody(ExternalLink):
     # Advisory: the pipeline re-checks the assembled object against the limit.
     size_bytes: int = Field(gt=0)
     metadata: dict[str, str] = {}
+    anonymous: bool = False
 
 
 class CreateRemoteUploadBody(ExternalLink):
@@ -57,6 +58,7 @@ class CreateRemoteUploadBody(ExternalLink):
     title: str = Field(min_length=1, max_length=200)
     filename: str = Field(default="", max_length=255)
     metadata: dict[str, str] = {}
+    anonymous: bool = False
 
 
 class ChecksumBody(BaseModel):

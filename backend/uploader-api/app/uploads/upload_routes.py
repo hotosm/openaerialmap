@@ -19,7 +19,7 @@ from app.auth.auth_deps import get_optional_auth_user, get_user_sub, login_requi
 from app.blocking import run_blocking
 from app.config import settings
 from app.db.database import db_conn
-from app.db.models import DbUpload, UploadStatus
+from app.db.models import ANONYMOUS_SUB, DbUpload, UploadStatus
 from app.uploads import pipeline_routes
 from app.uploads.s3 import (
     external_client,
@@ -46,7 +46,10 @@ log = logging.getLogger(__name__)
 
 
 def _require_key_owner(auth_user: object, key: str) -> str:
-    """Return the user's subject after verifying that they own the key."""
+    """Return the subject the key is filed under, verifying the caller owns it."""
+    # An anonymous key names no owner; the random upload ID in it is the secret.
+    if key.startswith(key_owner_prefix(ANONYMOUS_SUB) + "/"):
+        return ANONYMOUS_SUB
     user_sub = get_user_sub(auth_user)
     if not key.startswith(key_owner_prefix(user_sub) + "/"):
         raise HTTPException(

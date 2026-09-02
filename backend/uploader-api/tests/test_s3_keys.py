@@ -1,5 +1,6 @@
 """Tests for upload S3 keys."""
 
+from app.db.models import ANONYMOUS_SUB
 from app.uploads.s3 import (
     build_key,
     key_owner_prefix,
@@ -36,3 +37,8 @@ def test_key_owner_prefix_is_stable_and_nonempty():
 
 def test_distinct_subjects_do_not_collide():
     assert key_owner_prefix("hotosm|42") != key_owner_prefix("hotosm-42")
+
+
+def test_anonymous_keys_carry_no_hash_of_a_subject():
+    """The prefix is published in every asset URL, and subjects are guessable."""
+    assert build_key(ANONYMOUS_SUB, "abc-123", "o.tif") == "anonymous/abc-123/o.tif"

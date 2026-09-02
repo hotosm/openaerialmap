@@ -71,6 +71,17 @@ function fieldValue(form, name) {
   return el && el.value != null ? el.value : "";
 }
 
+function isAnonymous(form) {
+  const el = form.querySelector('[name="anonymous"]');
+  return Boolean(el && el.checked);
+}
+
+function queuedMessage(form) {
+  return isAnonymous(form)
+    ? "Queued! Anonymous uploads are not listed in ‘Your uploads’ below."
+    : "Queued! Track progress in ‘Your uploads’ below.";
+}
+
 // Fields a prefill link may set. All of them are shown for confirmation first.
 const PREFILL_FIELDS = [
   "title",
@@ -302,9 +313,10 @@ async function submitRemoteSource(form, sourceUrl) {
     source_url: sourceUrl,
     title: metadata.title,
     metadata,
+    anonymous: isAnonymous(form),
     ...externalLink(form),
   });
-  setProgress(1, "Queued! Track progress in ‘Your uploads’ below.");
+  setProgress(1, queuedMessage(form));
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
   return result;
 }
@@ -323,6 +335,7 @@ function sessionKey(file, metadata) {
 
 async function uploadFile(form, file) {
   const metadata = collectMetadata(form);
+  const anonymous = isAnonymous(form);
   const title = metadata.title;
   const totalParts = Math.ceil(file.size / PART_SIZE);
   const totalLabel = formatBytes(file.size);
@@ -331,7 +344,7 @@ async function uploadFile(form, file) {
   setProgress(null, `Preparing upload — 0/${totalParts} parts of ${totalLabel}`);
 
   // Reuse a session for the same file + metadata across reloads.
-  const store = sessionKey(file, metadata);
+  const store = sessionKey(file, { ...metadata, anonymous });
   let key, upload_id, existing;
   const saved = JSON.parse(localStorage.getItem(store) || "null");
   if (saved) {
@@ -349,6 +362,7 @@ async function uploadFile(form, file) {
       content_type: file.type || "image/tiff",
       size_bytes: file.size,
       metadata,
+      anonymous,
       ...externalLink(form),
     }));
     localStorage.setItem(store, JSON.stringify({ key, upload_id }));
@@ -390,7 +404,7 @@ async function uploadFile(form, file) {
   setProgress(null, "Finalising and queueing for processing…");
   await postJSON("/api/v1/s3/completemultipart", { key, upload_id, parts });
   localStorage.removeItem(store);
-  setProgress(1, "Queued! Track progress in ‘Your uploads’ below.");
+  setProgress(1, queuedMessage(form));
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
 }
 

@@ -12,6 +12,9 @@ from psycopg.types.json import Jsonb
 
 log = logging.getLogger(__name__)
 
+# Owns anonymous uploads
+ANONYMOUS_SUB = "custom|anonymous"
+
 
 class UploadStatus(StrEnum):
     """Every state an upload can be in.

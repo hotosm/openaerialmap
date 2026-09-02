@@ -12,7 +12,7 @@ from litestar.exceptions import HTTPException
 from psycopg import AsyncConnection
 
 from app.config import AuthProvider, settings
-from app.db.models import DbUser
+from app.db.models import ANONYMOUS_SUB, DbUser
 
 # hotosm-auth is optional when authentication is disabled.
 try:
@@ -44,6 +44,11 @@ def get_user_sub(user: object) -> str:
     sub = _pick(user, "sub", "user_sub")
     if sub:
         sub = str(sub)
+        if sub == ANONYMOUS_SUB:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authenticated user is missing a valid identifier.",
+            )
         if "|" in sub:
             existing, raw = sub.split("|", 1)
             if existing == AuthProvider.CUSTOM.value:
