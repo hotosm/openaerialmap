@@ -58,6 +58,13 @@ services:
       target: test
     command: ["pytest", "fetch/tests"]
 
+  test-validate:
+    build:
+      context: backend
+      dockerfile: uploader-api/pipeline/validate/Dockerfile
+      target: test
+    command: ["pytest", "validate/tests"]
+
   test-metadata:
     build:
       context: backend

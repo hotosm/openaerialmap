@@ -414,11 +414,19 @@ dependencies = [
     { name = "rasterio" },
 ]
 
+[package.dev-dependencies]
+test = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2" },
     { name = "rasterio", specifier = ">=1.5" },
 ]
+
+[package.metadata.requires-dev]
+test = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "packaging"
@@ -1229,7 +1237,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "click", marker = "extra == 'ingest'", specifier = ">=8.1.8" },
-    { name = "pypgstac", extras = ["psycopg"], marker = "extra == 'ingest'", specifier = ">=0.9.6" },
+    { name = "pypgstac", extras = ["psycopg"], marker = "extra == 'ingest'", specifier = ">=0.9.11,<0.9.12" },
     { name = "pystac", extras = ["validation"], specifier = ">=1.12.2" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "rio-stac", specifier = ">=0.10.1" },
@@ -1239,7 +1247,7 @@ provides-extras = ["ingest"]
 [package.metadata.requires-dev]
 demo = [
     { name = "notebook", specifier = ">=7.3.3" },
-    { name = "pypgstac", extras = ["psycopg"], specifier = ">=0.9.6" },
+    { name = "pypgstac", extras = ["psycopg"], specifier = ">=0.9.11,<0.9.12" },
     { name = "rustac", specifier = ">=0.7.2" },
 ]
 dev = [

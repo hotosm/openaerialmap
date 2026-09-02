@@ -247,6 +247,25 @@ function applySourceMode(form) {
   if (submit) submit.textContent = mode === "url" ? "Import imagery" : "Start upload";
 }
 
+function wireSourceControls(form) {
+  applySourceMode(form);
+  for (const radio of form.querySelectorAll('input[name="source_mode"]')) {
+    radio.addEventListener("change", () => applySourceMode(form));
+  }
+  const urlInput = byId("source-url");
+  const note = byId("source-url-note");
+  if (!urlInput || !note) return;
+  const showHint = () => {
+    const hint = sourceHint(urlInput.value || "");
+    note.textContent = hint;
+    note.hidden = !hint;
+  };
+  // Which event a wa-input re-emits varies by version; the handler is idempotent.
+  for (const name of ["input", "wa-input", "change"]) {
+    urlInput.addEventListener(name, showHint);
+  }
+}
+
 // Switch the form from "pick a file" to "confirm this source".
 function enterRemoteSourceMode(sourceUrl) {
   const fileInput = byId("file-input");
@@ -375,6 +394,44 @@ async function uploadFile(form, file) {
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
 }
 
+// The submission is now listed under 'Your uploads', so clear the form
+function clearImageFields(form) {
+  const fileInput = byId("file-input");
+  if (fileInput) fileInput.value = "";
+  const urlInput = byId("source-url");
+  if (urlInput) setFieldValue(urlInput, "");
+  const title = form.querySelector('[name="title"]');
+  if (title) setFieldValue(title, "");
+}
+
+function lockRemoteForm() {
+  const submit = byId("submit-btn");
+  if (submit) {
+    submit.disabled = true;
+    submit.textContent = "Submitted";
+  }
+  const another = byId("upload-another");
+  if (another) another.hidden = false;
+}
+
+function exitRemoteSourceMode(form) {
+  for (const id of ["remote-source", "upload-another", "upload-progress"]) {
+    const el = byId(id);
+    if (el) el.hidden = true;
+  }
+  for (const name of ["external_id", "external_url", "source_url"]) {
+    const el = form.querySelector(`[name="${name}"]`);
+    if (el) setFieldValue(el, "");
+  }
+  const choice = byId("source-choice");
+  if (choice) choice.hidden = false;
+  clearImageFields(form);
+  clearError();
+  applySourceMode(form);
+  const submit = byId("submit-btn");
+  if (submit) submit.disabled = false;
+}
+
 function clearError() {
   byId("upload-error").innerHTML = "";
 }
@@ -389,28 +446,16 @@ function showError(message) {
 document.addEventListener("DOMContentLoaded", () => {
   const form = byId("upload-form");
   if (!form) return;
-  // A prefilled URL is a partner handoff: it answers this form's first question.
-  const prefilledUrl = applyPrefill(form);
-  if (prefilledUrl) {
-    enterRemoteSourceMode(prefilledUrl);
-  } else {
-    applySourceMode(form);
-    for (const radio of form.querySelectorAll('input[name="source_mode"]')) {
-      radio.addEventListener("change", () => applySourceMode(form));
-    }
-    const urlInput = byId("source-url");
-    const note = byId("source-url-note");
-    if (urlInput && note) {
-      const showHint = () => {
-        const hint = sourceHint(urlInput.value || "");
-        note.textContent = hint;
-        note.hidden = !hint;
-      };
-      // Which event a wa-input re-emits varies by version; the handler is idempotent.
-      for (const name of ["input", "wa-input", "change"]) {
-        urlInput.addEventListener(name, showHint);
-      }
-    }
+  wireSourceControls(form);
+  let prefilledUrl = applyPrefill(form);
+  if (prefilledUrl) enterRemoteSourceMode(prefilledUrl);
+
+  const another = byId("upload-another-btn");
+  if (another) {
+    another.addEventListener("click", () => {
+      prefilledUrl = "";
+      exitRemoteSourceMode(form);
+    });
   }
 
   form.addEventListener("submit", async (e) => {
@@ -435,20 +480,27 @@ document.addEventListener("DOMContentLoaded", () => {
     submit.textContent = remoteMode ? "Registering…" : "Uploading…";
     // Show the bar before the first request so the click never looks ignored.
     setProgress(null, remoteMode ? "Starting…" : "Preparing upload…");
+    let submitted = false;
     try {
       if (remoteMode) {
         await submitRemoteSource(form, sourceUrl);
       } else {
         await uploadFile(form, file);
       }
+      submitted = true;
     } catch (err) {
       showError(err.message);
       // Completed parts survive in the upload session, so a retry picks them up.
       haltProgress(remoteMode ? "Stopped." : "Stopped. Start the upload again to resume it.");
     } finally {
-      submit.disabled = false;
       submit.textContent = submitLabel;
       setSourceControlsDisabled(false);
+      if (submitted && prefilledUrl) {
+        lockRemoteForm();
+      } else {
+        submit.disabled = false;
+        if (submitted) clearImageFields(form);
+      }
     }
   });
 });

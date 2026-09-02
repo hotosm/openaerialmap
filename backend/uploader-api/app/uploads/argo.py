@@ -4,6 +4,7 @@ The service account is restricted to the configured namespace.
 """
 
 import logging
+import math
 
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
@@ -14,6 +15,48 @@ log = logging.getLogger(__name__)
 
 # An unreachable apiserver should fail the request, not hold a worker thread.
 REQUEST_TIMEOUT_SECONDS = 30
+
+GIB = 1024**3
+# ext4 as the CSI driver formats it, plus masks, sidecars and rounding.
+WORKSPACE_USABLE = 0.95
+# GDAL puts the COG overview temp at roughly a third of the output, but calls
+# that an estimate, so budget half.
+COG_TEMP_FACTOR = 1.5
+
+
+def workspace_gib(size_bytes: int | None) -> int:
+    """Size the workspace volume for an upload of this many bytes.
+
+    A remote source has no size until it has been fetched, so it gets the
+    ceiling rather than a volume its imagery might not fit.
+    """
+    if not size_bytes:
+        return settings.WORKSPACE_MAX_GIB
+    wanted = math.ceil(size_bytes * settings.WORKSPACE_MULTIPLIER / GIB)
+    return max(settings.WORKSPACE_MIN_GIB, min(wanted, settings.WORKSPACE_MAX_GIB))
+
+
+def max_decoded_gb(workspace: int, size_bytes: int | None) -> int:
+    """Bound what may decode into the space the input does not already hold.
+
+    A lossless COG of incompressible pixels is the size of the decoded raster,
+    so this is what validate rejects on before six hours of conversion.
+    """
+    free = workspace * GIB * WORKSPACE_USABLE - (
+        size_bytes or settings.MAX_UPLOAD_BYTES
+    )
+    return max(1, int(free / COG_TEMP_FACTOR / 1e9))
+
+
+def _workspace_claim(workspace: int) -> dict:
+    """Build the volumeClaimTemplates entry overriding the template's fixed one."""
+    spec: dict = {
+        "accessModes": ["ReadWriteOnce"],
+        "resources": {"requests": {"storage": f"{workspace}Gi"}},
+    }
+    if settings.WORKSPACE_STORAGE_CLASS:
+        spec["storageClassName"] = settings.WORKSPACE_STORAGE_CLASS
+    return {"metadata": {"name": "workspace"}, "spec": spec}
 
 
 def _api() -> client.CustomObjectsApi:
@@ -53,6 +96,7 @@ def submit_geotiff_workflow(
     user_sub: str,
     callback_token: str,
     remote_source: bool = False,
+    size_bytes: int | None = None,
 ) -> str:
     """Submit a GeoTIFF processing Workflow; return its name.
 
@@ -62,6 +106,7 @@ def submit_geotiff_workflow(
     read access could see.
     """
     name = workflow_name_for(upload_id)
+    workspace = workspace_gib(size_bytes)
     parameters = {
         "s3-path": s3_path,
         "filename": filename,
@@ -79,6 +124,7 @@ def submit_geotiff_workflow(
         # The fetch step applies the same address rules as the API, so it needs
         # the same answer about private hosts.
         "allow-private-hosts": str(settings.FETCH_ALLOW_PRIVATE_HOSTS).lower(),
+        "max-decoded-gb": max_decoded_gb(workspace, size_bytes),
     }
     manifest = {
         "apiVersion": "argoproj.io/v1alpha1",
@@ -86,6 +132,9 @@ def submit_geotiff_workflow(
         "metadata": {"name": name},
         "spec": {
             "workflowTemplateRef": {"name": settings.ARGO_WORKFLOW_TEMPLATE},
+            # Overrides the template's fixed claim, which is the fallback for a
+            # submission that does not come from here.
+            "volumeClaimTemplates": [_workspace_claim(workspace)],
             "arguments": {
                 # Argo parameters are strings, and the Kubernetes client reads
                 # a stray UUID or int as one of its models and dies on it.
@@ -110,7 +159,12 @@ def submit_geotiff_workflow(
             raise
         # Someone got here first, which is the answer we wanted anyway.
         log.info("Workflow %s already exists; treating it as submitted", name)
-    log.info(f"Submitted Argo workflow {name} for upload {upload_id}")
+    log.info(
+        "Submitted Argo workflow %s for upload %s (%sGi workspace)",
+        name,
+        upload_id,
+        workspace,
+    )
     return name
 
 

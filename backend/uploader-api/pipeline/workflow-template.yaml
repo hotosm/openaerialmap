@@ -22,9 +22,12 @@ spec:
     secondsAfterSuccess: 60
     secondsAfterFailure: 86400
     secondsAfterCompletion: 86400
-  # Keep pods through the run, then release their shared 300Gi PVC.
+  # Keep pods through the run, then release their shared 300Gi PVC. The delay
+  # leaves `argo logs` something to read: it reads live pods, not the S3 archive.
+  # Short, because pvc-protection holds the claim while a pod still mounts it.
   podGC:
     strategy: OnWorkflowCompletion
+    deleteDelayDuration: 10m
   volumeClaimGC:
     strategy: OnWorkflowCompletion
   # These pods parse imagery a stranger supplied, through GDAL, which is a large
@@ -64,6 +67,12 @@ spec:
       # absent Content-Length cannot fill the workspace volume.
       - name: max-fetch-bytes
         value: "107374182400"
+      # Bounds the workspace: max-fetch-bytes of input plus a worst-case
+      # incompressible COG and its overview temp must fit the PVC below.
+      - name: max-decoded-gb
+        value: "130"
+      - name: max-gigapixels
+        value: "0"
       # Mirrors the API's FETCH_ALLOW_PRIVATE_HOSTS. On for local development,
       # where the object store is in-network; an SSRF primitive anywhere else.
       - name: allow-private-hosts
@@ -76,6 +85,9 @@ spec:
       - name: awsregion
         value: "us-east-1"
 
+  # uploader-api replaces this claim per upload, sized from the object and on a
+  # class that reclaims. Argo takes no parameter in a PVC size, so the fallback
+  # below - for a manual submit - is fixed at the largest upload allowed.
   volumeClaimTemplates:
     - metadata:
         name: workspace
@@ -83,79 +95,80 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            # Argo does not allow parameters in PVC sizes.
             storage: 300Gi
 
   templates:
     - name: entry
       dag:
         tasks:
+          # Sibling tasks, not `hooks: running:`: a hook on a retrying task
+          # becomes a child of the retry node, which then completes early and
+          # lets Argo start a second pod on the workspace.
+          - name: report-fetching
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Fetching" }
+                - { name: message, value: "Retrieving the imagery…" }
+
           - name: fetch
             template: fetch-source
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Fetching" }
-                    - { name: message, value: "Retrieving the imagery…" }
+
+          - name: report-validating
+            depends: "fetch.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Validating" }
+                - { name: message, value: "Validating GeoTIFF…" }
 
           - name: validate
             depends: "fetch.Succeeded"
             template: validate-geotiff
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Validating" }
-                    - { name: message, value: "Validating GeoTIFF…" }
+
+          - name: report-converting
+            depends: "validate.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Converting" }
+                - { name: message, value: "Converting to Cloud-Optimized GeoTIFF…" }
 
           - name: convert
             depends: "validate.Succeeded"
             template: convert-cog
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Converting" }
-                    - { name: message, value: "Converting to Cloud-Optimized GeoTIFF…" }
 
           - name: metadata
             depends: "convert.Succeeded"
             template: build-metadata
 
+          - name: report-uploading
+            depends: "convert.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Uploading" }
+                - { name: message, value: "Uploading COG to storage…" }
+
           - name: upload-cog
             depends: "convert.Succeeded"
             template: s3-upload-cog
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Uploading" }
-                    - { name: message, value: "Uploading COG to storage…" }
 
           - name: upload-meta
             depends: "metadata.Succeeded"
             template: s3-upload-meta
 
+          - name: report-registering
+            depends: "upload-cog.Succeeded && upload-meta.Succeeded"
+            template: report-status
+            arguments:
+              parameters:
+                - { name: step-id, value: "Registering" }
+                - { name: message, value: "Registering item with STAC catalog…" }
+
           - name: register
             depends: "upload-cog.Succeeded && upload-meta.Succeeded"
             template: register-stac
-            hooks:
-              running:
-                expression: "true"
-                template: report-status
-                arguments:
-                  parameters:
-                    - { name: step-id, value: "Registering" }
-                    - { name: message, value: "Registering item with STAC catalog…" }
 
           # Bytes that failed the fetch reached the bucket only if they got as
           # far as being archived, and bytes that failed validation are not
@@ -197,6 +210,9 @@ spec:
     - name: fetch-source
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/fetch:{{workflow.parameters.image-tag}}
+        # image-tag is mutable in production (`main`), and anything but
+        # `latest` defaults to IfNotPresent, so a rebuild never reaches a node.
+        imagePullPolicy: Always
         # Avoid Argo's GHCR entrypoint lookup, which bypasses private mirrors.
         command: ["python", "fetch.py"]
         securityContext: &stepSecurity
@@ -242,6 +258,7 @@ spec:
     - name: validate-geotiff
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/validate:{{workflow.parameters.image-tag}}
+        imagePullPolicy: Always
         # Avoid Argo's GHCR entrypoint lookup, which bypasses private mirrors.
         command: ["python", "validate.py"]
         args: ["/data/input.tif", "/data/meta.json"]
@@ -251,15 +268,25 @@ spec:
           # ships an .aux.xml or an .ovr, and an upload should not get to
           # introduce one.
           - { name: GDAL_DISABLE_READDIR_ON_OPEN, value: "EMPTY_DIR" }
+          - name: OAM_VALIDATE_MAX_DECODED_GB
+            value: "{{workflow.parameters.max-decoded-gb}}"
+          - name: OAM_VALIDATE_MAX_GIGAPIXELS
+            value: "{{workflow.parameters.max-gigapixels}}"
         volumeMounts:
           - { name: workspace, mountPath: /data }
         resources:
           requests: { memory: "2Gi", cpu: "1" }
           limits: { memory: "4Gi", cpu: "2" }
+      retryStrategy:
+        limit: "3"
+        retryPolicy: "OnFailure"
+        # Only 75, the one exit that is about the workspace and not the file.
+        expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) == 75"
 
     - name: convert-cog
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/convert:{{workflow.parameters.image-tag}}
+        imagePullPolicy: Always
         command: ["python", "convert.py"]
         args: ["/data/input.tif", "/data/output.tif"]
         securityContext: *stepSecurity
@@ -282,6 +309,7 @@ spec:
     - name: build-metadata
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/metadata:{{workflow.parameters.image-tag}}
+        imagePullPolicy: Always
         command: ["python", "metadata.py"]
         args:
           - "/data/output.tif"
@@ -361,6 +389,7 @@ spec:
     - name: register-stac
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/register:{{workflow.parameters.image-tag}}
+        imagePullPolicy: Always
         command: ["python", "register.py"]
         args: ["/data/metadata.json"]
         securityContext: *stepSecurity
@@ -406,6 +435,13 @@ spec:
             [ "$CODE" = "6" ] && MSG="Invalid raster: image is too large."
             [ "$CODE" = "7" ] && MSG="Invalid raster: content does not match the declared product type."
             [ "$CODE" = "8" ] && MSG="This file is not a GeoTIFF."
+            [ "$CODE" = "75" ] && MSG="Processing could not read the imagery; please try again."
+            # validate.py leaves the numbers here; the map above is the
+            # fallback for a step that died before writing one.
+            REASON=""
+            [ -f /data/validation-error.txt ] &&
+              REASON="$(tr -d '\r\\"' < /data/validation-error.txt | tr '\n' ' ')"
+            [ -n "$REASON" ] && MSG="$REASON"
             cat <<EOF > /tmp/payload.json
             {"id": "{{workflow.parameters.id}}", "status": "Failed", "message": "$MSG"}
             EOF
@@ -414,6 +450,8 @@ spec:
               -H "X-Internal-Token: {{workflow.parameters.state}}" \
               -d @/tmp/payload.json
             exit 1
+        volumeMounts:
+          - { name: workspace, mountPath: /data }
 
     # The same purge with no status report, for a step that has already sent its
     # own. The fetch step knows whether the URL 404'd or served a login page;
@@ -442,6 +480,10 @@ spec:
             # Keep the workflow failed; the step that failed said why.
             exit 1
 
+    # Exits 0 always: `continueOn` is not allowed beside `depends`, so failing
+    # here would fail an upload that worked. `Always` retries what curl cannot -
+    # eviction, a failed image pull - and cannot mask a failed report.
+    # A lost terminal callback is what app/uploads/reconcile.py is for.
     - name: report-status
       inputs:
         parameters:
@@ -453,12 +495,13 @@ spec:
         command: [sh, -c]
         args:
           - |
-            curl -sf -X POST {{workflow.parameters.fronturl}}/api/v1/workflowstatus \
+            curl -sS --fail --max-time 30 \
+              --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 120 \
+              -X POST {{workflow.parameters.fronturl}}/api/v1/workflowstatus \
               -H "Content-Type: application/json" \
               -H "X-Internal-Token: {{workflow.parameters.state}}" \
-              -d '{"id":"{{workflow.parameters.id}}","status":"{{inputs.parameters.step-id}}","message":"{{inputs.parameters.message}}"}'
-      # A dropped status message leaves the upload showing the previous stage,
-      # and for the exit handler it is the only report the uploader gets.
+              -d '{"id":"{{workflow.parameters.id}}","status":"{{inputs.parameters.step-id}}","message":"{{inputs.parameters.message}}"}' \
+              || echo "report-status: giving up on {{inputs.parameters.step-id}}"
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"

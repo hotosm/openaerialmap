@@ -128,3 +128,131 @@ def test_every_parameter_value_is_a_string(api):
     (call,) = fake.created
 
     assert all(isinstance(v, str) for v in params(call).values())
+
+
+# Workspace sizing. Every run used to take a 300Gi volume whatever it was
+# processing, and the ceiling that volume implies was a constant in validate.
+
+
+def _claim(call) -> dict:
+    (claim,) = call["body"]["spec"]["volumeClaimTemplates"]
+    return claim
+
+
+def test_a_small_upload_gets_a_small_volume(api):
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=40 * argo.GIB)
+    storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
+    assert storage == f"{int(40 * settings.WORKSPACE_MULTIPLIER)}Gi"
+
+
+def test_a_tiny_upload_still_clears_the_floor(api):
+    """A COG plus GDAL's temp files needs room a 50 MB ortho would not imply."""
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=50 * 1024**2)
+    storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
+    assert storage == f"{settings.WORKSPACE_MIN_GIB}Gi"
+
+
+def test_an_upload_at_the_ceiling_is_capped(api):
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=settings.MAX_UPLOAD_BYTES)
+    storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
+    assert storage == f"{settings.WORKSPACE_MAX_GIB}Gi"
+
+
+def test_a_remote_source_gets_the_ceiling(api):
+    """Its size is not known until the fetch step has run."""
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, remote_source=True)
+    storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
+    assert storage == f"{settings.WORKSPACE_MAX_GIB}Gi"
+
+
+@pytest.mark.parametrize("gib", [1, 10, 40, 100])
+def test_the_decoded_ceiling_fits_the_volume_it_was_sized_against(api, gib):
+    """Input plus a worst-case incompressible COG plus overview temp, inside
+    what the filesystem actually leaves usable."""
+    fake = api()
+    size = gib * argo.GIB
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
+    call = fake.created[0]
+    workspace = int(
+        _claim(call)["spec"]["resources"]["requests"]["storage"].removesuffix("Gi")
+    )
+    used = size + float(params(call)["max-decoded-gb"]) * 1e9 * argo.COG_TEMP_FACTOR
+    assert used <= workspace * argo.GIB * argo.WORKSPACE_USABLE
+
+
+def _ratio(fake, size) -> float:
+    """The decode ratio the volume sized for `size` will actually tolerate."""
+    return float(params(fake.created[0])["max-decoded-gb"]) * 1e9 / size
+
+
+@pytest.mark.parametrize("gib", [1, 10, 40, 60])
+def test_every_upload_size_admits_a_realistic_decode_ratio(api, gib):
+    """The volume is sized off compressed bytes, which do not predict decoded
+    ones: a JPEG-in-TIFF ortho reaches 10:1 and a 1 GiB upload is not a 1 GiB
+    raster. Too tight a ratio here is the old 2-gigapixel bug again, so this
+    pins the figure the multiplier is chosen for rather than a loose floor."""
+    fake = api()
+    size = gib * argo.GIB
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
+    assert _ratio(fake, size) >= 10
+
+
+def test_the_biggest_uploads_trade_that_ratio_for_a_bounded_volume(api):
+    """Past ~60 GiB the multiplier would ask for more than WORKSPACE_MAX_GIB, so
+    the ratio degrades instead of the volume growing without limit."""
+    fake = api()
+    size = settings.MAX_UPLOAD_BYTES
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
+    assert 5 <= _ratio(fake, size) < 10
+
+
+def test_the_reported_regression_would_now_pass(api):
+    """A ~1 GiB upload of a strip past the old 2-gigapixel cap: 3 gigapixels of
+    uint8 RGB is 9 GB decoded, and the ceiling it gets has to clear that."""
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=1 * argo.GIB)
+    ceiling = float(params(fake.created[0])["max-decoded-gb"])
+    assert ceiling >= 3e9 * 3 / 1e9
+
+
+def test_a_bigger_upload_may_decode_further(api):
+    """The ceiling is per-run now, not one constant sized for the worst case."""
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=10 * argo.GIB)
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=80 * argo.GIB)
+    small, large = (float(params(c)["max-decoded-gb"]) for c in fake.created)
+    assert large > small
+
+
+def test_the_volume_is_reclaimed_when_configured(api, monkeypatch):
+    """HOTOSM's default class is Retain, which leaves an EBS volume per run."""
+    monkeypatch.setattr(settings, "WORKSPACE_STORAGE_CLASS", "gp3-ephemeral")
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT)
+    assert _claim(fake.created[0])["spec"]["storageClassName"] == "gp3-ephemeral"
+
+
+def test_no_storage_class_leaves_the_cluster_default(api, monkeypatch):
+    """Local clusters have their own default and no gp3 of any kind."""
+    monkeypatch.setattr(settings, "WORKSPACE_STORAGE_CLASS", "")
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT)
+    assert "storageClassName" not in _claim(fake.created[0])["spec"]
+
+
+def test_the_volume_keeps_room_the_arithmetic_does_not_claim(api):
+    """ext4 metadata, the thumbnail, provenance JSON, GDAL's own scratch: the
+    fit cannot be to the last byte, and the temp estimate is only an estimate."""
+    fake = api()
+    size = 40 * argo.GIB
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
+    call = fake.created[0]
+    workspace = int(
+        _claim(call)["spec"]["resources"]["requests"]["storage"].removesuffix("Gi")
+    )
+    used = size + float(params(call)["max-decoded-gb"]) * 1e9 * argo.COG_TEMP_FACTOR
+    assert workspace * argo.GIB - used >= 0.04 * workspace * argo.GIB

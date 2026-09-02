@@ -25,8 +25,8 @@ STEPS = {name: t for name, t in TEMPLATES.items() if "container" in t}
 TASKS = {t["name"]: t for t in TEMPLATES["entry"]["dag"]["tasks"]}
 
 
-def _tasks_with_hooks(template: dict) -> list[dict]:
-    """Every DAG task in a template, hooks and all."""
+def _dag_tasks(template: dict) -> list[dict]:
+    """Every DAG task in a template."""
     return template.get("dag", {}).get("tasks", [])
 
 
@@ -60,6 +60,11 @@ def test_a_stuck_workflow_gives_its_volume_back():
 
 def test_pods_do_not_outlive_the_workflow():
     assert SPEC["podGC"]["strategy"] == "OnWorkflowCompletion"
+
+
+def test_a_failed_pod_survives_long_enough_to_read_its_logs():
+    """`argo logs` reads live pods, and podGC deletes them on completion."""
+    assert SPEC["podGC"]["deleteDelayDuration"]
 
 
 def test_a_failure_outlives_a_success():
@@ -148,6 +153,51 @@ def test_the_fetch_step_gets_the_size_limit_it_has_to_enforce():
     assert env["MAX_FETCH_BYTES"] == "{{workflow.parameters.max-fetch-bytes}}"
 
 
+# Sizing.
+
+
+def test_the_validate_step_takes_its_size_guards_from_parameters():
+    """Otherwise retuning them for a deployment means editing Python."""
+    env = {
+        e["name"]: e.get("value") for e in STEPS["validate-geotiff"]["container"]["env"]
+    }
+    assert (
+        env["OAM_VALIDATE_MAX_DECODED_GB"] == "{{workflow.parameters.max-decoded-gb}}"
+    )
+    assert (
+        env["OAM_VALIDATE_MAX_GIGAPIXELS"] == "{{workflow.parameters.max-gigapixels}}"
+    )
+
+
+def test_pixels_are_not_capped():
+    """100 GiB of compressed imagery is tens of gigapixels; a pixel cap would
+    reject the uploads this service exists to take."""
+    defaults = {p["name"]: p.get("value") for p in SPEC["arguments"]["parameters"]}
+    assert defaults["max-gigapixels"] == "0"
+
+
+def test_the_fallback_ceiling_fits_the_fallback_workspace():
+    """uploader-api computes both per upload; these are the manual-submit
+    defaults, and they have to agree the same way."""
+    defaults = {p["name"]: p.get("value") for p in SPEC["arguments"]["parameters"]}
+    storage = SPEC["volumeClaimTemplates"][0]["spec"]["resources"]["requests"]
+    usable = (
+        float(storage["storage"].removesuffix("Gi")) * 2**30 * argo.WORKSPACE_USABLE
+    )
+    input_bytes = float(defaults["max-fetch-bytes"])
+    output = float(defaults["max-decoded-gb"]) * 1e9 * argo.COG_TEMP_FACTOR
+    assert input_bytes + output <= usable
+
+
+def test_a_rebuilt_step_image_actually_reaches_the_node():
+    """PIPELINE_IMAGE_TAG is mutable, and only `latest` defaults to Always."""
+    for name, step in STEPS.items():
+        container = step["container"]
+        if "{{workflow.parameters.image-tag}}" not in container["image"]:
+            continue
+        assert container.get("imagePullPolicy") == "Always", name
+
+
 # Rejected bytes must not outlive the workflow that rejected them.
 
 
@@ -175,8 +225,82 @@ def test_cleanup_deletes_only_this_upload():
 def test_every_validation_exit_code_has_a_message():
     """Including the one for a file that is not a GeoTIFF."""
     args = TEMPLATES["cleanup"]["container"]["args"][0]
-    for code in ("5", "6", "7", "8"):
+    for code in ("5", "6", "7", "8", "75"):
         assert f'[ "$CODE" = "{code}" ]' in args
+
+
+def test_a_missing_input_is_not_reported_as_a_bad_file():
+    """Exit 75 means the imagery never reached the pod, which is our fault."""
+    args = TEMPLATES["cleanup"]["container"]["args"][0]
+    message = re.search(r'\[ "\$CODE" = "75" \] && MSG="([^"]+)"', args)
+    assert message, "no message mapped for exit 75"
+    assert "GeoTIFF" not in message.group(1)
+
+
+# The bug this template shape exists to avoid: two pods on one workspace.
+
+
+def test_no_step_combines_a_lifecycle_hook_with_a_retry():
+    """The hook becomes a child of the retry node, which then completes early."""
+    for template in SPEC["templates"]:
+        for task in _dag_tasks(template):
+            if not task.get("hooks"):
+                continue
+            assert "retryStrategy" not in TEMPLATES[task["template"]], task["name"]
+
+
+def test_every_step_that_writes_the_workspace_announces_itself_by_a_sibling():
+    """Sharing the step's `depends` runs it when a running hook would have."""
+    for step, report in (
+        ("fetch", "report-fetching"),
+        ("validate", "report-validating"),
+        ("convert", "report-converting"),
+        ("upload-cog", "report-uploading"),
+        ("register", "report-registering"),
+    ):
+        assert TASKS[report].get("depends") == TASKS[step].get("depends"), report
+
+
+def test_a_dropped_status_message_does_not_fail_the_upload():
+    """`continueOn` is not allowed beside `depends`, so it has to exit 0."""
+    args = TEMPLATES["report-status"]["container"]["args"][0]
+    assert "--retry" in args
+    assert "|| echo" in args, "a failed report must not exit non-zero"
+
+
+def test_a_report_pod_that_never_ran_is_retried():
+    """Eviction and a failed image pull happen before the shell does."""
+    retry = TEMPLATES["report-status"]["retryStrategy"]
+    assert retry["retryPolicy"] == "Always"
+    assert int(retry["limit"]) >= 1
+
+
+def test_progress_is_reported_by_tasks_argo_will_accept():
+    """`continueOn` alongside `depends` is a lint error, not a no-op."""
+    for name, task in TASKS.items():
+        assert not (task.get("continueOn") and task.get("depends")), name
+
+
+def test_validate_retries_only_when_the_input_never_arrived():
+    """Rejected imagery is rejected identically every time."""
+    retry = TEMPLATES["validate-geotiff"]["retryStrategy"]
+    assert "asInt(lastRetry.exitCode) == 75" in retry["expression"]
+
+
+def test_cleanup_prefers_the_reason_validate_wrote():
+    """The exit-code map cannot say which limit was hit, or by how much."""
+    cleanup = TEMPLATES["cleanup"]["container"]
+    args = cleanup["args"][0]
+    assert "/data/validation-error.txt" in args
+    assert '[ -n "$REASON" ] && MSG="$REASON"' in args
+    # Only readable if cleanup mounts the workspace validate wrote it to.
+    assert {"name": "workspace", "mountPath": "/data"} in cleanup["volumeMounts"]
+
+
+def test_a_reason_cannot_break_out_of_the_cleanup_payload():
+    """It goes through shell into JSON unescaped; validate.py strips the rest."""
+    args = TEMPLATES["cleanup"]["container"]["args"][0]
+    assert "tr -d '\\r\\\\\"'" in args
 
 
 # What the API sends has to be what the template expects.
@@ -254,9 +378,8 @@ def test_every_status_the_workflow_reports_is_one_the_api_accepts():
     reported = {
         parameter["value"]
         for template in SPEC["templates"]
-        for task in _tasks_with_hooks(template)
-        for hook in task.get("hooks", {}).values()
-        for parameter in hook.get("arguments", {}).get("parameters", [])
+        for task in _dag_tasks(template)
+        for parameter in task.get("arguments", {}).get("parameters", [])
         if parameter["name"] == "step-id"
     }
     reported |= {

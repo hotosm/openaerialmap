@@ -218,6 +218,18 @@ class Settings(BaseSettings):
     MAX_UPLOAD_BYTES: int = 100 * 1024**3  # 100 GiB
     MAX_ACTIVE_UPLOADS_PER_USER: int = 5
 
+    # The workspace volume holds the upload, its COG and GDAL's overview temp,
+    # so it scales with the upload instead of being provisioned for the largest
+    # one allowed. Mirrors ScaleODM's workflow.workspace.dynamicSize.
+    # Sized so the decode ratio may reach 10:1, which JPEG-in-TIFF orthos do;
+    # overhead eats the rest. The cap holds that up to a 60 GiB upload.
+    WORKSPACE_MULTIPLIER: float = 17.0
+    WORKSPACE_MIN_GIB: int = 64
+    WORKSPACE_MAX_GIB: int = 1024
+    # Empty uses the cluster default. It must reclaim on delete, or every run
+    # leaves its volume behind - HOTOSM's default `gp3` is Retain.
+    WORKSPACE_STORAGE_CLASS: str = ""
+
     # Only for setups whose object store is in-network (local compose, Talos
     # e2e). Anywhere else this makes remote-source ingest an SSRF primitive.
     FETCH_ALLOW_PRIVATE_HOSTS: bool = False

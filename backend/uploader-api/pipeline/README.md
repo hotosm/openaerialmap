@@ -55,6 +55,46 @@ The user declares `product_type` on upload; `metadata.py` auto-detects if omitte
 terrain-RGB PMTiles + MapLibre, matching the existing browse-map stack - and is
 not part of ingestion.
 
+## Size limits
+
+The API caps an upload at `MAX_UPLOAD_BYTES` (100 GiB), enforced again on the
+way in as the `max-fetch-bytes` workflow parameter. Nothing after that is bound
+by pixel count - GDAL reads in blocks, `metadata` reads decimated windows - so
+`validate`'s remaining job is to reject, before six hours of conversion, an
+upload that cannot fit its workspace volume.
+
+That volume is sized per upload. `uploader-api` reads the object's real size,
+scales it by `WORKSPACE_MULTIPLIER` between `WORKSPACE_MIN_GIB` and
+`WORKSPACE_MAX_GIB`, and submits the claim with the Workflow - Argo takes no
+parameter in a PVC size, so it replaces the whole `volumeClaimTemplates` entry.
+A remote source has no size until it has been fetched and gets the ceiling.
+`WORKSPACE_STORAGE_CLASS` must reclaim on delete: HOTOSM's default `gp3` is
+`Retain`, so leaving it unset leaves one EBS volume behind per run.
+
+`WORKSPACE_MULTIPLIER` buys the decode ratio the volume will tolerate, because
+compressed bytes do not predict decoded ones - a JPEG-in-TIFF ortho reaches
+10:1. Overhead takes the rest of it, so 17x delivers 10:1 and not 17:1. That
+holds up to a 60 GiB upload, past which `WORKSPACE_MAX_GIB` binds first and the
+ratio degrades to 5.8:1 at the 100 GiB ceiling; raise the cap to extend it. Too
+tight a ratio here rejects real imagery, which is the bug this replaced.
+
+`max-decoded-gb` follows from that volume rather than being chosen: the run
+holds the input, its COG and GDAL's overview temp on one disk, and a lossless
+COG of incompressible pixels is the size of the decoded raster. `COG_TEMP_FACTOR`
+budgets half the output for temp against GDAL's estimated third, and
+`WORKSPACE_USABLE` keeps 5% back for ext4 metadata and the small sidecar files.
+
+| Parameter | Default | Env in the step |
+| --- | --- | --- |
+| `max-decoded-gb` | computed (`150` fallback) | `OAM_VALIDATE_MAX_DECODED_GB` |
+| `max-gigapixels` | `0` (off) | `OAM_VALIDATE_MAX_GIGAPIXELS` |
+
+The template's own values are the fallback for a submission that does not come
+from the API, and are fixed at the largest upload allowed.
+
+A rejection writes its reason to `/data/validation-error.txt` and `cleanup`
+reports that verbatim; the exit-code map there is only a fallback.
+
 ## Convergence with the bulk ingester
 
 The `metadata` step builds the item with `stactools.hotosm.create_item` from
