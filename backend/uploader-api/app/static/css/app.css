@@ -355,6 +355,13 @@ hotosm-auth {
   color: var(--oam-bluegrey);
 }
 
+/* The way out of a failure: small, but never muted into the background. */
+.oam-support {
+  margin: 0.5rem 0 0;
+  font-size: var(--oam-text-small);
+  line-height: 1.5;
+}
+
 /* Phones. */
 @media (max-width: 40rem) {
   .oam-main {

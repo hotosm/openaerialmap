@@ -450,11 +450,17 @@ function clearError() {
   byId("upload-error").innerHTML = "";
 }
 
-function showError(message) {
+// `offerSupport` is for a real failure; a prompt to fill the form in is not one.
+function showError(message, offerSupport = false) {
   const errBox = byId("upload-error");
   errBox.innerHTML = '<wa-callout variant="danger"><span></span></wa-callout>';
   // textContent prevents server messages from injecting HTML.
   errBox.querySelector("span").textContent = message;
+  const support = byId("support-line");
+  if (offerSupport && support) {
+    // Cloned from the server-rendered copy, so the URLs live in one place.
+    errBox.querySelector("wa-callout").appendChild(support.content.cloneNode(true));
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -503,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       submitted = true;
     } catch (err) {
-      showError(err.message);
+      showError(err.message, true);
       // Completed parts survive in the upload session, so a retry picks them up.
       haltProgress(remoteMode ? "Stopped." : "Stopped. Start the upload again to resume it.");
     } finally {

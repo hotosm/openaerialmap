@@ -144,10 +144,10 @@
             href: "/profile",
             clickEvent: () => (window.location.href = "/profile"),
           },
-          {
+          {% if support_url %}{
             label: "Report a bug",
-            clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
-          },
+            clickEvent: () => window.open("{{ support_url }}", "_blank"),
+          },{% endif %}
         ];
         // Keep the Upload tab active if its href is omitted.
         const activeLabel = window.location.pathname.startsWith("/profile") ? "Profile" : "Upload";

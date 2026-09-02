@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     OAM_UPLOAD_DEV_PORT: str | None = None
     OAM_FRONTEND_URL: str = "https://imagery.hotosm.org"
     OAM_API_URL: str = "https://api.imagery.hotosm.org"
+    # Offered wherever an upload fails. The form needs no Slack account, so a
+    # contributor outside the HOT community can still reach us (issue #307).
+    SUPPORT_URL: str = "https://roadmap.hotosm.org/#tech-request"
+    SUPPORT_SLACK_URL: str = "https://slack.hotosm.org"
     DEBUG: bool = False
     ENVIRONMENT: Environment = Environment.DEVELOPMENT
     LOG_LEVEL: str = "INFO"
@@ -212,6 +216,7 @@ class Settings(BaseSettings):
 
     STAC_URL: str = "http://stac-api:8082"
     STAC_COLLECTION: str = "openaerialmap"
+    STAC_BROWSER_URL: str = ""
     # Strict checks fetch remote extension schemas.
     STAC_STRICT_EXTENSIONS: bool = False
 
@@ -251,6 +256,13 @@ class Settings(BaseSettings):
         if self.MONITORING == MonitoringTypes.OPENOBSERVE:
             return OpenObserveSettings()
         return None
+
+    @computed_field
+    @property
+    def stac_item_url_base(self) -> str:
+        """Base for a STAC Browser deep link to one published item."""
+        browser = self.STAC_BROWSER_URL or f"{self.OAM_API_URL.rstrip('/')}/browser"
+        return f"{browser.rstrip('/')}/stac/collections/{self.STAC_COLLECTION}/items"
 
     @computed_field
     @property

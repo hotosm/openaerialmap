@@ -34,12 +34,19 @@
         {% endif %}
       </td>
       <td role="cell" data-label="Message" class="oam-muted">
-        {{ u.message }}
+        {% if u.status == "Succeeded" %}
+        <a href="{{ item_url_base }}/{{ u.id }}" target="_blank" rel="noreferrer">
+          View the image</a
+        >
+        {% else %}{{ u.message }}{% endif %}
         <!-- A duplicate is a warning, not a rejection: re-publishing the same
              bytes is sometimes deliberate. -->
         {% if u.warning %}
         <p><wa-tag variant="warning" size="s">Warning</wa-tag> {{ u.warning }}</p>
         {% endif %}
+        <!-- A processing failure happens long after the form closed, so the way
+             to reach us has to travel with the row. -->
+        {% if u.status in ("Failed", "Error") %}{{ support_html() | safe }}{% endif %}
       </td>
       <td role="cell" data-label="Started" class="oam-muted">
         {{ u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "" }}

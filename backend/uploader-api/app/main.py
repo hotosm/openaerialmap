@@ -1,6 +1,5 @@
 """OAM uploader API and HTMX UI."""
 
-import html
 import logging
 import re
 from pathlib import Path
@@ -28,6 +27,7 @@ from app.db.database import (
     db_conn,
     get_db_connection_pool,
 )
+from app.htmx.htmx_helpers import callout, support_html
 from app.htmx.page_routes import page_router
 from app.monitoring import (
     add_endpoint_profiler,
@@ -98,11 +98,9 @@ def _htmx_exception_handler(request: Request, exc: Exception) -> Response:
         log.exception(f"Server error: {exc}")
 
     if request.headers.get("HX-Request") == "true":
+        # callout() attaches the support line, so a failure is never a dead end.
         return Response(
-            content=(
-                f'<wa-callout variant="danger"><span>{html.escape(detail)}'
-                "</span></wa-callout>"
-            ),
+            content=callout("danger", detail),
             media_type="text/html",
             status_code=status_code,
             headers={"Vary": "HX-Request"},
@@ -126,6 +124,9 @@ def _configure_templates(engine: JinjaTemplateEngine) -> None:
         frontend_url=settings.frontend_url,
         main_site_url=settings.OAM_FRONTEND_URL.rstrip("/"),
         api_site_url=settings.OAM_API_URL.rstrip("/"),
+        support_url=settings.SUPPORT_URL,
+        item_url_base=settings.stac_item_url_base,
+        support_html=support_html,
     )
 
 

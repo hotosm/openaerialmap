@@ -4,13 +4,14 @@ Dependencies load only when monitoring is enabled. app.config and app.main keep
 health checks out of traces and logs.
 """
 
-import html
 import logging
 from typing import Any
 
 from litestar import Litestar, Request, Response
 from litestar.exceptions import HTTPException
 from litestar.types import ASGIApp, Receive, Scope, Send
+
+from app.htmx.htmx_helpers import callout
 
 log = logging.getLogger(__name__)
 
@@ -116,14 +117,9 @@ def set_otel_tracer(app: Litestar, endpoint: str) -> None:
         current_span.record_exception(exc)
 
         if request.headers.get("HX-Request") == "true":
-            escaped_msg = html.escape(
-                str(exc.detail) if exc.detail else "An unexpected error occurred."
-            )
+            detail = str(exc.detail) if exc.detail else "An unexpected error occurred."
             return Response(
-                content=(
-                    f'<wa-callout variant="danger"><span>{escaped_msg}</span>'
-                    "</wa-callout>"
-                ),
+                content=callout("danger", detail),
                 media_type="text/html",
                 status_code=exc.status_code,
                 headers={"Vary": "HX-Request"},
