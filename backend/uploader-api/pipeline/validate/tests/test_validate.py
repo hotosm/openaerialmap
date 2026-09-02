@@ -100,7 +100,7 @@ def test_a_size_rejection_names_the_dimensions_and_the_limit(opens, reason):
 def test_a_reason_is_safe_to_embed_in_the_cleanup_payload(reason, monkeypatch):
     """Cleanup interpolates it through shell into JSON with no escaping."""
     with pytest.raises(SystemExit):
-        validate._reject(6, 'a "quoted" \\ back\nslash\tand a — dash')
+        validate._reject(6, 'a "quoted" \\ back\nslash\tand a - dash')
     said = reason()
     assert '"' not in said and "\\" not in said and "\n" not in said
     assert json.loads(f'{{"message": "{said}"}}')["message"] == said

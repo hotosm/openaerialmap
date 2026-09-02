@@ -341,7 +341,7 @@ async function uploadFile(form, file) {
   const totalLabel = formatBytes(file.size);
 
   // The first part takes minutes to land, so say so before any request goes out.
-  setProgress(null, `Preparing upload — 0/${totalParts} parts of ${totalLabel}`);
+  setProgress(null, `Preparing upload - 0/${totalParts} parts of ${totalLabel}`);
 
   // Reuse a session for the same file + metadata across reloads.
   const store = sessionKey(file, { ...metadata, anonymous });
@@ -378,7 +378,7 @@ async function uploadFile(form, file) {
   const report = (verb, n, loaded = 0) =>
     setProgress(
       (sentBytes + loaded) / file.size,
-      `${verb} part ${n}/${totalParts} — ${formatBytes(sentBytes + loaded)} of ${totalLabel}`,
+      `${verb} part ${n}/${totalParts} - ${formatBytes(sentBytes + loaded)} of ${totalLabel}`,
     );
 
   for (let n = 1; n <= totalParts; n++) {

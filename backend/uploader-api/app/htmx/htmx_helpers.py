@@ -24,7 +24,7 @@ def support_html() -> str:
         '<p class="oam-support">Trouble uploading your imagery? '
         f'<a href="{escape(settings.SUPPORT_URL, quote=True)}"'
         ' target="_blank" rel="noreferrer">Contact the OAM team for support</a>'
-        f"{slack} — quote the message above and we will look into it.</p>"
+        f"{slack} - quote the message above and we will look into it.</p>"
     )
 
 
