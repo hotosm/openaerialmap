@@ -13,7 +13,12 @@ from pypgstac.load import Loader, read_json
 
 from stactools.hotosm import cli
 from stactools.hotosm.catalogs import CATALOGS
-from stactools.hotosm.cli import OAM_CATALOG_KEY, main, sync_handler
+from stactools.hotosm.cli import (
+    GLO30_CATALOG_KEY,
+    OAM_CATALOG_KEY,
+    main,
+    sync_handler,
+)
 from stactools.hotosm.constants import COLLECTION_ID as COLLECTION_ID_OAM
 
 COLLECTION_ID = "test-collection"
@@ -208,7 +213,9 @@ class TestCatalogCommands:
 
     def test_command_per_registered_catalog(self):
         """Create dump and sync commands for every catalog."""
-        assert {"dump-maxar", "sync-maxar"} <= set(main.commands)
+        assert {"dump-glo30", "sync-glo30", "dump-maxar", "sync-maxar"} <= set(
+            main.commands
+        )
 
         for key in CATALOGS:
             assert f"dump-{key.lower()}" in main.commands
@@ -222,7 +229,11 @@ class TestCatalogCommands:
             if param.name == "catalog"
         )
 
-        assert list(catalog_option.type.choices) == [OAM_CATALOG_KEY, *CATALOGS]
+        assert list(catalog_option.type.choices) == [
+            OAM_CATALOG_KEY,
+            GLO30_CATALOG_KEY,
+            *CATALOGS,
+        ]
 
 
 class TestDumpCatalogCommand:

@@ -2,14 +2,17 @@
 
 # Ingestion
 
-Everything that puts imagery into the OAM STAC catalogue.
+Everything that puts data into the OAM STAC catalogue - imagery, and one
+elevation dataset.
 
 - [Add a data provider](./new-provider.md) - write an ingestor for a new source.
+- [Elevation](./elevation.md) - Copernicus GLO-30, the one source that is
+  not imagery.
 - [Backfill](./backfill.md) - imagery is missing from the catalogue, fix it.
 - [STAC extension](./schema.md) - the `oam:` fields, and moving Items between
   schema versions.
 
-## The three routes in
+## The routes in
 
 All of them build STAC Items with the same package,
 [`backend/stactools-hotosm`](https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm),
@@ -20,6 +23,7 @@ so an Item looks the same however it arrived.
 | Uploader pipeline    | one upload at a time                | Argo workflow, `backend/uploader-api/pipeline`               |
 | Legacy OAM API       | the old openaerialmap.org catalogue | `stac-ingest-oam` CronJob, every 30 min                      |
 | Open data catalogues | Maxar, Vantor                       | `stac-ingest-maxar` and `stac-ingest-vantor` CronJobs, daily |
+| Elevation            | Copernicus GLO-30                   | `stac-ingest-glo30` Job, run once by hand                    |
 
 The CronJobs are in
 [k8s-infra](https://github.com/hotosm/k8s-infra/tree/main/apps/oam) under

@@ -83,6 +83,7 @@ nav:
       - Ingestion:
           - Overview: dev/ingest/index.md
           - Add a Data Provider: dev/ingest/new-provider.md
+          - Elevation: dev/ingest/elevation.md
           - Backfill: dev/ingest/backfill.md
           - STAC Extension: dev/ingest/schema.md
       - Backend:

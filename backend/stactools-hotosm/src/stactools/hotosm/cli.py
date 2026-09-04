@@ -5,7 +5,7 @@ import json
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Iterator, Literal, Protocol, TypeVar
+from typing import Any, Callable, Iterable, Iterator, Literal, Protocol, TypeVar
 
 import click
 import pystac
@@ -13,7 +13,7 @@ import requests
 from pypgstac.db import PgstacDB
 from pypgstac.load import Loader, Methods
 
-from stactools.hotosm import opendata
+from stactools.hotosm import glo30, opendata
 from stactools.hotosm.catalogs import CATALOGS
 from stactools.hotosm.constants import COLLECTION_ID as OAM_COLLECTION_ID
 from stactools.hotosm.oam_metadata import OamMetadata
@@ -25,6 +25,7 @@ from stactools.hotosm.stac import (
 )
 
 OAM_CATALOG_KEY = "OAM"
+GLO30_CATALOG_KEY = "GLO30"
 
 uploaded_since_sec = click.option(
     "--uploaded-since",
@@ -117,6 +118,14 @@ pgstac_database = click.option(
     callback=create_pgstac_from_ctx,
 )
 
+glo30_bbox = click.option(
+    "--bbox",
+    nargs=4,
+    type=float,
+    default=None,
+    help="Limit the harvest to MINX MINY MAXX MAXY.",
+)
+
 dump_to_path = click.option(
     "--file",
     type=click.Path(
@@ -130,7 +139,7 @@ dump_to_path = click.option(
 
 catalog_option = click.option(
     "--catalog",
-    type=click.Choice([OAM_CATALOG_KEY, *CATALOGS]),
+    type=click.Choice([OAM_CATALOG_KEY, GLO30_CATALOG_KEY, *CATALOGS]),
     required=True,
     help="Sync STAC Collection definition for this dataset catalog.",
 )
@@ -251,6 +260,64 @@ def sync_oam(
     report_errors(errors)
 
 
+@main.command()
+@dump_to_path
+@glo30_bbox
+def dump_glo30(
+    file: Path,
+    bbox: tuple[float, float, float, float] | None,
+    **_pgstac_options: Any,
+) -> None:
+    """Dump Copernicus GLO-30 Items to NDJSON."""
+    with requests.Session() as session:
+        dump_to_ndjson(file, (item.to_dict() for item in glo30_items(session, bbox)))
+
+
+@main.command()
+@glo30_bbox
+@pgstac_username
+@pgstac_password
+@pgstac_host
+@pgstac_port
+@pgstac_database
+@click.pass_context
+def sync_glo30(
+    ctx: click.Context,
+    bbox: tuple[float, float, float, float] | None,
+    **_pgstac_options: Any,
+) -> None:
+    """Sync Copernicus GLO-30 Items to PgSTAC."""
+    loader = Loader(ctx.obj["pgstac"])
+    loaded = 0
+
+    def items(session: requests.Session) -> Iterator[dict]:
+        nonlocal loaded
+        for item in glo30_items(session, bbox):
+            loaded += 1
+            yield item.to_dict()
+
+    with requests.Session() as session:
+        loader.load_items(items(session), insert_mode=Methods.upsert)
+
+    click.echo(f"Completed ingesting {loaded} STAC Items")
+
+
+def glo30_items(
+    session: requests.Session,
+    bbox: tuple[float, float, float, float] | None,
+) -> Iterator[pystac.Item]:
+    """Yield rewritten GLO-30 Items."""
+    click.echo(
+        "Harvesting GLO-30 from Earth Search"
+        + (f" within bbox {bbox}" if bbox else " for the whole globe")
+    )
+    for item in glo30.walk_items(session, bbox=bbox):
+        dem_item = glo30.create_item(item)
+        # PgSTAC requires a Collection ID even when its link is unavailable.
+        dem_item.collection_id = glo30.COLLECTION_ID
+        yield dem_item
+
+
 def dump_catalog_command(catalog: OpenDataCatalog) -> click.Command:
     """Build the `dump-<catalog>` CLI command for an open data catalog."""
 
@@ -343,6 +410,9 @@ def create_and_save_collection(catalog: str, destination: Path) -> None:
     """Create a STAC Collection and write to JSON."""
     if catalog == OAM_CATALOG_KEY:
         collection = create_oam_collection()
+    elif catalog == GLO30_CATALOG_KEY:
+        with requests.Session() as session:
+            collection = glo30.create_collection(session)
     elif open_data_catalog := CATALOGS.get(catalog):
         collection = opendata.create_collection(
             open_data_catalog,
@@ -473,12 +543,14 @@ def sync_handler(
     return items, errors
 
 
-def dump_to_ndjson(path: Path, items: list[dict]) -> None:
+def dump_to_ndjson(path: Path, items: Iterable[dict]) -> None:
     """Dump STAC Items to Newline Delimited JSON (NDJSON)."""
+    count = 0
     with path.open("w") as dst:
         for item in items:
             dst.write(json.dumps(item) + "\n")
-    click.echo(f"Completed dumping {len(items)} STAC Items to {path}")
+            count += 1
+    click.echo(f"Completed dumping {count} STAC Items to {path}")
 
 
 def report_errors(errors: list[str]) -> None:
