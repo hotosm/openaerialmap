@@ -32,7 +32,7 @@ Use `--bbox MINX MINY MAXX MAXY` for a smaller test ingest:
 hotosm sync-glo30 --bbox 85.0 27.0 88.0 29.0
 ```
 
-Upserts do not delete renamed or retired Items. If the upstream ID scheme
+Upserts do not delete renamed or old Items. If the upstream ID scheme
 changes, remove the old Collection Items before reingesting.
 
 ## Raster endpoints
