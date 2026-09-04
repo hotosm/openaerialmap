@@ -21,8 +21,9 @@ Collection first and then all 26,450 Items; rerunning repairs a partial load.
 The manifests are in the
 [k8s-infra repository](https://github.com/hotosm/k8s-infra/tree/main/apps/oam/jobs).
 
+ArgoCD applies it on the next sync; delete the Job to re-run it.
+
 ```bash
-kubectl create -f apps/oam/jobs/ingest-glo30.yaml
 kubectl -n oam logs -f job/stac-ingest-glo30
 ```
 
