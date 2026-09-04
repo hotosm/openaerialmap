@@ -69,7 +69,7 @@ Main parts:
 We would really welcome contributions for:
 
 - Backend Python development
-- Frontend Typescript development
+- Frontend TypeScript development
 - Documentation writers
 - UI / UX designers
 - Testers!
