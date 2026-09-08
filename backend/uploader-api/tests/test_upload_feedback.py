@@ -75,3 +75,21 @@ def test_the_outcome_survives_a_reload_and_a_lapsed_session():
     assert listener.index("refreshAnonymous();") < listener.index("if (!form) return;")
     before = UPLOAD[: UPLOAD.index('<section id="anon-uploads"')]
     assert before.count("{% if") == before.count("{% endif %}")
+
+
+def test_a_transient_part_failure_does_not_lose_the_upload():
+    """A 5xx mid-upload cost the whole run; a 100 MiB part is too dear for that."""
+    body = UPLOADER_JS.split("async function uploadPart")[1].split("\n}")[0]
+    assert body.count("/api/v1/s3/signedurl") == 1
+    assert "await sleep(RETRY_DELAY_MS)" in body
+    # One retry, so exactly two sends: the first and the one after the backoff.
+    assert body.count("send()") == 2
+
+
+def test_only_a_failure_that_could_land_next_time_is_retried():
+    """Cancellation and a malformed request must fail at once, not twice."""
+    load = UPLOADER_JS.split('xhr.addEventListener("load"')[1].split("});")[0]
+    assert "xhr.status === 403" in load
+    assert "xhr.status >= 500" in load
+    assert 'partError("Upload cancelled", false)' in UPLOADER_JS
+    assert 'partError("Network error while uploading", true)' in UPLOADER_JS

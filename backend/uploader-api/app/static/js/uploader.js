@@ -1,6 +1,10 @@
 const PART_SIZE = 100 * 1024 * 1024; // 100 MiB
 // Allow slow completion while bounding dead requests.
 const REQUEST_TIMEOUT = 120000;
+// A flaky part gets one more go, so a blip does not cost the whole upload.
+const RETRY_DELAY_MS = 2000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const byId = (id) => document.getElementById(id);
 
@@ -57,6 +61,13 @@ function formatBytes(bytes) {
   return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
 
+// `retryable` marks a failure that a second attempt could get past.
+function partError(message, retryable) {
+  const err = new Error(message);
+  err.retryable = retryable;
+  return err;
+}
+
 // XHR, not fetch: only XHR reports bytes sent, so a 100 MiB part moves the bar.
 function putPart(url, blob, onProgress) {
   return new Promise((resolve, reject) => {
@@ -68,14 +79,38 @@ function putPart(url, blob, onProgress) {
     xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(xhr.getResponseHeader("ETag"));
-      } else {
-        reject(new Error(`Failed uploading part: ${xhr.status}`));
+        return;
       }
+      // A 4xx is a bad request and fails again - bar 403, a lapsed signature.
+      const retryable = xhr.status === 403 || xhr.status === 429 || xhr.status >= 500;
+      reject(partError(`Failed uploading part: ${xhr.status}`, retryable));
     });
-    xhr.addEventListener("error", () => reject(new Error("Network error while uploading")));
-    xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+    xhr.addEventListener("error", () =>
+      reject(partError("Network error while uploading", true)),
+    );
+    xhr.addEventListener("abort", () => reject(partError("Upload cancelled", false)));
     xhr.send(blob);
   });
+}
+
+// Signed per attempt, so the retry cannot inherit a lapsed signature.
+async function uploadPart(key, upload_id, n, blob, report) {
+  const send = async () => {
+    const { url } = await postJSON("/api/v1/s3/signedurl", {
+      key,
+      upload_id,
+      part_number: n,
+    });
+    return putPart(url, blob, (loaded) => report("Uploading", n, loaded));
+  };
+  try {
+    return await send();
+  } catch (err) {
+    if (!err.retryable) throw err;
+    report("Retrying", n);
+    await sleep(RETRY_DELAY_MS);
+    return send();
+  }
 }
 
 function fieldValue(form, name) {
@@ -456,12 +491,7 @@ async function uploadFile(form, file) {
       continue;
     }
     report("Uploading", n);
-    const { url } = await postJSON("/api/v1/s3/signedurl", {
-      key,
-      upload_id,
-      part_number: n,
-    });
-    const etag = await putPart(url, blob, (loaded) => report("Uploading", n, loaded));
+    const etag = await uploadPart(key, upload_id, n, blob, report);
     parts.push({ ETag: etag, PartNumber: n });
     sentBytes += blob.size;
     report("Uploaded", n);
