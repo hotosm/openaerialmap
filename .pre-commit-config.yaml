@@ -103,3 +103,8 @@ repos:
             --ignore,
             backend/stactools-hotosm/stac-extension,
           ]
+
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: v1.8.1
+    hooks:
+      - id: betterleaks
