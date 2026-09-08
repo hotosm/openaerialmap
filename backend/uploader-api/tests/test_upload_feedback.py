@@ -1,8 +1,4 @@
-"""A click on 'Start upload' must never look like a dead button.
-
-Every way the submit can fail has to say so on the page. The reported symptom
-was a page left idle for 15 minutes, then a click that did nothing visible.
-"""
+"""Upload progress and error feedback tests."""
 
 import re
 from pathlib import Path
@@ -39,3 +35,43 @@ def test_a_dead_request_cannot_hang_the_bar():
     """Without a timeout the progress bar spins on an idle network forever."""
     assert "signal: AbortSignal.timeout(REQUEST_TIMEOUT)" in UPLOADER_JS
     assert "Could not reach the server" in UPLOADER_JS
+
+
+def test_an_anonymous_upload_is_told_where_to_watch():
+    """Point anonymous uploaders to their status list."""
+    assert "'Anonymous uploads'" in UPLOADER_JS
+    assert 'id="anon-uploads"' in UPLOAD
+
+
+def test_both_ingest_paths_keep_the_id_they_just_created():
+    """Retain tracking IDs for both ingest paths."""
+    assert "rememberAnonymous(result.upload_id)" in UPLOADER_JS
+    assert "rememberAnonymous(created.id)" in UPLOADER_JS
+    assert "localStorage.setItem(ANON_STORE" in UPLOADER_JS
+
+
+def test_the_file_path_is_tracked_before_any_bytes_move():
+    """Track multipart uploads before transferring bytes."""
+    body = UPLOADER_JS.split("async function uploadFile")[1]
+    assert body.index("rememberAnonymous(") < body.index("for (let n = 1;")
+
+
+def test_the_ids_outlive_a_storage_failure_for_this_page():
+    """Retain IDs in memory when persistent storage fails."""
+    remember = UPLOADER_JS.split("function rememberAnonymous")[1].split("\n}")[0]
+    assert remember.index("anonIds = [") < remember.index("localStorage.setItem")
+
+
+def test_the_tracker_polls_only_while_something_can_change():
+    """Stop polling after every upload reaches a terminal state."""
+    assert 'dataset.pending === "true"' in UPLOADER_JS
+    wrapper = APP / "templates" / "partials" / "anonymous_uploads.html"
+    assert "data-pending" in wrapper.read_text()
+
+
+def test_the_outcome_survives_a_reload_and_a_lapsed_session():
+    """Restore tracking without requiring an active login."""
+    listener = UPLOADER_JS.split('document.addEventListener("DOMContentLoaded"')[1]
+    assert listener.index("refreshAnonymous();") < listener.index("if (!form) return;")
+    before = UPLOAD[: UPLOAD.index('<section id="anon-uploads"')]
+    assert before.count("{% if") == before.count("{% endif %}")

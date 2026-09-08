@@ -90,8 +90,65 @@ function isAnonymous(form) {
 
 function queuedMessage(form) {
   return isAnonymous(form)
-    ? "Queued! Anonymous uploads are not listed in ‘Your uploads’ below."
-    : "Queued! Track progress in ‘Your uploads’ below.";
+    ? "Queued! Track progress in 'Anonymous uploads' below."
+    : "Queued! Track progress in 'Your uploads' below.";
+}
+
+// An anonymous upload has no owner, so only this browser knows it happened.
+const ANON_STORE = "oam-anon-uploads";
+const ANON_MAX = 20;
+const ANON_POLL_MS = 5000;
+
+let anonIds = [];
+let anonTimer;
+
+function loadAnonymous() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ANON_STORE) || "[]");
+    if (Array.isArray(saved)) anonIds = saved.slice(0, ANON_MAX);
+  } catch {
+    // Unreadable storage only costs the ids from earlier sessions.
+  }
+}
+
+function rememberAnonymous(uploadId) {
+  if (!uploadId) return;
+  anonIds = [uploadId, ...anonIds.filter((id) => id !== uploadId)].slice(0, ANON_MAX);
+  try {
+    localStorage.setItem(ANON_STORE, JSON.stringify(anonIds));
+  } catch {
+    // Unwritable storage costs the tracking after a reload, not this page.
+  }
+  refreshAnonymous();
+}
+
+// Reuse the server-rendered uploads table.
+async function refreshAnonymous() {
+  const section = byId("anon-uploads");
+  if (!section) return;
+  clearTimeout(anonTimer);
+  if (!anonIds.length) {
+    section.hidden = true;
+    return;
+  }
+  let html;
+  try {
+    const resp = await fetch(`/uploads/anonymous?ids=${anonIds.join(",")}`, {
+      credentials: "include",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    });
+    if (!resp.ok) throw new Error(`Request failed: ${resp.status}`);
+    html = await resp.text();
+  } catch {
+    // Retry rather than give up: an outage is temporary, the upload is not.
+    anonTimer = setTimeout(refreshAnonymous, ANON_POLL_MS);
+    return;
+  }
+  byId("anon-uploads-list").innerHTML = html;
+  section.hidden = false;
+  if (byId("anon-uploads-rows").dataset.pending === "true") {
+    anonTimer = setTimeout(refreshAnonymous, ANON_POLL_MS);
+  }
 }
 
 // Fields a prefill link may set. All of them are shown for confirmation first.
@@ -320,6 +377,8 @@ async function submitRemoteSource(form, sourceUrl) {
     anonymous: isAnonymous(form),
     ...externalLink(form),
   });
+  // One request creates the row and queues it, so there is no earlier id.
+  if (isAnonymous(form)) rememberAnonymous(result.upload_id);
   setProgress(1, queuedMessage(form));
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
   return result;
@@ -360,7 +419,7 @@ async function uploadFile(form, file) {
     }
   }
   if (!key) {
-    ({ key, upload_id } = await postJSON("/api/v1/s3/createmultipart", {
+    const created = await postJSON("/api/v1/s3/createmultipart", {
       filename: file.name,
       title,
       content_type: file.type || "image/tiff",
@@ -368,7 +427,10 @@ async function uploadFile(form, file) {
       metadata,
       anonymous,
       ...externalLink(form),
-    }));
+    });
+    ({ key, upload_id } = created);
+    // Before any bytes move: a lost completion reply must not lose the id.
+    if (anonymous) rememberAnonymous(created.id);
     localStorage.setItem(store, JSON.stringify({ key, upload_id }));
     existing = await postJSON("/api/v1/s3/listparts", { key, upload_id });
   }
@@ -410,6 +472,7 @@ async function uploadFile(form, file) {
   localStorage.removeItem(store);
   setProgress(1, queuedMessage(form));
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
+  refreshAnonymous();
 }
 
 // The submission is now listed under 'Your uploads', so clear the form
@@ -468,6 +531,9 @@ function showError(message, offerSupport = false) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadAnonymous();
+  refreshAnonymous();
+
   const form = byId("upload-form");
   if (!form) return;
   wireSourceControls(form);

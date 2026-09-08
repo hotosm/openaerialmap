@@ -98,6 +98,7 @@ def _access_record(method: str, path: str, status_code: int) -> logging.LogRecor
     ("method", "path", "status_code", "logged"),
     [
         ("GET", "/uploads", 200, False),
+        ("GET", "/uploads/anonymous?ids=1,2", 200, False),
         ("GET", "/__lbheartbeat__", 200, False),
         ("GET", "/uploads", 500, True),
         ("GET", "/__lbheartbeat__", 503, True),

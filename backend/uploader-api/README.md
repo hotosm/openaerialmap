@@ -172,7 +172,16 @@ Select "Upload anonymously" in the form, or send `anonymous: true` to
 `POST /api/v1/s3/createmultipart` or `POST /api/v1/uploads`. The upload is stored
 under the shared `custom|anonymous` account, uses an
 `anonymous/<upload-id>/…` object key, omits `contact`, and does not appear in
-"Your uploads". The uploader cannot retrieve or manage it later.
+"Your uploads". The uploader cannot manage it later.
+
+The page keeps the ids of the 20 most recent anonymous uploads in this browser
+and shows their status after reloads or login expiry. Multipart tracking starts
+before data transfer; remote-source tracking starts when its request returns.
+Clearing site data removes the list.
+
+`GET /uploads/anonymous?ids=…` is unauthenticated, uses `no-store`, and only
+returns rows owned by `custom|anonymous`. Each id is shown as a support reference
+and becomes public as the STAC item id after publication.
 
 Uploading still requires authentication and requests may be logged. Other
 published metadata, including `provider` and `external_url`, may identify the
