@@ -37,7 +37,7 @@ content %}
     </fieldset>
 
     <div id="file-picker" class="oam-source__panel">
-      <input type="file" id="file-input" accept=".tif,.tiff" required />
+      <input type="file" id="file-input" accept=".tif,.tiff" />
     </div>
 
     <div id="url-picker" class="oam-source__panel" hidden>
@@ -170,7 +170,8 @@ content %}
       <div slot="hint">
         If you select this, your account is not recorded against the imagery and no contact
         details are published with it.
-        It will not appear in “Your uploads” below either. {% if support_url %} - ask through a
+        It is tracked under “Anonymous uploads” below instead of “Your uploads”, and only
+        by this browser. {% if support_url %}Ask through a
         <a href="{{ support_url }}" target="_blank" rel="noreferrer">
           tech request</a
         >
@@ -200,6 +201,18 @@ content %}
   <!-- Cloned into the error callout: the support URLs stay server-rendered. -->
   <template id="support-line">{{ support_html() | safe }}</template>
   {% endif %}
+</section>
+
+<!-- Anonymous tracking remains visible after session expiry. -->
+<section id="anon-uploads" class="oam-card" hidden>
+  <h2>Anonymous uploads</h2>
+  <p class="oam-muted">
+    Your anonymous uploads are shown temporarily here.
+    They are not visible to others and will be cleared with your
+    browser session. Save the reference if you need to check anything
+    with the team later.
+  </p>
+  <div id="anon-uploads-list"><wa-spinner></wa-spinner></div>
 </section>
 
 {% if not auth_enabled or logged_in %}

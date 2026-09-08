@@ -100,7 +100,8 @@ async def create_multipart(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Could not start the upload (storage error).",
         ) from err
-    return {"key": upload.s3_key, "upload_id": resp["UploadId"]}
+    # `id` is the row, not the S3 session: an anonymous upload has no other handle.
+    return {"id": upload.id, "key": upload.s3_key, "upload_id": resp["UploadId"]}
 
 
 @post("/s3/signedurl")

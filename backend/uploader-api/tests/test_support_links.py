@@ -87,13 +87,39 @@ def test_a_succeeded_row_links_to_the_published_item():
     assert "Published to the catalogue" not in html
 
 
-def test_a_borrowed_browser_is_honoured(monkeypatch):
+def test_a_browser_served_beside_its_own_catalogue_uses_the_plain_path():
+    assert settings.stac_item_url_base == (
+        f"{settings.OAM_API_URL}/browser/stac"
+        f"/collections/{settings.STAC_COLLECTION}/items"
+    )
+
+
+def test_a_borrowed_browser_is_steered_at_our_catalogue(monkeypatch):
     monkeypatch.setattr(
-        settings, "STAC_BROWSER_URL", "https://api.example.org/browser/"
+        settings, "STAC_BROWSER_URL", "https://api.imagery.hotosm.org/browser/"
     )
-    assert settings.stac_item_url_base.startswith(
-        "https://api.example.org/browser/stac/collections/"
+    monkeypatch.setattr(settings, "STAC_PUBLIC_URL", "https://api.staging.example/stac")
+    assert settings.stac_item_url_base == (
+        "https://api.imagery.hotosm.org/browser"
+        "/external/api.staging.example/stac"
+        f"/collections/{settings.STAC_COLLECTION}/items"
     )
+
+
+def test_a_borrowed_browser_link_carries_no_prod_catalogue_path(monkeypatch):
+    monkeypatch.setattr(
+        settings, "STAC_BROWSER_URL", "https://api.imagery.hotosm.org/browser"
+    )
+    monkeypatch.setattr(settings, "STAC_PUBLIC_URL", "https://api.staging.example/stac")
+    url = settings.stac_item_url_base
+    assert "/browser/stac/" not in url
+    assert url.count("/stac") == 1
+
+
+def test_the_public_catalogue_url_is_never_the_in_cluster_one(monkeypatch):
+    monkeypatch.setattr(settings, "STAC_PUBLIC_URL", "")
+    assert settings.STAC_URL not in settings.stac_public_url
+    assert settings.stac_public_url == f"{settings.OAM_API_URL}/stac"
 
 
 def test_the_browser_reuses_the_served_markup():

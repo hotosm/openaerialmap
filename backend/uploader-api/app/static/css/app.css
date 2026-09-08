@@ -355,6 +355,12 @@ hotosm-auth {
   color: var(--oam-bluegrey);
 }
 
+.oam-reference {
+  margin: 0.25rem 0 0;
+  font-size: var(--oam-text-x-small);
+  overflow-wrap: anywhere;
+}
+
 /* The way out of a failure: small, but never muted into the background. */
 .oam-support {
   margin: 0.5rem 0 0;

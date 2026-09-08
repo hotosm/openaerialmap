@@ -244,7 +244,7 @@ services:
         # Override VITE_STAC_MAP_DEFAULT_HREF to browse another catalog.
         VITE_BASE_PATH: /map/
         VITE_DEFAULT_HREF: ${VITE_STAC_MAP_DEFAULT_HREF:-http://imagery.localhost:8080/stac}
-        VITE_STAC_BROWSER_URL: ${VITE_STAC_MAP_BROWSER_URL:-https://api.imagery.hotosm.org/browser/#/external/}
+        VITE_STAC_BROWSER_URL: ${VITE_STAC_MAP_BROWSER_URL:-https://api.imagery.hotosm.org/browser/external/}
     healthcheck:
       # BusyBox wget on nginx:alpine sometimes fails to resolve
       # `localhost` cleanly; using 127.0.0.1 avoids the DNS path.

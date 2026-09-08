@@ -1,14 +1,30 @@
 const PART_SIZE = 100 * 1024 * 1024; // 100 MiB
+// Allow slow completion while bounding dead requests.
+const REQUEST_TIMEOUT = 120000;
+// A flaky part gets one more go, so a blip does not cost the whole upload.
+const RETRY_DELAY_MS = 2000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const byId = (id) => document.getElementById(id);
 
 async function postJSON(url, body) {
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    });
+  } catch {
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
+  if (resp.status === 401) {
+    // The page was rendered for a signed-in user, so the session has expired.
+    throw new Error("Your session has expired. Sign in again, then start the upload.");
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.detail || `Request failed: ${resp.status}`);
@@ -45,6 +61,13 @@ function formatBytes(bytes) {
   return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
 
+// `retryable` marks a failure that a second attempt could get past.
+function partError(message, retryable) {
+  const err = new Error(message);
+  err.retryable = retryable;
+  return err;
+}
+
 // XHR, not fetch: only XHR reports bytes sent, so a 100 MiB part moves the bar.
 function putPart(url, blob, onProgress) {
   return new Promise((resolve, reject) => {
@@ -56,14 +79,38 @@ function putPart(url, blob, onProgress) {
     xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(xhr.getResponseHeader("ETag"));
-      } else {
-        reject(new Error(`Failed uploading part: ${xhr.status}`));
+        return;
       }
+      // A 4xx is a bad request and fails again - bar 403, a lapsed signature.
+      const retryable = xhr.status === 403 || xhr.status === 429 || xhr.status >= 500;
+      reject(partError(`Failed uploading part: ${xhr.status}`, retryable));
     });
-    xhr.addEventListener("error", () => reject(new Error("Network error while uploading")));
-    xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+    xhr.addEventListener("error", () =>
+      reject(partError("Network error while uploading", true)),
+    );
+    xhr.addEventListener("abort", () => reject(partError("Upload cancelled", false)));
     xhr.send(blob);
   });
+}
+
+// Signed per attempt, so the retry cannot inherit a lapsed signature.
+async function uploadPart(key, upload_id, n, blob, report) {
+  const send = async () => {
+    const { url } = await postJSON("/api/v1/s3/signedurl", {
+      key,
+      upload_id,
+      part_number: n,
+    });
+    return putPart(url, blob, (loaded) => report("Uploading", n, loaded));
+  };
+  try {
+    return await send();
+  } catch (err) {
+    if (!err.retryable) throw err;
+    report("Retrying", n);
+    await sleep(RETRY_DELAY_MS);
+    return send();
+  }
 }
 
 function fieldValue(form, name) {
@@ -78,8 +125,65 @@ function isAnonymous(form) {
 
 function queuedMessage(form) {
   return isAnonymous(form)
-    ? "Queued! Anonymous uploads are not listed in ‘Your uploads’ below."
-    : "Queued! Track progress in ‘Your uploads’ below.";
+    ? "Queued! Track progress in 'Anonymous uploads' below."
+    : "Queued! Track progress in 'Your uploads' below.";
+}
+
+// An anonymous upload has no owner, so only this browser knows it happened.
+const ANON_STORE = "oam-anon-uploads";
+const ANON_MAX = 20;
+const ANON_POLL_MS = 5000;
+
+let anonIds = [];
+let anonTimer;
+
+function loadAnonymous() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ANON_STORE) || "[]");
+    if (Array.isArray(saved)) anonIds = saved.slice(0, ANON_MAX);
+  } catch {
+    // Unreadable storage only costs the ids from earlier sessions.
+  }
+}
+
+function rememberAnonymous(uploadId) {
+  if (!uploadId) return;
+  anonIds = [uploadId, ...anonIds.filter((id) => id !== uploadId)].slice(0, ANON_MAX);
+  try {
+    localStorage.setItem(ANON_STORE, JSON.stringify(anonIds));
+  } catch {
+    // Unwritable storage costs the tracking after a reload, not this page.
+  }
+  refreshAnonymous();
+}
+
+// Reuse the server-rendered uploads table.
+async function refreshAnonymous() {
+  const section = byId("anon-uploads");
+  if (!section) return;
+  clearTimeout(anonTimer);
+  if (!anonIds.length) {
+    section.hidden = true;
+    return;
+  }
+  let html;
+  try {
+    const resp = await fetch(`/uploads/anonymous?ids=${anonIds.join(",")}`, {
+      credentials: "include",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    });
+    if (!resp.ok) throw new Error(`Request failed: ${resp.status}`);
+    html = await resp.text();
+  } catch {
+    // Retry rather than give up: an outage is temporary, the upload is not.
+    anonTimer = setTimeout(refreshAnonymous, ANON_POLL_MS);
+    return;
+  }
+  byId("anon-uploads-list").innerHTML = html;
+  section.hidden = false;
+  if (byId("anon-uploads-rows").dataset.pending === "true") {
+    anonTimer = setTimeout(refreshAnonymous, ANON_POLL_MS);
+  }
 }
 
 // Fields a prefill link may set. All of them are shown for confirmation first.
@@ -245,15 +349,11 @@ function currentMode(form) {
   return picked ? picked.value : "file";
 }
 
-// `required` has to come off the input the user cannot see, or submit blocks silently.
+// Validate here so empty source fields get a visible error.
 function applySourceMode(form) {
   const mode = currentMode(form);
-  const fileInput = byId("file-input");
-  const urlInput = byId("source-url");
   byId("file-picker").hidden = mode !== "file";
   byId("url-picker").hidden = mode !== "url";
-  if (fileInput) fileInput.required = mode === "file";
-  if (urlInput) urlInput.required = mode === "url";
   const submit = byId("submit-btn");
   if (submit) submit.textContent = mode === "url" ? "Import imagery" : "Start upload";
 }
@@ -279,10 +379,6 @@ function wireSourceControls(form) {
 
 // Switch the form from "pick a file" to "confirm this source".
 function enterRemoteSourceMode(sourceUrl) {
-  const fileInput = byId("file-input");
-  if (fileInput) fileInput.required = false;
-  const urlInput = byId("source-url");
-  if (urlInput) urlInput.required = false;
   // The source is already decided, so the choice would only be misleading.
   for (const id of ["source-choice", "file-picker", "url-picker"]) {
     const el = byId(id);
@@ -316,6 +412,8 @@ async function submitRemoteSource(form, sourceUrl) {
     anonymous: isAnonymous(form),
     ...externalLink(form),
   });
+  // One request creates the row and queues it, so there is no earlier id.
+  if (isAnonymous(form)) rememberAnonymous(result.upload_id);
   setProgress(1, queuedMessage(form));
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
   return result;
@@ -356,7 +454,7 @@ async function uploadFile(form, file) {
     }
   }
   if (!key) {
-    ({ key, upload_id } = await postJSON("/api/v1/s3/createmultipart", {
+    const created = await postJSON("/api/v1/s3/createmultipart", {
       filename: file.name,
       title,
       content_type: file.type || "image/tiff",
@@ -364,7 +462,10 @@ async function uploadFile(form, file) {
       metadata,
       anonymous,
       ...externalLink(form),
-    }));
+    });
+    ({ key, upload_id } = created);
+    // Before any bytes move: a lost completion reply must not lose the id.
+    if (anonymous) rememberAnonymous(created.id);
     localStorage.setItem(store, JSON.stringify({ key, upload_id }));
     existing = await postJSON("/api/v1/s3/listparts", { key, upload_id });
   }
@@ -390,12 +491,7 @@ async function uploadFile(form, file) {
       continue;
     }
     report("Uploading", n);
-    const { url } = await postJSON("/api/v1/s3/signedurl", {
-      key,
-      upload_id,
-      part_number: n,
-    });
-    const etag = await putPart(url, blob, (loaded) => report("Uploading", n, loaded));
+    const etag = await uploadPart(key, upload_id, n, blob, report);
     parts.push({ ETag: etag, PartNumber: n });
     sentBytes += blob.size;
     report("Uploaded", n);
@@ -406,6 +502,7 @@ async function uploadFile(form, file) {
   localStorage.removeItem(store);
   setProgress(1, queuedMessage(form));
   if (window.htmx) window.htmx.trigger("#uploads-list", "load");
+  refreshAnonymous();
 }
 
 // The submission is now listed under 'Your uploads', so clear the form
@@ -464,6 +561,9 @@ function showError(message, offerSupport = false) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadAnonymous();
+  refreshAnonymous();
+
   const form = byId("upload-form");
   if (!form) return;
   wireSourceControls(form);
@@ -492,7 +592,11 @@ document.addEventListener("DOMContentLoaded", () => {
       showError("Paste a link to the orthophoto, or upload a file instead.");
       return;
     }
-    if (!remoteMode && !file) return;
+    if (!remoteMode && !file) {
+      // Browsers cannot restore file handles after discarding an idle tab.
+      showError("Choose a GeoTIFF to upload - the file picker is empty.");
+      return;
+    }
 
     submit.disabled = true;
     setSourceControlsDisabled(true);

@@ -4,6 +4,7 @@ import os
 from enum import Enum
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import urlsplit
 
 from psycopg.conninfo import make_conninfo
 from pydantic import (
@@ -217,7 +218,8 @@ class Settings(BaseSettings):
     STAC_URL: str = "http://stac-api:8082"
     STAC_COLLECTION: str = "openaerialmap"
     STAC_BROWSER_URL: str = ""
-    # Strict checks fetch remote extension schemas.
+    STAC_PUBLIC_URL: str = ""
+    # Strict checks fetch remote extension schemas. Mainly used in staging env.
     STAC_STRICT_EXTENSIONS: bool = False
 
     MAX_UPLOAD_BYTES: int = 100 * 1024**3  # 100 GiB
@@ -259,10 +261,26 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
+    def stac_public_url(self) -> str:
+        """Public catalogue root used in browser links."""
+        return (self.STAC_PUBLIC_URL or f"{self.OAM_API_URL.rstrip('/')}/stac").rstrip(
+            "/"
+        )
+
+    @computed_field
+    @property
     def stac_item_url_base(self) -> str:
-        """Base for a STAC Browser deep link to one published item."""
-        browser = self.STAC_BROWSER_URL or f"{self.OAM_API_URL.rstrip('/')}/browser"
-        return f"{browser.rstrip('/')}/stac/collections/{self.STAC_COLLECTION}/items"
+        """Base for STAC Browser item links."""
+        browser = (
+            self.STAC_BROWSER_URL or f"{self.OAM_API_URL.rstrip('/')}/browser"
+        ).rstrip("/")
+        catalogue = urlsplit(self.stac_public_url)
+        # External browsers need a route back to this catalogue.
+        if browser.startswith(f"{catalogue.scheme}://{catalogue.netloc}"):
+            root = f"{browser}/stac"
+        else:
+            root = f"{browser}/external/{catalogue.netloc}{catalogue.path}"
+        return f"{root}/collections/{self.STAC_COLLECTION}/items"
 
     @computed_field
     @property

@@ -46,8 +46,8 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 _HEALTHCHECK_PATHS = ("/__lbheartbeat__", "/__heartbeat__")
 
-# Successful upload-list polls are routine noise; failures remain visible.
-_POLLED_PATHS = ("/uploads",)
+# Successful upload-list polls are routine noise.
+_POLLED_PATHS = ("/uploads", "/uploads/anonymous")
 
 # A prefill link can carry a presigned source_url, which has no business in a
 # log. The page prefers the URL fragment, which never reaches us at all.
@@ -69,7 +69,8 @@ class _AccessLogFilter(logging.Filter):
             succeeded = str(status_code).startswith(("2", "3"))
             if succeeded and path in _HEALTHCHECK_PATHS:
                 return False
-            if succeeded and method == "GET" and path in _POLLED_PATHS:
+            polled = path.split("?", maxsplit=1)[0] in _POLLED_PATHS
+            if succeeded and method == "GET" and polled:
                 return False
             redacted = redact_query_string(path)
             if redacted != path:

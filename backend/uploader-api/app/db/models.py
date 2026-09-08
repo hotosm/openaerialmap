@@ -372,6 +372,21 @@ class DbUpload:
             return await cur.fetchall()
 
     @classmethod
+    async def anonymous_by_ids(
+        cls, db: AsyncConnection, upload_ids: list[str], limit: int = 20
+    ) -> list[Self]:
+        """List anonymous uploads by ID, newest first."""
+        if not upload_ids:
+            return []
+        async with db.cursor(row_factory=class_row(cls)) as cur:
+            await cur.execute(
+                "SELECT * FROM uploads WHERE id = ANY(%(ids)s::uuid[]) "
+                "AND user_sub = %(anon)s ORDER BY created_at DESC LIMIT %(n)s;",
+                {"ids": upload_ids, "anon": ANONYMOUS_SUB, "n": limit},
+            )
+            return await cur.fetchall()
+
+    @classmethod
     async def set_workflow_name(
         cls, db: AsyncConnection, upload_id: str, workflow_name: str
     ) -> None:
