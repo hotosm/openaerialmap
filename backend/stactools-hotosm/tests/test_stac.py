@@ -17,6 +17,28 @@ def test_create_collection():
     collection.validate()
 
 
+def test_create_item_with_a_local_offset_validates(example_oam_image: OamMetadata):
+    """A non-UTC acquisition offset used to fail the item schema pattern."""
+    tz = dt.timezone(dt.timedelta(hours=9))
+    example_oam_image.acquisition_start = dt.datetime(2026, 7, 24, 8, 38, 25, tzinfo=tz)
+    example_oam_image.acquisition_end = dt.datetime(2026, 7, 24, 9, 38, 25, tzinfo=tz)
+    example_oam_image.uploaded_at = dt.datetime(2026, 9, 8, 2, 22, 43, tzinfo=tz)
+
+    item = create_item(example_oam_image)
+    item.validate()
+
+    assert item.properties["start_datetime"] == "2026-07-23T23:38:25Z"
+    assert item.properties["end_datetime"] == "2026-07-24T00:38:25Z"
+    assert item.properties["created"] == "2026-09-07T17:22:43Z"
+
+    # Equal start/end takes the single-datetime branch, which needs it too.
+    example_oam_image.acquisition_end = example_oam_image.acquisition_start
+    item = create_item(example_oam_image)
+    item.validate()
+
+    assert item.properties["datetime"] == "2026-07-23T23:38:25Z"
+
+
 def test_create_item(example_oam_image: OamMetadata):
     """Test Item creation."""
     item = create_item(example_oam_image)

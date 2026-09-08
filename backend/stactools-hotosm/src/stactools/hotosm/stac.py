@@ -104,6 +104,13 @@ def create_collection() -> Collection:
     return collection
 
 
+def _as_utc(value: dt.datetime) -> dt.datetime:
+    """Convert to UTC, treating a naive datetime as already UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=dt.UTC)
+    return value.astimezone(dt.UTC)
+
+
 def create_item(oam_metadata: OamMetadata) -> Item:
     """Create a STAC Item for an OAM image.
 
@@ -116,14 +123,17 @@ def create_item(oam_metadata: OamMetadata) -> Item:
     Raises:
         AssetNotFoundError: If an imagery asset does not exist.
     """
-    if oam_metadata.acquisition_start == oam_metadata.acquisition_end:
-        datetime = oam_metadata.acquisition_start
+    # The item schema only accepts a Z or +00:00 offset on these.
+    start = _as_utc(oam_metadata.acquisition_start)
+    end = _as_utc(oam_metadata.acquisition_end)
+    if start == end:
+        datetime = start
         datetime_properties = {}
     else:
         datetime = None
         datetime_properties = {
-            "start_datetime": datetime_to_str(oam_metadata.acquisition_start),
-            "end_datetime": datetime_to_str(oam_metadata.acquisition_end),
+            "start_datetime": datetime_to_str(start),
+            "end_datetime": datetime_to_str(end),
         }
 
     item = Item(
@@ -157,7 +167,7 @@ def create_item(oam_metadata: OamMetadata) -> Item:
         item.properties["instruments"] = [oam_metadata.sensor]
 
     if oam_metadata.uploaded_at:
-        item.properties["created"] = datetime_to_str(oam_metadata.uploaded_at)
+        item.properties["created"] = datetime_to_str(_as_utc(oam_metadata.uploaded_at))
 
     item.add_asset(
         "visual",
