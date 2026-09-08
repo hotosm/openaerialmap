@@ -1,14 +1,26 @@
 const PART_SIZE = 100 * 1024 * 1024; // 100 MiB
+// Allow slow completion while bounding dead requests.
+const REQUEST_TIMEOUT = 120000;
 
 const byId = (id) => document.getElementById(id);
 
 async function postJSON(url, body) {
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    });
+  } catch {
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
+  if (resp.status === 401) {
+    // The page was rendered for a signed-in user, so the session has expired.
+    throw new Error("Your session has expired. Sign in again, then start the upload.");
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.detail || `Request failed: ${resp.status}`);
@@ -245,15 +257,11 @@ function currentMode(form) {
   return picked ? picked.value : "file";
 }
 
-// `required` has to come off the input the user cannot see, or submit blocks silently.
+// Validate here so empty source fields get a visible error.
 function applySourceMode(form) {
   const mode = currentMode(form);
-  const fileInput = byId("file-input");
-  const urlInput = byId("source-url");
   byId("file-picker").hidden = mode !== "file";
   byId("url-picker").hidden = mode !== "url";
-  if (fileInput) fileInput.required = mode === "file";
-  if (urlInput) urlInput.required = mode === "url";
   const submit = byId("submit-btn");
   if (submit) submit.textContent = mode === "url" ? "Import imagery" : "Start upload";
 }
@@ -279,10 +287,6 @@ function wireSourceControls(form) {
 
 // Switch the form from "pick a file" to "confirm this source".
 function enterRemoteSourceMode(sourceUrl) {
-  const fileInput = byId("file-input");
-  if (fileInput) fileInput.required = false;
-  const urlInput = byId("source-url");
-  if (urlInput) urlInput.required = false;
   // The source is already decided, so the choice would only be misleading.
   for (const id of ["source-choice", "file-picker", "url-picker"]) {
     const el = byId(id);
@@ -492,7 +496,11 @@ document.addEventListener("DOMContentLoaded", () => {
       showError("Paste a link to the orthophoto, or upload a file instead.");
       return;
     }
-    if (!remoteMode && !file) return;
+    if (!remoteMode && !file) {
+      // Browsers cannot restore file handles after discarding an idle tab.
+      showError("Choose a GeoTIFF to upload - the file picker is empty.");
+      return;
+    }
 
     submit.disabled = true;
     setSourceControlsDisabled(true);
