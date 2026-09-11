@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <!-- HOT UI theme, self-contained: it carries the Web Awesome base styles, so
          this app no longer loads @awesome.me/webawesome separately. -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/style.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.3/dist/style.css" />
 
     <!-- After the theme: hot.css declares --hot-color-neutral-* unlayered on
          `:root`, so an earlier block loses on source order. -->
@@ -39,7 +39,7 @@
 
     <!-- webawesome-all.js is a barrel of bare `@awesome.me/webawesome/...` imports, so the
          browser needs this map to resolve them. dist-cdn is the pre-bundled build; the pin
-         must match the @awesome.me/webawesome version @hotosm/ui 1.0.1 was built against. -->
+         must match the @awesome.me/webawesome version @hotosm/ui was built against. -->
     <script type="importmap">
       {
         "imports": {
@@ -52,19 +52,19 @@
          jsdelivr's /+esm (it duplicates wa-* registrations and most elements never register). -->
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/webawesome-all.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.3/dist/webawesome-all.js"
     />
     <link
       rel="modulepreload"
-      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/hotosm-ui.js"
+      href="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.3/dist/hotosm-ui.js"
     />
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/webawesome-all.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.3/dist/webawesome-all.js"
     ></script>
     <script
       type="module"
-      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.0/dist/hotosm-ui.js"
+      src="https://cdn.jsdelivr.net/npm/@hotosm/ui@2.1.3/dist/hotosm-ui.js"
     ></script>
     {% if auth_enabled %}
     <link
