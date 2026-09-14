@@ -112,6 +112,7 @@ services:
       - USE_API_HYDRATE=${USE_API_HYDRATE:-false}
       # - ENABLE_TRANSACTIONS_EXTENSIONS=false
       - UVICORN_ROOT_PATH=/stac
+      - MONITORING=prometheus
     volumes:
       - ./backend/stac-api/app:/app/app
       - ./backend/stac-api/scripts:/app/scripts
