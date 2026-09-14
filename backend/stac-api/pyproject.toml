@@ -5,5 +5,7 @@ description = "STAC API for HOTOSM based on stac-api-pgstac"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "prometheus-fastapi-instrumentator",
+    "starlette<1.6.0",
     "stac-fastapi-pgstac[server]~=5.0.2",
 ]
