@@ -14,9 +14,8 @@ from app.settings import MonitoringTypes, Settings
 from brotli_asgi import BrotliMiddleware
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from stac_fastapi.api.app import StacApi
-#from stac_fastapi.api.middleware import CORSMiddleware, ProxyHeaderMiddleware
-from starlette.middleware.cors import CORSMiddleware
 from stac_fastapi.api.middleware import ProxyHeaderMiddleware
 from stac_fastapi.api.models import (
     EmptyRequest,
@@ -49,7 +48,9 @@ from stac_fastapi.pgstac.extensions.filter import FiltersClient
 from stac_fastapi.pgstac.transactions import BulkTransactionsClient, TransactionsClient
 from stac_fastapi.pgstac.types.search import PgstacSearch
 from starlette.middleware import Middleware
-from prometheus_fastapi_instrumentator import Instrumentator
+
+# from stac_fastapi.api.middleware import CORSMiddleware, ProxyHeaderMiddleware
+from starlette.middleware.cors import CORSMiddleware
 
 settings = Settings()
 
@@ -233,6 +234,7 @@ api = StacApi(
 app = api.app
 if settings.monitoring == MonitoringTypes.PROMETHEUS:
     Instrumentator().instrument(app).expose(app)
+
 
 def run():
     """Run app from command line using uvicorn if available."""
