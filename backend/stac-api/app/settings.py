@@ -11,4 +11,5 @@ class MonitoringTypes(str, Enum):
 class Settings(_Settings):
     """Settings specific to this deployment of STAC FastAPI PgSTAC"""
 
+    # Keep deployment-specific monitoring configuration alongside the base settings.
     monitoring: MonitoringTypes = MonitoringTypes.NONE
