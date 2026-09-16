@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import SiteHeader, { appUrl } from "./SiteHeader";
+import SiteHeader from "./SiteHeader";
+import { appUrl } from "./appUrl";
 import {
   PACKAGER_URL,
   STAC_BROWSER_CATALOG_URL,
