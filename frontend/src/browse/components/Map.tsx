@@ -193,7 +193,6 @@ export default function OamMap({
     } catch (e) {
       console.error("Error querying rendered features:", e);
     }
-
   };
 
   // Which sources the catalogue holds, independent of zoom and of the active

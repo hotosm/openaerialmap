@@ -114,11 +114,7 @@ function FilterDropdown<V extends string>({
   );
 }
 
-export default function MapFilterBar({
-  filters,
-  onChange,
-  availableCollections = [],
-}: Props) {
+export default function MapFilterBar({ filters, onChange, availableCollections = [] }: Props) {
   const applyChange = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
 
   // Keep the active value in the list even if it is not in view, so the chip

@@ -1,6 +1,4 @@
-import { COLLECTION_ID,
-  COLLECTION_COUNT_PREFIX,
-} from "./constants";
+import { COLLECTION_ID, COLLECTION_COUNT_PREFIX } from "./constants";
 import type { DatePreset, Filters, RawTileProperties, ResolutionPreset } from "./types";
 
 // Both client-side (matchesFilters) and MapLibre-side (buildFilter)
@@ -89,11 +87,7 @@ export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
 export function buildFilter(f: Filters): unknown[] | null {
   const conditions: unknown[] = ["all"];
   if (f.collection) {
-    conditions.push([
-      "==",
-      ["coalesce", ["get", "collection"], COLLECTION_ID],
-      f.collection,
-    ]);
+    conditions.push(["==", ["coalesce", ["get", "collection"], COLLECTION_ID], f.collection]);
   }
   if (f.platform) {
     if (f.platform === "uav") {
