@@ -103,9 +103,7 @@ export default function Contribute() {
         <section className="contribute-hero">
           <div className="contribute-shell">
             <p className="contribute-eyebrow">Contribute imagery</p>
-            <h1 className="contribute-title">
-              Add your imagery to OpenAerialMap
-            </h1>
+            <h1 className="contribute-title">Add your imagery to OpenAerialMap</h1>
             <p className="contribute-lede">
               OpenAerialMap is an open service providing access to a commons of openly licensed
               satellite and drone imagery. Providers host their own data and maintain their own
@@ -201,8 +199,8 @@ export default function Contribute() {
         <section className="contribute-shell contribute-block">
           <h2 className="contribute-h2">Matching your metadata fields</h2>
           <p className="contribute-lead">
-            Catalogs use different names for the same things. OAM translates them when it reads
-            your catalog. Your own metadata stays as it is.
+            Catalogs use different names for the same things. OAM translates them when it reads your
+            catalog. Your own metadata stays as it is.
           </p>
           <figure className="contribute-figure">
             <div className="contribute-figure-scroll">
@@ -257,10 +255,10 @@ export default function Contribute() {
                 </a>
               </span>
             ))}{" "}
-            are indexed today. CC0, ODbL and other standard
-            open licenses are accepted too, but are not implemented yet; support for them is coming.
-            A custom open data license can also be added, as long as it maps onto one of the standard
-            ones so the catalog can filter and publish it consistently.
+            are indexed today. CC0, ODbL and other standard open licenses are accepted too, but are
+            not implemented yet; support for them is coming. A custom open data license can also be
+            added, as long as it maps onto one of the standard ones so the catalog can filter and
+            publish it consistently.
           </p>
 
           <h3 className="contribute-h3">Tracing into OpenStreetMap</h3>
@@ -272,10 +270,10 @@ export default function Contribute() {
           <p className="contribute-lead">
             A short written permission alongside the license solves this. Some satellite imagery
             providers publish their open data as CC-BY-NC 4.0 and add written permission to trace it
-            into OpenStreetMap, so volunteers can map buildings and roads during a response while the
-            commercial terms hold everywhere else. Any provider can add the same permission to any
-            license. It is optional and it changes nothing else about how the imagery is indexed or
-            credited.
+            into OpenStreetMap, so volunteers can map buildings and roads during a response while
+            the commercial terms hold everywhere else. Any provider can add the same permission to
+            any license. It is optional and it changes nothing else about how the imagery is indexed
+            or credited.
           </p>
           <p className="contribute-note">
             Every item carries your attribution, shown wherever the imagery appears. You set the
@@ -290,15 +288,19 @@ export default function Contribute() {
               The form asks everything needed to index a catalog.
             </p>
             <div className="contribute-actions">
-              <a className="contribute-cta-button" href={INTAKE_URL} target="_blank" rel="noopener noreferrer">
+              <a
+                className="contribute-cta-button"
+                href={INTAKE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Open an intake ticket
               </a>
             </div>
             <p className="contribute-cta-note">
-              Contributing files rather than a catalog? The{" "}
-              <a href={UPLOADER_URL}>uploader</a> needs no ticket. If a public tracker will not work
-              for your organization, write to <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and tell
-              us which route applies.
+              Contributing files rather than a catalog? The <a href={UPLOADER_URL}>uploader</a>{" "}
+              needs no ticket. If a public tracker will not work for your organization, write to{" "}
+              <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and tell us which route applies.
             </p>
           </div>
         </section>

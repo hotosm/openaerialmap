@@ -11,9 +11,7 @@ export default function App() {
   // subdirectory (a preview build on GitHub Pages) as well as from the root.
   // BASE_URL is "/" in production, where this is a no-op.
   const base = import.meta.env.BASE_URL.replace(/\/+$/, "");
-  const path = window.location.pathname
-    .replace(new RegExp(`^${base}`), "")
-    .replace(/\/+$/, "");
+  const path = window.location.pathname.replace(new RegExp(`^${base}`), "").replace(/\/+$/, "");
   if (path === "/browse" || path.startsWith("/browse/")) {
     return (
       <Suspense

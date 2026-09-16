@@ -9,7 +9,15 @@
 export function CommonsFigure() {
   const provider = (y: number, name: string) => (
     <g key={name}>
-      <rect x="4" y={y} width="172" height="52" rx="3" fill="var(--fig-surface)" stroke="var(--fig-line)" />
+      <rect
+        x="4"
+        y={y}
+        width="172"
+        height="52"
+        rx="3"
+        fill="var(--fig-surface)"
+        stroke="var(--fig-line)"
+      />
       <text x="16" y={y + 22} className="fig-label">
         {name}
       </text>
@@ -21,11 +29,13 @@ export function CommonsFigure() {
 
   return (
     <svg viewBox="0 0 860 288" role="img" aria-labelledby="fig1title fig1desc">
-      <title id="fig1title">Imagery stays with the provider; OpenAerialMap holds only the metadata</title>
+      <title id="fig1title">
+        Imagery stays with the provider; OpenAerialMap holds only the metadata
+      </title>
       <desc id="fig1desc">
         Three providers keep imagery in their own storage. Metadata flows to the OpenAerialMap
-        catalog, which is searched by mappers, responders, researchers and public agencies. The imagery
-        itself is served directly from provider storage, bypassing OpenAerialMap.
+        catalog, which is searched by mappers, responders, researchers and public agencies. The
+        imagery itself is served directly from provider storage, bypassing OpenAerialMap.
       </desc>
 
       {provider(16, "Provider A")}
@@ -47,7 +57,15 @@ export function CommonsFigure() {
         metadata
       </text>
 
-      <rect x="330" y="98" width="214" height="66" rx="3" fill="var(--fig-accent-soft)" stroke="var(--fig-accent)" />
+      <rect
+        x="330"
+        y="98"
+        width="214"
+        height="66"
+        rx="3"
+        fill="var(--fig-accent-soft)"
+        stroke="var(--fig-accent)"
+      />
       <text x="344" y="126" className="fig-label">
         OpenAerialMap catalog
       </text>
@@ -94,10 +112,26 @@ export function CommonsFigure() {
       </text>
 
       <defs>
-        <marker id="fig-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <marker
+          id="fig-arrow"
+          viewBox="0 0 8 8"
+          refX="7"
+          refY="4"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto"
+        >
           <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--fig-accent)" />
         </marker>
-        <marker id="fig-arrow-muted" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <marker
+          id="fig-arrow-muted"
+          viewBox="0 0 8 8"
+          refX="7"
+          refY="4"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto"
+        >
           <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--fig-muted)" />
         </marker>
       </defs>
@@ -161,37 +195,75 @@ export function RoutesFigure() {
       <text x="104" y="126" className="fig-tag">
         yes
       </text>
-      <path d="M 170 60 L 560 60" fill="none" stroke="var(--fig-line)" strokeWidth="1.5" markerEnd="url(#fig-arrow2)" />
+      <path
+        d="M 170 60 L 560 60"
+        fill="none"
+        stroke="var(--fig-line)"
+        strokeWidth="1.5"
+        markerEnd="url(#fig-arrow2)"
+      />
       <text x="180" y="52" className="fig-tag">
         no
       </text>
       {endpoint(38, "OAM uploader", "Nothing to set up")}
 
-      <path d="M 170 190 L 236 190" fill="none" stroke="var(--fig-line)" strokeWidth="1.5" markerEnd="url(#fig-arrow2)" />
+      <path
+        d="M 170 190 L 236 190"
+        fill="none"
+        stroke="var(--fig-line)"
+        strokeWidth="1.5"
+        markerEnd="url(#fig-arrow2)"
+      />
       <text x="180" y="182" className="fig-tag">
         yes
       </text>
 
-      <path d="M 96 224 L 96 300 L 560 300" fill="none" stroke="var(--fig-line)" strokeWidth="1.5" markerEnd="url(#fig-arrow2)" />
+      <path
+        d="M 96 224 L 96 300 L 560 300"
+        fill="none"
+        stroke="var(--fig-line)"
+        strokeWidth="1.5"
+        markerEnd="url(#fig-arrow2)"
+      />
       <text x="104" y="256" className="fig-tag">
         no
       </text>
       {endpoint(278, "OAM generates the catalog", "Agree a metadata set, in development", true)}
 
-      <path d="M 384 190 L 560 190" fill="none" stroke="var(--fig-line)" strokeWidth="1.5" markerEnd="url(#fig-arrow2)" />
+      <path
+        d="M 384 190 L 560 190"
+        fill="none"
+        stroke="var(--fig-line)"
+        strokeWidth="1.5"
+        markerEnd="url(#fig-arrow2)"
+      />
       <text x="394" y="182" className="fig-tag">
         yes
       </text>
       {endpoint(168, "Send the catalog URL", "No work on your side")}
 
-      <path d="M 310 224 L 310 244 L 560 244" fill="none" stroke="var(--fig-line)" strokeWidth="1.5" markerEnd="url(#fig-arrow2)" />
+      <path
+        d="M 310 224 L 310 244 L 560 244"
+        fill="none"
+        stroke="var(--fig-line)"
+        strokeWidth="1.5"
+        markerEnd="url(#fig-arrow2)"
+      />
       <text x="318" y="240" className="fig-tag">
         no
       </text>
       {endpoint(222, "OAM maps the metadata", "One exchange to agree it")}
 
       <defs>
-        <marker id="fig-arrow2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <marker
+          id="fig-arrow2"
+          viewBox="0 0 8 8"
+          refX="7"
+          refY="4"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto"
+        >
           <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--fig-line)" />
         </marker>
       </defs>
@@ -212,8 +284,8 @@ export function MappingFigure() {
       <title id="fig3title">What a field mapping looks like</title>
       <desc id="fig3desc">
         Four example field renames from a provider catalog to the OpenAerialMap STAC extension:
-        acquired_on to properties.datetime, sensor_name to properties.instruments,
-        resolution_metres to properties.gsd, and owner to properties.oam:producer_name.
+        acquired_on to properties.datetime, sensor_name to properties.instruments, resolution_metres
+        to properties.gsd, and owner to properties.oam:producer_name.
       </desc>
 
       <text x="4" y="22" className="fig-tag">
@@ -246,7 +318,15 @@ export function MappingFigure() {
       })}
 
       <defs>
-        <marker id="fig-arrow3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <marker
+          id="fig-arrow3"
+          viewBox="0 0 8 8"
+          refX="7"
+          refY="4"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto"
+        >
           <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--fig-accent)" />
         </marker>
       </defs>

@@ -207,9 +207,8 @@ export default function Landing() {
               </wa-button>
             </div>
             <p className="landing-hero-note">
-              Have imagery to share?{" "}
-              <a href={appUrl("/contribute")}>See the ways to contribute</a>, from single files to
-              a catalog.
+              Have imagery to share? <a href={appUrl("/contribute")}>See the ways to contribute</a>,
+              from single files to a catalog.
             </p>
           </div>
         </section>
