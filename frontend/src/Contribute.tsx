@@ -129,6 +129,7 @@ export default function Contribute() {
                 <wa-button
                   appearance="outlined"
                   size="l"
+                  class="contribute-hero-secondary"
                   onClick={() => {
                     window.location.href = INTAKE_URL;
                   }}
