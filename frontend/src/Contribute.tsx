@@ -16,10 +16,20 @@ const CONTACT = "info@openaerialmap.org";
 const DOCS_NEW_PROVIDER = "https://docs.imagery.hotosm.org/dev/ingest/new-provider/";
 const DOCS_SCHEMA = "https://docs.imagery.hotosm.org/dev/ingest/schema/";
 
+const COG_SPEC = "https://cogeo.org/";
+const LICENSE_LINKS: Record<string, string> = {
+  "CC-BY 4.0": "https://creativecommons.org/licenses/by/4.0/",
+  "CC-BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "CC-BY-NC 4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
+};
+
 interface Route {
   who: string;
   have: string;
   route: string;
+  // Where this route actually starts. Someone who recognises their own row
+  // should be able to act on it without reading the rest of the page.
+  href: string;
   effort: string;
   status?: string;
 }
@@ -28,37 +38,42 @@ const ROUTES: Route[] = [
   {
     who: "Drone pilots, local organizations, researchers",
     have: "Imagery files, nowhere to publish them",
+    href: UPLOADER_URL,
     route: "Upload to OAM",
     effort: "Nothing to set up",
   },
   {
     who: "Satellite operators, agencies, mapping programs",
     have: "A STAC catalog that follows the spec",
+    href: INTAKE_URL,
     route: "Send the catalog URL",
     effort: "No work on your side",
   },
   {
     who: "Satellite operators, agencies, mapping programs",
     have: "A STAC catalog with its own field names",
+    href: INTAKE_URL,
     route: "OAM maps the metadata",
     effort: "One exchange to agree it",
   },
   {
     who: "Anyone already publishing to public cloud storage",
     have: "A bucket of COGs, no catalog",
+    href: INTAKE_URL,
     route: "OAM generates the catalog",
     effort: "Agree a metadata set",
     status: "In development",
   },
 ];
 
-const CHECKS: { q: string; why: string }[] = [
+const CHECKS: { q: string; why: string; href?: string }[] = [
   {
     q: "Publicly accessible",
     why: "People and applications reach the files directly, without credentials.",
   },
   {
     q: "Cloud Optimized GeoTIFF",
+    href: COG_SPEC,
     why: "Lets a map read the part of an image it needs rather than the whole file.",
   },
   {
@@ -95,21 +110,33 @@ export default function Contribute() {
               OpenAerialMap is an open service providing access to a commons of openly licensed
               satellite and drone imagery. Providers host their own data and maintain their own
               catalog, and OAM indexes it. Anyone can contribute, and anyone can use what is there,
-              for disaster response, community mapping, research or teaching.
+              for humanitarian response, community mapping and research.
             </p>
             <div className="contribute-actions">
-              <wa-button
-                variant="brand"
-                size="l"
-                onClick={() => {
-                  window.location.href = UPLOADER_URL;
-                }}
-              >
-                Upload imagery
-              </wa-button>
-              <a className="contribute-ghost-link" href={INTAKE_URL} target="_blank" rel="noopener noreferrer">
-                Register a catalog
-              </a>
+              <div className="contribute-action">
+                <wa-button
+                  variant="brand"
+                  size="l"
+                  onClick={() => {
+                    window.location.href = UPLOADER_URL;
+                  }}
+                >
+                  Upload imagery
+                </wa-button>
+                <p className="contribute-action-for">You have image files to publish</p>
+              </div>
+              <div className="contribute-action">
+                <wa-button
+                  appearance="outlined"
+                  size="l"
+                  onClick={() => {
+                    window.location.href = INTAKE_URL;
+                  }}
+                >
+                  Register a catalog
+                </wa-button>
+                <p className="contribute-action-for">You already publish to cloud storage</p>
+              </div>
             </div>
           </div>
         </section>
@@ -157,7 +184,9 @@ export default function Contribute() {
                       <span className="contribute-have">{r.have}</span>
                     </td>
                     <td>
-                      {r.route}
+                      <a href={r.href} target="_blank" rel="noopener noreferrer">
+                        {r.route}
+                      </a>
                       {r.status ? <span className="contribute-badge">{r.status}</span> : null}
                     </td>
                     <td>{r.effort}</td>
@@ -201,7 +230,15 @@ export default function Contribute() {
           <ul className="contribute-checks">
             {CHECKS.map((c) => (
               <li key={c.q}>
-                <p className="contribute-check-q">{c.q}</p>
+                <p className="contribute-check-q">
+                  {c.href ? (
+                    <a href={c.href} target="_blank" rel="noopener noreferrer">
+                      {c.q}
+                    </a>
+                  ) : (
+                    c.q
+                  )}
+                </p>
                 <p className="contribute-check-why">{c.why}</p>
               </li>
             ))}
@@ -211,7 +248,15 @@ export default function Contribute() {
         <section className="contribute-shell contribute-block">
           <h2 className="contribute-h2">Licenses</h2>
           <p className="contribute-lead">
-            CC-BY 4.0, CC-BY-SA 4.0 and CC-BY-NC 4.0 are indexed today. CC0, ODbL and other standard
+            {(["CC-BY 4.0", "CC-BY-SA 4.0", "CC-BY-NC 4.0"] as const).map((name, n) => (
+              <span key={name}>
+                {n === 0 ? "" : n === 2 ? " and " : ", "}
+                <a href={LICENSE_LINKS[name]} target="_blank" rel="noopener noreferrer">
+                  {name}
+                </a>
+              </span>
+            ))}{" "}
+            are indexed today. CC0, ODbL and other standard
             open licenses are accepted too, but are not implemented yet; support for them is coming.
             A custom open data license can also be added, as long as it maps onto one of the standard
             ones so the catalog can filter and publish it consistently.
@@ -241,8 +286,7 @@ export default function Contribute() {
           <div className="contribute-shell">
             <h2 className="contribute-cta-title">Register a catalog</h2>
             <p className="contribute-cta-body">
-              One form covers everything OAM needs to index a catalog. Most need nothing after
-              that.
+              The form asks everything needed to index a catalog.
             </p>
             <div className="contribute-actions">
               <a className="contribute-cta-button" href={INTAKE_URL} target="_blank" rel="noopener noreferrer">

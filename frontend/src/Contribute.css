@@ -46,6 +46,20 @@
   margin: 0 auto;
 }
 
+.contribute-action {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Says who the button above is for, so someone taking the shortcut does not
+   have to read the routes table to know which one is theirs. */
+.contribute-action-for {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--hot-color-blue-200);
+}
+
 .contribute-block {
   padding-block: 60px 0;
 }
@@ -119,14 +133,10 @@
 .contribute-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  align-items: center;
-}
-
-.contribute-ghost-link {
-  color: white;
-  font-size: 1rem;
-  text-underline-offset: 5px;
+  gap: 28px;
+  /* Top, not center: each button now carries a caption below it, and the two
+     captions are different lengths. */
+  align-items: flex-start;
 }
 
 /* ---------- Figures ---------- */

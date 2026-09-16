@@ -207,7 +207,9 @@ export default function Landing() {
               </wa-button>
             </div>
             <p className="landing-hero-note">
-              Sign in on the uploader to add your own openly licensed imagery.
+              Have imagery to share?{" "}
+              <a href={appUrl("/contribute")}>See the ways to contribute</a>, from uploading files
+              to registering a catalog.
             </p>
           </div>
         </section>
