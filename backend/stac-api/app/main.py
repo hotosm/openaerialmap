@@ -10,12 +10,13 @@ NOTE the API docs can be found here: https://api.imagery.hotosm.org/stac/api.htm
 import os
 from contextlib import asynccontextmanager
 
-from app.settings import Settings
+from app.settings import MonitoringTypes, Settings
 from brotli_asgi import BrotliMiddleware
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from stac_fastapi.api.app import StacApi
-from stac_fastapi.api.middleware import CORSMiddleware, ProxyHeaderMiddleware
+from stac_fastapi.api.middleware import ProxyHeaderMiddleware
 from stac_fastapi.api.models import (
     EmptyRequest,
     ItemCollectionUri,
@@ -47,6 +48,9 @@ from stac_fastapi.pgstac.extensions.filter import FiltersClient
 from stac_fastapi.pgstac.transactions import BulkTransactionsClient, TransactionsClient
 from stac_fastapi.pgstac.types.search import PgstacSearch
 from starlette.middleware import Middleware
+
+# from stac_fastapi.api.middleware import CORSMiddleware, ProxyHeaderMiddleware
+from starlette.middleware.cors import CORSMiddleware
 
 settings = Settings()
 
@@ -223,10 +227,13 @@ api = StacApi(
             CORSMiddleware,
             allow_origins=settings.cors_origins,
             allow_methods=settings.cors_methods,
+            expose_headers=[],
         ),
     ],
 )
 app = api.app
+if settings.monitoring == MonitoringTypes.PROMETHEUS:
+    Instrumentator().instrument(app).expose(app)
 
 
 def run():
