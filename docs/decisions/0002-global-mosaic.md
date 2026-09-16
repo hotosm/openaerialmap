@@ -61,7 +61,8 @@ The two archives are:
 
 1. **`global-coverage.pmtiles`** - a `density` layer of Web-Mercator
    grid cells at z0-13 with a `count` property per cell (number of
-   image centroids that fall inside). This is the "heatmap" view of
+   image centroids that fall inside; MADR 0008 covers what `count`
+   spans once more than one collection is browsed). This is the "heatmap" view of
    where imagery exists at world/regional zooms. Also served through
    `global-tms` as a raster TMS for clients that don't speak PMTiles
    (e.g. QGIS).
