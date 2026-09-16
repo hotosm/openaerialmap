@@ -368,6 +368,19 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
     @uploaded_since_sec
     @uploaded_after_dt
     @handle_exceptions
+    @click.option(
+        "--rebuild",
+        is_flag=True,
+        default=False,
+        help=(
+            "Re-derive Items already in PgSTAC instead of skipping them. Use "
+            "after changing a mapping: a normal sync only ever adds, so a "
+            "corrected field would otherwise never reach existing Items. "
+            "Bounded by --uploaded-since / --uploaded-after like any other "
+            "run, so it re-derives the Items after that cursor and not the "
+            "whole collection."
+        ),
+    )
     @pgstac_username
     @pgstac_password
     @pgstac_host
@@ -379,11 +392,17 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
         uploaded_since: float | None,
         uploaded_after: dt.datetime | None,
         handle_exceptions: HandleExceptionsType,
+        rebuild: bool,
         **_pgstac_options: Any,
     ) -> None:
         after = parse_uploaded_since(uploaded_since, uploaded_after)
         loader = Loader(ctx.obj["pgstac"])
 
+        if rebuild:
+            click.echo(
+                "Rebuild: re-deriving Items already in PgSTAC. The load is an "
+                "upsert, so existing records are replaced in place."
+            )
         click.echo(f"Looking for STAC Items added since {after}")
         items, errors = sync_handler(
             collection_id=catalog.collection_id,
@@ -391,7 +410,11 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
             stac_item_creator=partial(opendata.create_item, catalog),
             uploaded_after=after,
             handle_exceptions=handle_exceptions,
-            existing_ids_finder=partial(get_existing_item_ids, ctx.obj["pgstac"]),
+            existing_ids_finder=(
+                None
+                if rebuild
+                else partial(get_existing_item_ids, ctx.obj["pgstac"])
+            ),
             target_item_id=catalog.target_item_id,
         )
         loader.load_items(iter(items), insert_mode=Methods.upsert)
