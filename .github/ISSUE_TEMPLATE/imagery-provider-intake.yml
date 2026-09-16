@@ -1,0 +1,158 @@
+name: Register an imagery catalog
+description: Ask OpenAerialMap to index a catalog or bucket of openly licensed imagery.
+title: "[provider] "
+labels: ["intake", "repo:oam"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This ticket is public.** Everything you type here is visible to anyone on the internet and stays in the repository history. Give a team or role address rather than a personal one, and leave out anything you would not publish: no personal details, no credentials, no sensitive site locations.
+
+        Use this to register a catalog or bucket so OAM can index it. The imagery stays in your storage under your license; OAM holds only the metadata.
+
+        **Uploading individual files instead?** No ticket needed - use the [uploader](https://imagery.hotosm.org/upload).
+
+        **Can't use a public tracker, or need to discuss something sensitive?** Email info@openaerialmap.org instead and say which route below applies.
+
+  - type: input
+    id: organization
+    attributes:
+      label: Organization
+      placeholder: Who is publishing the imagery
+    validations:
+      required: true
+
+  - type: input
+    id: public-contact
+    attributes:
+      label: Public contact for the catalog
+      description: >
+        A team or role address, never a personal one. It is published twice
+        over: in this public ticket, and in the catalog as the provider contact.
+      placeholder: opendata@example.org
+    validations:
+      required: true
+
+  - type: dropdown
+    id: route
+    attributes:
+      label: Which route applies
+      options:
+        - A STAC catalog that follows the spec
+        - A STAC catalog using its own field names
+        - A public bucket of COGs, no catalog (in development)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: Catalog or bucket URL
+      description: A link that resolves without credentials.
+      placeholder: https://example-opendata.s3.amazonaws.com/catalog.json
+    validations:
+      required: true
+
+  - type: dropdown
+    id: license
+    attributes:
+      label: License
+      description: These three validate against the OAM STAC extension today. Others can be discussed.
+      options:
+        - CC-BY-4.0
+        - CC-BY-SA-4.0
+        - CC-BY-NC-4.0
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: osm-tracing
+    attributes:
+      label: OpenStreetMap tracing
+      description: >
+        Data traced into OSM carries the ODbL, which requires derived data to stay
+        commercially usable. Non-commercial imagery can still be indexed and used
+        for analysis without this. Leaving it unchecked changes nothing else.
+      options:
+        - label: We can permit tracing of this imagery into OpenStreetMap, in writing, alongside the license.
+          required: false
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Readiness
+      description: >
+        Tick what is already true. Unticked boxes are the useful signal - they tell
+        us where to help, and none of them are required to open this ticket.
+      options:
+        - label: The imagery is publicly accessible without credentials
+        - label: The imagery is Cloud Optimized GeoTIFF
+        - label: The URLs are stable over time
+        - label: Every item carries an acquisition date
+        - label: Ground sample distance is recorded per item
+        - label: We can keep the catalog updated as new imagery is published
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Approximate number of items
+      description: >
+        The default indexer reads the whole catalog each run, which is fine into the
+        thousands. Larger catalogs need a different approach, so this changes the work.
+      options:
+        - Under 1,000
+        - 1,000 to 10,000
+        - 10,000 to 50,000
+        - Over 50,000
+    validations:
+      required: true
+
+  - type: input
+    id: cadence
+    attributes:
+      label: How often new imagery is published
+      placeholder: Continuously, weekly, only during activations, one-off archive
+    validations:
+      required: true
+
+  - type: input
+    id: coverage
+    attributes:
+      label: Coverage
+      description: Regions, and the resolution range.
+      placeholder: Southeast Asia, 50 cm
+    validations:
+      required: true
+
+  - type: input
+    id: attribution
+    attributes:
+      label: Attribution wording
+      description: Exactly how you want to be credited. Leave blank to use the organization name.
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: >
+        Questions, or anything about the catalog we should know. Keep it to what
+        you would publish; if some areas are excluded from release, say so here
+        and send the detail to info@openaerialmap.org.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before submitting
+      options:
+        - label: I can authorize this release, or I can reach the person who can.
+          required: true
+        - label: I understand the imagery stays in our storage and OAM indexes the metadata.
+          required: true
+        - label: This ticket is public, and nothing I have entered is personal, sensitive or private.
+          required: true

@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Upload imagery files
+    url: https://imagery.hotosm.org/upload
+    about: Contributing individual files rather than a catalog? No ticket needed.
+  - name: Contribute imagery - overview
+    url: https://imagery.hotosm.org/contribute
+    about: The four routes in, what OAM checks, and how licensing works.
+  - name: Provider ingestion guide
+    url: https://docs.imagery.hotosm.org/dev/ingest/new-provider/
+    about: Technical detail on how a provider catalog is indexed.

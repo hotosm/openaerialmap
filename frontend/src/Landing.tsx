@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SiteHeader from "./SiteHeader";
+import { appUrl } from "./appUrl";
 import {
   PACKAGER_URL,
   STAC_BROWSER_CATALOG_URL,
@@ -16,7 +17,7 @@ const COMPONENTS = [
     tag: "Explore",
     description:
       "The map-first UI for browsing OAM's STAC catalog. Search by area, date, and provider, then preview and download imagery.",
-    href: "/browse",
+    href: appUrl("/browse"),
     icon: "map",
     primary: true,
   },
@@ -190,7 +191,7 @@ export default function Landing() {
                 variant="brand"
                 size="l"
                 onClick={() => {
-                  window.location.href = "/browse";
+                  window.location.href = appUrl("/browse");
                 }}
               >
                 Browse imagery
@@ -207,7 +208,8 @@ export default function Landing() {
               </wa-button>
             </div>
             <p className="landing-hero-note">
-              Sign in on the uploader to add your own openly licensed imagery.
+              Have imagery to share? <a href={appUrl("/contribute")}>See the ways to contribute</a>,
+              from single files to a catalog.
             </p>
           </div>
         </section>

@@ -126,6 +126,8 @@
 .landing-hero-note {
   margin: 18px 0 0 0;
   max-width: 620px;
+  /* Keeps the last line from being one or two orphaned words at any width. */
+  text-wrap: pretty;
   color: rgba(255, 255, 255, 0.72);
   line-height: 1.55;
   font-size: 0.9rem;
