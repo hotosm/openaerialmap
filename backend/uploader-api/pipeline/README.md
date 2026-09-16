@@ -101,8 +101,7 @@ reports that verbatim; the exit-code map there is only a fallback.
 The `metadata` step builds the item with `stactools.hotosm.create_item` from
 `backend/stactools-hotosm`, the **same source tree** as `backend/stac-ingester`,
 so user-uploaded and bulk-ingested items carry an identical OAM extension. Both
-take it as a path dependency, so there is no revision to keep in step - see
-[ADR 0008](../../../docs/decisions/0008-stactools-into-monorepo.md).
+take it as a path dependency, so there is no revision to keep in step.
 
 That path dependency has to live inside the build context, so the raster steps
 build from `backend/` rather than from this directory:
