@@ -1,9 +1,14 @@
 import { useEffect, useRef } from "react";
+import { collectionLabel } from "../utils/constants";
 import type { DatePreset, Filters, ResolutionPreset } from "../utils/types";
 
 interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
+  // Collection ids present in the currently loaded footprints. Derived from
+  // the tiles rather than hardcoded, so the chip tracks whatever the mosaic
+  // generator's FOOTPRINT_COLLECTIONS allowlist actually produced.
+  availableCollections?: string[];
 }
 
 type WaSelectEvent = CustomEvent<{ item: HTMLElement & { value: string } }>;
@@ -109,8 +114,22 @@ function FilterDropdown<V extends string>({
   );
 }
 
-export default function MapFilterBar({ filters, onChange }: Props) {
+export default function MapFilterBar({
+  filters,
+  onChange,
+  availableCollections = [],
+}: Props) {
   const applyChange = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+
+  // Keep the active value in the list even if it is not in view, so the chip
+  // never silently drops the user's own selection when they pan away.
+  const collectionIds = Array.from(
+    new Set([...availableCollections, ...(filters.collection ? [filters.collection] : [])]),
+  ).sort();
+  const SOURCES: Option<string>[] = [
+    { label: "All Sources", value: "" },
+    ...collectionIds.map((id) => ({ label: collectionLabel(id), value: id })),
+  ];
 
   const platformLabel =
     PLATFORMS.find((o) => o.value === filters.platform)?.label ?? "All Platforms";
@@ -122,11 +141,39 @@ export default function MapFilterBar({ filters, onChange }: Props) {
     return LICENSES.find((o) => o.value === filters.license)?.label ?? "License";
   })();
 
-  const anyActive = !!(filters.platform || filters.date || filters.resolution || filters.license);
+  const sourceLabel = filters.collection ? collectionLabel(filters.collection) : "All Sources";
+
+  const anyActive = !!(
+    filters.platform ||
+    filters.date ||
+    filters.resolution ||
+    filters.license ||
+    filters.collection
+  );
 
   return (
     <div className="font-sans">
-      <div className="flex flex-wrap gap-3 items-center">
+      {/*
+        Translucent backdrop behind the chips. The chips themselves are
+        `appearance="outlined"` when inactive, i.e. no background fill, so over
+        satellite imagery their labels were effectively unreadable. A frosted
+        panel keeps the floating-over-the-map feel (the basemap still shows
+        through) while guaranteeing label contrast on both bright cloud and
+        dark terrain. `inline-flex` so the panel hugs the chips instead of
+        spanning the container's full width.
+      */}
+      <div className="inline-flex flex-wrap gap-2 items-center rounded-2xl bg-white/75 backdrop-blur-md px-2.5 py-2 shadow-md ring-1 ring-black/5">
+        {/* Only offer the chip when there is a real choice - a single-source
+            catalogue should not grow a dropdown with one option in it. */}
+        {collectionIds.length > 1 && (
+          <FilterDropdown
+            label={sourceLabel}
+            active={!!filters.collection}
+            value={filters.collection}
+            options={SOURCES}
+            onChange={(v) => applyChange({ collection: v })}
+          />
+        )}
         <FilterDropdown
           label={platformLabel}
           active={!!filters.platform}
@@ -174,6 +221,7 @@ export default function MapFilterBar({ filters, onChange }: Props) {
                 platform: "",
                 resolution: "",
                 license: "",
+                collection: "",
               })
             }
           >

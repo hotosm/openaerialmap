@@ -14,6 +14,7 @@ import { readInitialFilters, readSelectedId, writeFilters, writeSelectedId } fro
 
 export default function Browse() {
   const [features, setFeatures] = useState<ImageFeature[]>([]);
+  const [seenCollections, setSeenCollections] = useState<string[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<ImageFeature | null>(null);
   const [mapBbox, setMapBbox] = useState<BBox | null>(null);
 
@@ -80,6 +81,25 @@ export default function Browse() {
     setMapBounds(exactBounds);
   };
 
+  // Sources seen in the tiles so far. Accumulates rather than tracking the
+  // current view, for two reasons: selecting a source filters `features` down
+  // to that one source, which would otherwise collapse the chip to a single
+  // option and strand the user with no way back; and panning to an area
+  // covered by only one source should not make the others unselectable.
+  const handleCollectionsUpdate = (ids: string[]) => {
+    setSeenCollections((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const c of ids) {
+        if (!next.has(c)) {
+          next.add(c);
+          changed = true;
+        }
+      }
+      return changed ? Array.from(next).sort() : prev;
+    });
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <SiteHeader />
@@ -94,8 +114,12 @@ export default function Browse() {
         </div>
 
         <div className="flex-1 h-full relative">
-          <div className="absolute top-4 left-4 z-30 w-full max-w-2xl">
-            <MapFilterBar filters={filters} onChange={handleFilterChange} />
+          <div className="absolute top-4 left-4 z-30 w-full max-w-4xl">
+            <MapFilterBar
+              filters={filters}
+              onChange={handleFilterChange}
+              availableCollections={seenCollections}
+            />
           </div>
 
           <div className="absolute bottom-12 right-4 z-30">
@@ -115,6 +139,7 @@ export default function Browse() {
             selectedFeature={selectedFeature}
             onSelect={handleSelectFeature}
             onFeaturesUpdate={handleFeaturesUpdate}
+            onCollectionsUpdate={handleCollectionsUpdate}
             searchBbox={mapBbox}
             onSearchArea={handleMapMoveEnd}
             previewsEnabled={previewsEnabled}
