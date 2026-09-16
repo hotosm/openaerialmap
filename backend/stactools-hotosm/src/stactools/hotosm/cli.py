@@ -411,9 +411,7 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
             uploaded_after=after,
             handle_exceptions=handle_exceptions,
             existing_ids_finder=(
-                None
-                if rebuild
-                else partial(get_existing_item_ids, ctx.obj["pgstac"])
+                None if rebuild else partial(get_existing_item_ids, ctx.obj["pgstac"])
             ),
             target_item_id=catalog.target_item_id,
         )
