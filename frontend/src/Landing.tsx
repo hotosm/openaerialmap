@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import SiteHeader from "./SiteHeader";
+import SiteHeader, { appUrl } from "./SiteHeader";
 import {
   PACKAGER_URL,
   STAC_BROWSER_CATALOG_URL,
@@ -16,7 +16,7 @@ const COMPONENTS = [
     tag: "Explore",
     description:
       "The map-first UI for browsing OAM's STAC catalog. Search by area, date, and provider, then preview and download imagery.",
-    href: "/browse",
+    href: appUrl("/browse"),
     icon: "map",
     primary: true,
   },
@@ -190,7 +190,7 @@ export default function Landing() {
                 variant="brand"
                 size="l"
                 onClick={() => {
-                  window.location.href = "/browse";
+                  window.location.href = appUrl("/browse");
                 }}
               >
                 Browse imagery
