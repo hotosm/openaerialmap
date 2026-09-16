@@ -208,8 +208,8 @@ export default function Landing() {
             </div>
             <p className="landing-hero-note">
               Have imagery to share?{" "}
-              <a href={appUrl("/contribute")}>See the ways to contribute</a>, from uploading files
-              to registering a catalog.
+              <a href={appUrl("/contribute")}>See the ways to contribute</a>, from single files to
+              a catalog.
             </p>
           </div>
         </section>
