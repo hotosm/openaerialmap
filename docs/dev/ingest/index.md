@@ -1,83 +1,83 @@
 <!-- markdownlint-disable MD013 -->
 
-# Ingestion
+# Ingesting data
 
-Everything that puts data into the OAM STAC catalogue - imagery, and one
-elevation dataset.
+Ingestion takes raster metadata from a source, converts it to OAM's STAC
+format, then saves it to PgSTAC. The imagery and elevation files stay where
+they are: OAM stores metadata and links to them.
 
-- [Add a data provider](./new-provider.md) - write an ingestor for a new source.
-- [Elevation](./elevation.md) - Copernicus GLO-30, the one source that is
-  not imagery.
-- [Backfill](./backfill.md) - imagery is missing from the catalogue, fix it.
-- [STAC extension](./schema.md) - the `oam:` fields, and moving Items between
-  schema versions.
+## How it works
 
-## The routes in
+Every source follows the same basic flow:
 
-All of them build STAC Items with the same package,
-[`backend/stactools-hotosm`](https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm),
-so an Item looks the same however it arrived.
+1. Find new source records.
+2. For scheduled syncs, skip anything already in PgSTAC.
+3. Convert each source record to an OAM STAC Item.
+4. Validate it against the [OAM schema](./schema.md).
+5. Save it to PgSTAC, where the STAC API and OAM frontend can use it.
 
-| Route                | Covers                              | Runs as                                                      |
-| -------------------- | ----------------------------------- | ------------------------------------------------------------ |
-| Uploader pipeline    | one upload at a time                | Argo workflow, `backend/uploader-api/pipeline`               |
-| Legacy OAM API       | the old openaerialmap.org catalogue | `stac-ingest-oam` CronJob, every 30 min                      |
-| Open data catalogues | Maxar, Vantor                       | `stac-ingest-maxar` and `stac-ingest-vantor` CronJobs, daily |
-| Elevation            | Copernicus GLO-30                   | `stac-ingest-glo30` Job, run once by hand                    |
+The conversion code lives in
+[`backend/stactools-hotosm`](https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm).
+This keeps the output consistent, whether an image came from the OAM uploader
+or an external catalogue.
 
-The CronJobs are in
-[k8s-infra](https://github.com/hotosm/k8s-infra/tree/main/apps/oam) under
-`apps/oam/`. They all run the `stac-ingester` image, built from
-`backend/stac-ingester`.
+## Ingestion sources
 
-!!! warning "The image tracks `main`"
+| Source                      | How it runs                                       | Schedule           |
+| --------------------------- | ------------------------------------------------- | ------------------ |
+| OAM uploader                | Argo workflow in `backend/uploader-api/pipeline`  | Once per upload    |
+| Legacy OAM API              | `stac-ingest-oam` CronJob                         | Every 30 minutes   |
+| Maxar and Vantor            | One `stac-ingest-<provider>` CronJob per provider | Every 3 hours      |
+| Copernicus GLO-30 elevation | `stac-ingest-glo30` Job                           | Once when deployed |
 
-    A change to `stactools-hotosm` only reaches the cluster once it is merged
-    to `main` and the image rebuilds.
+The Jobs and CronJobs are defined in
+[`apps/oam/` in k8s-infra](https://github.com/hotosm/k8s-infra/tree/main/apps/oam).
+They use the `stac-ingester` image from `backend/stac-ingester`.
 
-## The CLI
+Changes to `stactools-hotosm` are available in the cluster after they are
+merged to `main` and the image has rebuilt.
 
-The image ships one command, `hotosm`. Each source gets a pair:
+## CLI commands
 
-- `sync-<source>` writes straight to PgSTAC.
-- `dump-<source>` writes NDJSON, for loading with `pypgstac` separately.
+The `stac-ingester` image provides the `hotosm` command.
 
-Plus one command for Collections:
+- `sync-<source>` converts new Items and writes them to PgSTAC.
+- `dump-<source>` converts Items and saves them as NDJSON. It does not write
+  to PgSTAC.
+- `sync-collection --catalog=<name>` creates or updates a Collection. Run this
+  before the first Item sync for a new source.
 
-- `sync-collection --catalog=<name>` creates or updates the Collection. Run it
-  once before the first sync of a new source, or every Item lands orphaned.
+Run `hotosm --help` to see the available sources.
 
-`hotosm --help` lists what is currently registered.
+## Choosing a sync window
 
-## Sync windows
+Each scheduled imagery sync needs either `--uploaded-since <seconds>` or
+`--uploaded-after <date>`. The meaning of this window depends on the source:
 
-Every sync takes a window, either `--uploaded-since <seconds>` or
-`--uploaded-after <date>`.
+| Command       | Date used                         |
+| ------------- | --------------------------------- |
+| `sync-oam`    | Upload date from the legacy API   |
+| `sync-maxar`  | Event date from `event_info.json` |
+| `sync-vantor` | Item `published` date             |
 
-The window filters the **source**, and means something different for each one:
+Use a generous window. Existing Items are skipped before conversion, so the
+main cost is reading more source metadata. A window that is too narrow can
+miss imagery published with an older date.
 
-| Command       | The window filters on                                               |
-| ------------- | ------------------------------------------------------------------- |
-| `sync-oam`    | when the image was uploaded to the legacy API                       |
-| `sync-maxar`  | the event date in `event_info.json`, not when imagery was published |
-| `sync-vantor` | the Item's `published` property                                     |
+A normal sync never updates an Item already in PgSTAC. To update existing
+metadata, [dump the Items and upsert them](./backfill.md#updating-existing-items).
 
-Two things follow from that:
+## Errors
 
-1. **Prefer a wide window.** Items already in PgSTAC are skipped before
-   anything is rebuilt, so a wide window only costs a walk of the source
-   catalogue. A narrow one loses imagery for good whenever a source publishes
-   something with an older date than the window.
-2. **A sync never rewrites an Item already in PgSTAC.** To change metadata on
-   Items that are already there, see
-   [rewriting existing Items](./backfill.md#rewriting-existing-items).
+All scheduled imagery syncs use `--handle-exceptions IGNORE`. A bad source
+Item is reported at the end, while the rest continue. Without this option, the
+first bad Item stops the run.
 
-## Handling bad source data
+## Related guides
 
-Pass `--handle-exceptions IGNORE` to any sync or dump. Items that fail are
-listed at the end of the run and do not stop the rest.
-
-Every Item is validated against the [OAM extension](./schema.md) as it is
-built, and upstream metadata is uneven, so all the CronJobs use it.
+- [Add a data provider](./new-provider.md)
+- [Understand the OAM schema](./schema.md)
+- [Backfill or update Items](./backfill.md)
+- [Ingest Copernicus GLO-30 elevation](./elevation.md)
 
 <!-- markdownlint-enable MD013 -->

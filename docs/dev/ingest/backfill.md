@@ -1,11 +1,13 @@
 <!-- markdownlint-disable MD046 -->
 
-# Backfill
+# Backfill or update Items
 
-Imagery exists at the source but is not in the catalogue. Work through this in
-order.
+Use this guide when source imagery is missing from PgSTAC, or when an existing
+Item needs to be rebuilt with new metadata.
 
-## 1. Confirm it is actually missing
+For missing imagery, follow the steps below in order.
+
+## 1. Confirm the Item is missing
 
 For legacy OAM imagery, the STAC Item ID is the legacy `_id`:
 
@@ -16,7 +18,8 @@ curl -so /dev/null -w '%{http_code}\n' \
   "https://api.imagery.hotosm.org/stac/collections/openaerialmap/items/$ID"
 ```
 
-`found: 1` and a `404` means it was never ingested.
+`found: 1` from the legacy API and `404` from the STAC API confirms that the
+Item is missing from PgSTAC.
 
 For Maxar and Vantor, compare the source bucket against the API:
 
@@ -27,7 +30,7 @@ curl -so /dev/null -w '%{http_code}\n' \
 
 Maxar IDs contain slashes at the source and are stored with `-` instead.
 
-## 2. Read the Job logs
+## 2. Check the Job logs
 
 ```bash
 kubectl -n oam get jobs -l app=stac-ingest-oam --sort-by=.metadata.creationTimestamp
@@ -42,16 +45,18 @@ Skipping 6524 Items already in PgSTAC
 Completed ingesting 76 STAC Items
 ```
 
-Item errors are listed after that and do not fail the Job.
+With `--handle-exceptions IGNORE`, Item errors are listed at the end without
+stopping the Job.
 
 !!! warning "`Completed ingesting N` is not proof"
-That number is how many Items the run **built**, not how many PgSTAC
-accepted. If the same count comes back every run, the Items are not
-landing - go to [step 4](#4-if-nothing-lands).
+
+    This is the number of Items built, not the number accepted by PgSTAC. If
+    every run reports the same Items, continue to
+    [step 4](#4-if-items-still-do-not-appear).
 
 ## 3. Run a backfill
 
-A sync skips Items already in PgSTAC, so a wide window is safe.
+A sync skips Items already in PgSTAC, so using a wide date range is safe.
 
 ```bash
 kubectl -n oam create job oam-backfill --from=cronjob/stac-ingest-oam \
@@ -72,31 +77,24 @@ kubectl -n oam logs -f job/oam-backfill
 kubectl -n oam delete job oam-backfill
 ```
 
-The same works for `stac-ingest-maxar` and `stac-ingest-vantor`.
+The same process works with the `stac-ingest-maxar` and
+`stac-ingest-vantor` CronJobs.
 
-## 4. If nothing lands
+## 4. If Items still do not appear
 
-The loader can report success and store nothing. Check the versions first:
+Check the PgSTAC and `pypgstac` versions:
 
 ```bash
 psql -c "select pgstac.get_version();"
 kubectl -n oam exec job/<job> -- pip show pypgstac | head -2
 ```
 
-`pypgstac` below **0.9.11** against a pgstac database of 0.9.10 or earlier
-silently discards Items:
+`pypgstac` versions before **0.9.11** can report success without writing Items
+when used with PgSTAC 0.9.10 or earlier. The loader reads stale partition
+bounds, the insert fails, then an empty retry returns successfully.
 
-1. Before 0.9.11, `partitions` is a materialized view, and the loader reads
-   partition bounds from it.
-2. Stale or mis-parsed bounds make the loader think the partition already
-   covers the new dates, so it never widens the partition's `CHECK`
-   constraint.
-3. The insert violates that constraint. The retry then re-runs on a spent
-   generator, writes zero rows, and returns success.
-
-The fix is `pypgstac>=0.9.11`, which reads live bounds and widens the
-constraint itself. No repair is needed afterwards - the next sync picks the
-Items up.
+Upgrade to `pypgstac>=0.9.11`. The next sync should pick up the missing Items;
+no database repair is needed.
 
 To see the real constraint, rather than what the view claims:
 
@@ -106,10 +104,10 @@ select pg_get_constraintdef(oid) from pg_constraint
   where conrelid = 'pgstac._items_<key>'::regclass and contype = 'c';
 ```
 
-## Rewriting existing Items
+## Updating existing Items
 
-A sync skips Items already in PgSTAC, so it cannot change them. To push new
-metadata over Items that are already there, dump and load instead:
+A sync skips Items already in PgSTAC, so it cannot update them. Dump the source
+and upsert the result instead:
 
 ```bash
 hotosm dump-maxar --uploaded-after 2023-01-01 --handle-exceptions IGNORE \
@@ -117,9 +115,10 @@ hotosm dump-maxar --uploaded-after 2023-01-01 --handle-exceptions IGNORE \
 pypgstac load items --method upsert maxar.ndjson
 ```
 
-`dump-<source>` writes everything it is given, and `upsert` overwrites.
+`dump-<source>` rebuilds the Items without checking PgSTAC. `upsert` then
+inserts missing Items and replaces existing ones.
 
-## Audit a date range
+## Find all missing legacy Items in a date range
 
 List legacy Items missing from PgSTAC:
 

@@ -1,143 +1,145 @@
 <!-- markdownlint-disable MD013 MD046 -->
 
-# STAC extension
+# OAM STAC schema
 
-Every Item we create declares the OAM extension:
+STAC provides the common structure for imagery metadata. The OAM extension
+adds the small amount of metadata needed by OpenAerialMap.
+
+The current extension is:
 
 ```text
 https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 ```
 
-That URL is this site.
-[`docs/oam/v0.2.0/schema.json`](https://github.com/hotosm/openaerialmap/tree/main/docs/oam)
-is a symlink to the source of truth in
-[`stac-extension/json-schema/`](https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension/json-schema),
-so publishing a schema change is a push to `main`.
+Every Item is validated while it is built. Invalid Items are reported and are
+not loaded into PgSTAC.
 
-Validation does not fetch it. The same schema ships inside the package and is
-registered with `pystac` before every `Item.validate()`, so ingestion does not
-depend on this site being up.
+## Minimum fields for imagery
 
-The full field definitions live in the
-[extension README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/stac-extension/README.md).
-What follows is what an ingestor has to get right.
+The JSON schema requires these three properties:
 
-## What the schema enforces
+| Property            | Value                                                        |
+| ------------------- | ------------------------------------------------------------ |
+| `gsd`               | Ground resolution in metres per pixel                        |
+| `oam:platform_type` | `kite`, `balloon`, `uav`, `aircraft`, or `satellite`         |
+| `oam:producer_name` | Name of the person or organisation that produced the imagery |
 
-Only three fields. An Item missing any of them fails validation and never
-reaches the catalogue:
+An Item also needs the following standard STAC fields to work properly in OAM:
 
-- `gsd`
-- `oam:platform_type`
-- `oam:producer_name`
+| Field                 | What OAM expects                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `id`                  | Unique within the OAM Collection. Avoid `/`, as it breaks API Item URLs.                                          |
+| `geometry`            | Image outline as GeoJSON in longitude/latitude (EPSG:4326).                                                       |
+| `bbox`                | Bounds in `[west, south, east, north]` order.                                                                     |
+| `properties.datetime` | Capture time. For a time range, use `start_datetime` and `end_datetime`, but keep `datetime` with a `null` value. |
+| `properties.title`    | Short, readable name shown in the frontend.                                                                       |
+| `properties.license`  | `CC-BY-4.0`, `CC-BY-SA-4.0`, or `CC-BY-NC-4.0`.                                                                   |
+| `providers`           | Put the producer first. Its `name` must match `oam:producer_name`.                                                |
+| `assets.visual`       | Public URL of the Cloud Optimized GeoTIFF (COG) used by the tile server and download link.                        |
+| `assets.thumbnail`    | Optional PNG or JPEG preview for the frontend card.                                                               |
+| `stac_extensions`     | Include the current OAM extension URL shown above.                                                                |
 
-## What the app needs
+For providers, put contact details in `description` if they can be published.
+The first provider should normally have the `producer` and `licensor` roles.
 
-The schema does not require these, but leave one out and the Item is invisible
-on the map, unfilterable, or undisplayable.
+!!! tip "Imagery crossing the date line"
 
-| Field                          | What to put in it                                                                                                                                                                      | What needs it                                                                                                                                        |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                           | A unique name. Don't use `/` in it                                                                                                                                                     | Item lookups in the API break on slashes - swap them for `-`                                                                                         |
-| `geometry`                     | The image outline as GeoJSON, in lat/lon (EPSG:4326)                                                                                                                                   | The shape drawn on the browse map                                                                                                                    |
-| `bbox`                         | `[west, south, east, north]` of that outline                                                                                                                                           | "What imagery is in this area?" search                                                                                                               |
-| `stac_extensions`              | Must include `https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json`                                                                                                                  | Marks the item as OAM imagery, and turns on validation of the `oam:` fields below                                                                    |
-| `properties.datetime`          | When the image was taken                                                                                                                                                               | The card, and the date filter. For a capture period, set it to `null` and give `start_datetime` / `end_datetime` - but the key must still be present |
-| `properties.title`             | A human-readable name                                                                                                                                                                  | Card and sidebar heading                                                                                                                             |
-| `properties.gsd`               | Pixel size on the ground, in metres                                                                                                                                                    | The resolution filter. Imagery without it is hidden whenever that filter is used                                                                     |
-| `properties.oam:platform_type` | One of `kite`, `balloon`, `uav`, `aircraft`, `satellite`                                                                                                                               | The platform filter (drone / aircraft / satellite)                                                                                                   |
-| `properties.oam:producer_name` | **Name** of the organisation or person who made the imagery, e.g. `Maxar`. Not an email address                                                                                        | Attribution. Must match the first `providers` entry                                                                                                  |
-| `properties.license`           | One of `CC-BY-4.0`, `CC-BY-SA-4.0`, `CC-BY-NC-4.0`                                                                                                                                     | The license filter. OAM only hosts open imagery, so anything else is rejected                                                                        |
-| `providers`                    | Producer first, with `name` (same as `oam:producer_name`), `roles: ["producer", "licensor"]`, and the **contact** in `description` - an email, or a team name if none can be published | Cards show `providers[0].name`; `description` is how people get in touch                                                                             |
-| `assets.visual`                | Link to the imagery as a Cloud Optimized GeoTIFF (COG). Must be named `visual`                                                                                                         | The tile server draws from it, and it's the card's download link                                                                                     |
-| `assets.thumbnail`             | Link to a small PNG preview                                                                                                                                                            | The browse card picture. Items still work without one, but the card is blank                                                                         |
+    Split the geometry into two polygons at 180°. A wrapped bbox has its west
+    value first even though it is larger, for example
+    `[179.5, -16, -179.5, -15]`. Without this, the image may appear to cover
+    most of the world.
 
-!!! tip "Imagery that crosses the date line"
+## Useful optional fields
 
-    Split the `geometry` into two polygons either side of the 180° meridian,
-    and write the `bbox` west edge first even though it's the bigger number
-    (e.g. `[179.5, -16, -179.5, -15]`) - that's how a reader knows it wraps.
-    Otherwise the item draws as a stripe across the whole map.
+These fields are not needed for every source. Add them when the provider
+supplies the information; there is no need to invent values.
 
-## Optional fields
+### Display and search
 
-The uploader works these out from the image file. An ingested catalogue
-usually won't have them and OAM copes without, so fill in what your source
-provides and skip the rest.
+| Field                                        | Purpose                                                                  |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| `properties.start_datetime` / `end_datetime` | Capture period instead of a single time.                                 |
+| `properties.created`                         | When the metadata record was created.                                    |
+| `properties.instruments`                     | Camera or sensor names.                                                  |
+| `properties.renders`                         | Band selection, colour ramp and other display settings for non-RGB data. |
+| `properties.oam:product_type`                | `visual`, `multispectral`, `sar`, `elevation`, or `pseudocolor`.         |
+| `properties.oam:product_type_source`         | `declared` when set by a person; `detected` when inferred from the file. |
 
-| Field                                        | What it is                                                                               | What you get for it                                                                                    |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `properties.start_datetime` / `end_datetime` | Start and end of capture                                                                 | Shows a date range instead of a single moment                                                          |
-| `properties.created`                         | When the item was added to OAM                                                           | Tells "added recently" apart from "photographed recently"                                              |
-| `properties.instruments`                     | Camera or sensor name, as a list                                                         | Sensor shown on the card                                                                               |
-| `properties.renders`                         | Display hints: which bands, how to stretch them, which colour ramp, what counts as empty | Makes non-photo imagery (elevation, radar, multispectral) viewable. Without it the map shows raw bands |
-| `properties.oam:product_type`                | `visual`, `multispectral`, `sar`, `elevation` or `pseudocolor`                           | Picks the display hints above. Guessed from the file when not given                                    |
-| `properties.oam:product_type_source`         | `declared` if a person set the type, `detected` if it was guessed                        | Says how much to trust the type                                                                        |
-| `properties.oam:footprint_source`            | `mask` if the outline follows the real image edge, `bbox` if it's just the rectangle     | Says how tight the outline on the map is                                                               |
-| `properties.oam:footprint_area`              | Covered area in square metres                                                            | Coverage stats                                                                                         |
-| `properties.oam:acquisition_time_estimated`  | `true` when nobody supplied a capture date                                               | Warns that the date is a best guess                                                                    |
-| `properties.oam:acquisition_source`          | Where the date came from when the provider gave none: `user`, `file-tags` or `ingest`    | Says how good that guess is                                                                            |
-| `properties.oam:external_id`                 | An ID from the system that sent the imagery, e.g. an ODM task                            | Links the item back to that system                                                                     |
-| `properties.processing:*`                    | `software`, `version`, `lineage`, `datetime` - what produced the file and how            | Provenance                                                                                             |
-| `assets.visual.file:size`                    | File size in bytes                                                                       | Download size on the card                                                                              |
-| `assets.visual.file:checksum`                | Checksum of the file                                                                     | Lets anyone confirm the download wasn't corrupted                                                      |
-| `assets.visual.bands`                        | Band names, with `eo:common_name` where known (`red`, `nir`, ...)                        | Lets OAM pick sensible red/green/blue bands for display                                                |
-| `assets.visual.proj:*`                       | Native projection, image size, transform                                                 | Saves tools from opening the file to find out                                                          |
-| `assets.original`                            | Link to the untouched original file                                                      | Archival, in case the converted copy is ever wrong                                                     |
-| `assets.metadata`                            | Link to the item's own JSON                                                              | A stable copy of the record                                                                            |
-| `assets.tms` / `assets.wmts`                 | Link to an existing tile service                                                         | Used instead of OAM's tile server (older OAM items)                                                    |
-| `assets.*.alternate`                         | A second link to the same file, usually `s3://`                                          | Direct bucket access for people who prefer it                                                          |
-| `links[rel=derived_from]`                    | Link to the original item in your catalogue                                              | Provenance for ingested imagery - worth adding for any third-party source                              |
-| `links[rel=via]`                             | Link to a public page about the imagery                                                  | A "more info" backlink                                                                                 |
+### Source and processing details
 
-## Versions
+| Field                                       | Purpose                                                              |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| `properties.oam:footprint_source`           | `mask` for the valid-pixel outline or `bbox` for a rectangle.        |
+| `properties.oam:footprint_area`             | Covered area in square metres.                                       |
+| `properties.oam:acquisition_time_estimated` | `true` if the capture time was estimated.                            |
+| `properties.oam:acquisition_source`         | Where an estimated time came from: `user`, `file-tags`, or `ingest`. |
+| `properties.oam:external_id`                | ID from the system that submitted the imagery, such as an ODM task.  |
+| `properties.processing:*`                   | Software, version, time and lineage used to create the image.        |
 
-| Version  | Status                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------ |
-| `v0.2.0` | current. Knows every `oam:` field above                                                    |
-| `v0.1.0` | knows only `oam:platform_type` and `oam:producer_name`, and rejects any other `oam:` field |
+### Assets and links
 
-Both stay published at their own URL with their original definition, so older
-Items keep validating. Point new Items at `v0.2.0`, and add any `oam:` field of
-your own to the schema before using it.
+| Field                         | Purpose                                                 |
+| ----------------------------- | ------------------------------------------------------- |
+| `assets.visual.file:size`     | Download size in bytes.                                 |
+| `assets.visual.file:checksum` | File checksum.                                          |
+| `assets.visual.bands`         | Band names, including `eo:common_name` where known.     |
+| `assets.visual.proj:*`        | Native projection, raster size and transform.           |
+| `assets.original`             | Untouched source file.                                  |
+| `assets.metadata`             | Stable copy of the source metadata.                     |
+| `assets.tms` / `assets.wmts`  | Existing tile service, used by some older OAM Items.    |
+| `assets.*.alternate`          | Another URL for the same asset, usually an `s3://` URL. |
+| `links[rel=derived_from]`     | Original STAC Item from an external provider.           |
+| `links[rel=via]`              | Public information page for the imagery.                |
 
-Some Items still list a third URL,
-`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`, served by
-GitHub Pages from the archived standalone repo. Nothing here resolves it any
-more, but external clients validating those Items do.
+The [extension README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/stac-extension/README.md)
+contains the complete field definitions.
 
-## Upgrading Items to v0.2.0
+## Where the schema lives
 
-Rebuilding an Item stamps it with the current version, so an upgrade is a
-re-ingest of the whole source.
+The source files are under
+[`backend/stactools-hotosm/stac-extension/json-schema/`](https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension/json-schema).
+They are linked into two places:
 
-A sync will not do it - it skips Items already in PgSTAC, so widening the
-window finds them and passes straight over. Dump and upsert instead:
+- `docs/oam/`, which publishes the schema on this site;
+- `src/stactools/hotosm/schemas/oam/`, which bundles it with the Python
+  package for local validation.
+
+Validation uses the bundled copy, so it does not depend on the docs site being
+available.
+
+## Schema versions
+
+| Version  | Notes                                                      |
+| -------- | ---------------------------------------------------------- |
+| `v0.2.0` | Current version. Supports all `oam:` fields listed above.  |
+| `v0.1.0` | Only supports `oam:platform_type` and `oam:producer_name`. |
+
+Released schemas must not change. Old Items continue to point to the version
+they were created with. Some older Items use the archived URL
+`https://hotosm.github.io/stactools-hotosm/oam/v0.1.0/schema.json`; external
+clients may still use it for validation.
+
+Adding a required field needs a new schema version. Otherwise existing Items
+would immediately fail validation. See the package
+[README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md#stac-extension)
+for the release steps.
+
+## Updating existing Items
+
+Rebuilding an Item applies the current schema version. A normal sync cannot do
+this because it skips IDs already in PgSTAC. Dump the source and load it with
+upsert instead:
 
 ```bash
-hotosm dump-oam   --uploaded-after 2016-01-01 --handle-exceptions IGNORE --file oam.ndjson
-hotosm dump-maxar --uploaded-after 2023-01-01 --handle-exceptions IGNORE --file maxar.ndjson
+hotosm dump-oam \
+  --uploaded-after 2016-01-01 \
+  --handle-exceptions IGNORE \
+  --file oam.ndjson
 
 pypgstac load items --method upsert oam.ndjson
-pypgstac load items --method upsert maxar.ndjson
 ```
 
-Check what is left:
-
-```bash
-curl -s "https://api.imagery.hotosm.org/stac/search?limit=1" \
-  | jq '.features[0].stac_extensions'
-```
-
-!!! note "Adding a required field is a new version"
-
-    Making an existing field required invalidates every Item in production at
-    once. Publish the new version first, re-ingest onto it, and only then
-    tighten the schema.
-
-## Creating a new version
-
-See the package
-[README](https://github.com/hotosm/openaerialmap/blob/main/backend/stactools-hotosm/README.md#stac-extension).
+Repeat with `dump-<provider>` for an external provider. See
+[Backfill](./backfill.md#updating-existing-items) for more detail.
 
 <!-- markdownlint-enable MD013 MD046 -->
