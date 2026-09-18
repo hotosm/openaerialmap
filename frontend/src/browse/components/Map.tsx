@@ -12,6 +12,7 @@ import {
   PMTILES_SOURCE_LAYER,
   DENSITY_SOURCE_URL,
   DENSITY_SOURCE_LAYER,
+  COLLECTION_COUNT_PREFIX,
   FOOTPRINT_MIN_ZOOM,
   LARGE_IMAGE_THRESHOLD_SQ_KM,
   TMS_LARGE_MIN_ZOOM,
@@ -41,6 +42,11 @@ interface Props {
   selectedFeature: ImageFeature | null;
   onSelect: (f: ImageFeature | null) => void;
   onFeaturesUpdate: (fs: ImageFeature[]) => void;
+  // Collections present in the tile SOURCE, independent of the active layer
+  // filter. Reported separately from onFeaturesUpdate because the rendered
+  // features are already filtered, so they cannot tell the UI which other
+  // sources exist to switch to.
+  onCollectionsUpdate?: (ids: string[]) => void;
   searchBbox: BBox | null;
   onSearchArea: (bbox: BBox, center: [number, number], exactBounds: BBox) => void;
   previewsEnabled: boolean;
@@ -69,6 +75,7 @@ export default function OamMap({
   selectedFeature,
   onSelect,
   onFeaturesUpdate,
+  onCollectionsUpdate,
   searchBbox,
   onSearchArea,
   previewsEnabled,
@@ -101,6 +108,7 @@ export default function OamMap({
   const selectedFeatureRef = useRef(selectedFeature);
   const onHoverRef = useRef(onHover);
   const onFeaturesUpdateRef = useRef(onFeaturesUpdate);
+  const onCollectionsUpdateRef = useRef(onCollectionsUpdate);
   const filtersRef = useRef(filters);
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -127,6 +135,7 @@ export default function OamMap({
   }, [onHover]);
   useEffect(() => {
     onFeaturesUpdateRef.current = onFeaturesUpdate;
+    onCollectionsUpdateRef.current = onCollectionsUpdate;
   }, [onFeaturesUpdate]);
   useEffect(() => {
     filtersRef.current = filters;
@@ -154,6 +163,9 @@ export default function OamMap({
   // triggers the Sidebar's built-in "Zoom in to see images" prompt.
   const emitVisibleFeatures = () => {
     if (!map.current || !onFeaturesUpdateRef.current) return;
+    // Before the zoom gate: which sources exist is a different question from
+    // which images are listable, and the answer must survive zooming out.
+    emitSeenCollections();
     if (map.current.getZoom() < FOOTPRINT_MIN_ZOOM) {
       onFeaturesUpdateRef.current([]);
       return;
@@ -181,6 +193,45 @@ export default function OamMap({
     } catch (e) {
       console.error("Error querying rendered features:", e);
     }
+  };
+
+  // Which sources the catalogue holds, independent of zoom and of the active
+  // filter. Read from two places because neither covers the whole zoom range:
+  // footprints carry `collection` but only exist at FOOTPRINT_MIN_ZOOM and
+  // above, and below that the density cells carry the same answer in their
+  // per-source bucket keys. Without the second half the Source chip
+  // disappears when you zoom out, which reads as the filter being broken.
+  // querySourceFeatures ignores the layer filter, so both still see every
+  // source in the loaded tiles while a source filter is active.
+  const emitSeenCollections = () => {
+    if (!map.current || !onCollectionsUpdateRef.current) return;
+    const ids = new Set<string>();
+    try {
+      const all = map.current.querySourceFeatures("oam-tiles", {
+        sourceLayer: PMTILES_SOURCE_LAYER,
+      });
+      for (const f of all) {
+        const c = (f.properties as RawTileProperties).collection;
+        if (c) ids.add(c);
+      }
+    } catch {
+      // Source not ready yet; the next idle event will retry.
+    }
+    try {
+      const cells = map.current.querySourceFeatures("oam-density", {
+        sourceLayer: DENSITY_SOURCE_LAYER,
+      });
+      for (const cell of cells) {
+        for (const key of Object.keys(cell.properties || {})) {
+          if (key.startsWith(COLLECTION_COUNT_PREFIX)) {
+            ids.add(key.slice(COLLECTION_COUNT_PREFIX.length));
+          }
+        }
+      }
+    } catch {
+      // Density source not ready yet; the next idle event will retry.
+    }
+    if (ids.size) onCollectionsUpdateRef.current(Array.from(ids).sort());
   };
 
   const applyFilters = (f: Filters) => {
@@ -883,6 +934,7 @@ export default function OamMap({
       const p = selectedFeature.properties;
       const rawProps: RawTileProperties = {
         _id: p.id,
+        collection: p.collection,
         asset_name: p.assetName,
         render_params: p.renderParams ?? undefined,
       };
@@ -897,6 +949,7 @@ export default function OamMap({
           fetchItemBounds(
             itemBoundsRef.current,
             p.id,
+            p.collection,
             p.assetName,
             () => setItemBoundsTick((t) => t + 1),
             () => unmountedRef.current,
