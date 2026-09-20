@@ -95,6 +95,9 @@ type Config struct {
 	// Worker run caps. Tile count bounds runtime, bytes bound disk.
 	WorkerMaxTileCount    int
 	WorkerMaxEncodedBytes int64
+
+	// WorkerSkipEmptyTiles enables the worker footprint prefilter.
+	WorkerSkipEmptyTiles bool
 }
 
 func Load() (*Config, error) {
@@ -135,6 +138,7 @@ func Load() (*Config, error) {
 		WorkerEphemeralLimit:   getenv("WORKER_EPHEMERAL_LIMIT", "14Gi"),
 		WorkerMaxTileCount:     getenvInt("WORKER_MAX_TILE_COUNT", 150_000),
 		WorkerMaxEncodedBytes:  getenvInt64("WORKER_MAX_ENCODED_BYTES", 4*1024*1024*1024),
+		WorkerSkipEmptyTiles:   getenvBool("WORKER_SKIP_EMPTY_TILES", true),
 	}
 	if c.PGStacDSN == "" {
 		return nil, fmt.Errorf("PGSTAC_DSN is required")
@@ -177,6 +181,15 @@ func getenvInt64(k string, def int64) int64 {
 	if v := os.Getenv(k); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
+		}
+	}
+	return def
+}
+
+func getenvBool(k string, def bool) bool {
+	if v := os.Getenv(k); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
 		}
 	}
 	return def

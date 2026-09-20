@@ -214,3 +214,27 @@ func TestTTLRemaining(t *testing.T) {
 		})
 	}
 }
+
+func TestSoftDeadline(t *testing.T) {
+	tests := []struct {
+		name     string
+		deadline int64
+		want     int64
+	}{
+		{name: "production deadline keeps the full margin", deadline: 10800, want: 10500},
+		{name: "margin is not allowed to halve the run", deadline: 400, want: 200},
+		{name: "exactly twice the margin still halves", deadline: 600, want: 300},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SoftDeadline(tt.deadline)
+			if got != tt.want {
+				t.Fatalf("soft deadline for %d = %d, want %d", tt.deadline, got, tt.want)
+			}
+			if got >= tt.deadline {
+				t.Fatalf("soft deadline %d must be inside the hard deadline %d", got, tt.deadline)
+			}
+		})
+	}
+}

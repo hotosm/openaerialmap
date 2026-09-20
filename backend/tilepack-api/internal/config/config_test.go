@@ -120,3 +120,17 @@ func TestValidateTimeouts(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerSkipEmptyTilesDefaultsOn(t *testing.T) {
+	if got := getenvBool("WORKER_SKIP_EMPTY_TILES", true); !got {
+		t.Fatal("prefilter must default on")
+	}
+	t.Setenv("WORKER_SKIP_EMPTY_TILES", "false")
+	if got := getenvBool("WORKER_SKIP_EMPTY_TILES", true); got {
+		t.Fatal("operators must be able to turn the prefilter off")
+	}
+	t.Setenv("WORKER_SKIP_EMPTY_TILES", "nonsense")
+	if got := getenvBool("WORKER_SKIP_EMPTY_TILES", true); !got {
+		t.Fatal("an unparsable value must keep the default")
+	}
+}

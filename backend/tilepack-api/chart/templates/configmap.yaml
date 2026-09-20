@@ -31,3 +31,4 @@ data:
   WORKER_EPHEMERAL_LIMIT: {{ index .Values.worker.resources.limits "ephemeral-storage" | quote }}
   WORKER_MAX_TILE_COUNT: {{ .Values.config.workerMaxTileCount | quote }}
   WORKER_MAX_ENCODED_BYTES: {{ .Values.config.workerMaxEncodedBytes | quote }}
+  WORKER_SKIP_EMPTY_TILES: {{ .Values.config.workerSkipEmptyTiles | quote }}

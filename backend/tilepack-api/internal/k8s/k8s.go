@@ -34,6 +34,12 @@ const (
 	// LabelApp marks every Job and Pod this service creates.
 	LabelApp = "app"
 	AppName  = "oam-tilepack-worker"
+
+	// SoftDeadlineMargin leaves time for worker cleanup.
+	SoftDeadlineMargin = 300
+
+	// Must match generate.py's BUDGET_EXIT_CODE.
+	WorkerBudgetExitCode = 75
 )
 
 // New builds an in-cluster client. Resource quantities are parsed here so
@@ -112,6 +118,8 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 	backoff := int32(1)
 	grace := c.cfg.WorkerTerminationGraceSeconds
 
+	soft := SoftDeadline(deadline)
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -126,6 +134,15 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 			TTLSecondsAfterFinished: &ttl,
 			ActiveDeadlineSeconds:   &deadline,
 			BackoffLimit:            &backoff,
+			PodFailurePolicy: &batchv1.PodFailurePolicy{
+				Rules: []batchv1.PodFailurePolicyRule{{
+					Action: batchv1.PodFailurePolicyActionFailJob,
+					OnExitCodes: &batchv1.PodFailurePolicyOnExitCodesRequirement{
+						Operator: batchv1.PodFailurePolicyOnExitCodesOpIn,
+						Values:   []int32{WorkerBudgetExitCode},
+					},
+				}},
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{LabelApp: AppName},
@@ -150,6 +167,8 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 							{Name: "MAX_ZOOM", Value: strconv.Itoa(spec.MaxZoom)},
 							{Name: "CANONICAL", Value: strconv.FormatBool(spec.Canonical)},
 							{Name: "GSD", Value: strconv.FormatFloat(spec.GSD, 'g', -1, 64)},
+							{Name: "SOFT_DEADLINE_SECONDS", Value: strconv.FormatInt(soft, 10)},
+							{Name: "SKIP_EMPTY_TILES", Value: strconv.FormatBool(c.cfg.WorkerSkipEmptyTiles)},
 							{Name: "MAX_TILE_COUNT", Value: strconv.Itoa(c.cfg.WorkerMaxTileCount)},
 							{Name: "MAX_ENCODED_BYTES", Value: strconv.FormatInt(c.cfg.WorkerMaxEncodedBytes, 10)},
 							{Name: "INTERNAL_BASE_URL", Value: c.cfg.InternalBaseURL},
@@ -204,6 +223,15 @@ func (c *Client) CreateJob(ctx context.Context, spec JobSpec) error {
 		return err
 	}
 	return nil
+}
+
+// SoftDeadline returns a worker deadline inside the Job deadline.
+func SoftDeadline(deadline int64) int64 {
+	soft := deadline - SoftDeadlineMargin
+	if soft < deadline/2 {
+		soft = deadline / 2
+	}
+	return soft
 }
 
 // JobName is deterministic: the API looks a Job up by this before creating one.

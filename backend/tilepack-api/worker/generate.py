@@ -29,6 +29,8 @@ Environment variables:
     CANONICAL           "true" if this run should patch STAC.
     GSD                 Source ground sample distance, metres/pixel.
                         Used to derive MAX_ZOOM when not provided.
+    SOFT_DEADLINE_SECONDS
+                        Worker time budget in seconds; 0 disables.
     S3_BUCKET           Destination bucket.
     S3_PUBLIC_BASE_URL  Public URL prefix for the STAC asset href.
     INTERNAL_BASE_URL   ClusterIP URL of the tilepack-api pod.
@@ -49,13 +51,19 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import islice
 from pathlib import Path
 
 import boto3
 import botocore.config
 import botocore.exceptions
 import httpx
+import numpy as np
 import rasterio.crs
+import rasterio.enums
+import rasterio.transform
+import rasterio.warp
+from rasterio.windows import Window
 from rio_tiler.errors import TileOutsideBounds
 from rio_tiler.io import Reader
 
@@ -81,14 +89,34 @@ MAX_ENCODED_BYTES = int(os.environ.get("MAX_ENCODED_BYTES") or 4 * 1024**3)
 # until network bandwidth saturates.
 TILE_WORKERS = 24
 
+# Full-resolution mask pixels pooled into each coverage cell.
+COVERAGE_SOURCE_FACTOR = 64
+COVERAGE_STRIP_CELLS = 16
+
+SKIP_EMPTY_TILES = os.environ.get("SKIP_EMPTY_TILES", "true").lower() not in (
+    "false",
+    "0",
+    "no",
+    "off",
+)
+
+# Bounds encoded tile data retained by futures.
+TILE_BATCH = 2000
+
 # Set on a signal or a tripped cap, so queued tiles retire cheaply.
 _stop_rendering = threading.Event()
 
 TERMINATED_EXIT_CODE = 143  # 128 + SIGTERM
 
+BUDGET_EXIT_CODE = 75
+
 
 class Terminated(Exception):
     """Termination signal handled like other cleanup-triggering exceptions."""
+
+
+class BudgetExhausted(Exception):
+    """The worker exhausted its time budget."""
 
 
 def _install_signal_handlers() -> None:
@@ -141,6 +169,14 @@ def lonlat_to_tile(lon: float, lat: float, z: int) -> tuple[int, int]:
     return max(0, min(n - 1, x)), max(0, min(n - 1, y))
 
 
+def tile_to_lonlat(x: int, y: int, z: int) -> tuple[float, float]:
+    """North-west corner of an XYZ tile, the inverse of lonlat_to_tile."""
+    n = 1 << z
+    lon = x / n * 360.0 - 180.0
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1.0 - 2.0 * y / n))))
+    return lon, lat
+
+
 def tile_ranges(bounds: tuple[float, float, float, float], min_z: int, max_z: int):
     """Yield (z, x_min, x_max, y_min, y_max) per zoom."""
     w, s, e, n = bounds
@@ -150,11 +186,116 @@ def tile_ranges(bounds: tuple[float, float, float, float], min_z: int, max_z: in
         yield z, x_min, x_max, y_min, y_max
 
 
+class Coverage:
+    """Low-resolution source footprint used to skip tile reads."""
+
+    def __init__(self, mask, bounds: tuple[float, float, float, float]) -> None:
+        self._mask = mask
+        self._w, self._s, self._e, self._n = bounds
+        self._rows, self._cols = mask.shape
+
+    @property
+    def cells(self) -> str:
+        return f"{self._rows}x{self._cols}"
+
+    @property
+    def valid_share(self) -> float:
+        return float(self._mask.mean())
+
+    def intersects(self, x: int, y: int, z: int) -> bool:
+        """True if any part of the tile may hold source pixels."""
+        w, n = tile_to_lonlat(x, y, z)
+        e, s = tile_to_lonlat(x + 1, y + 1, z)
+        lon_span = self._e - self._w
+        lat_span = self._n - self._s
+        c0 = max(int((w - self._w) / lon_span * self._cols), 0)
+        c1 = min(math.ceil((e - self._w) / lon_span * self._cols), self._cols)
+        r0 = max(int((self._n - n) / lat_span * self._rows), 0)
+        r1 = min(math.ceil((self._n - s) / lat_span * self._rows), self._rows)
+        if c1 <= c0 or r1 <= r0:
+            return False
+        return bool(self._mask[r0:r1, c0:c1].any())
+
+
+def reduce_mask(dataset, factor: int):
+    """Max-pool the full-resolution mask without sampling out valid pixels."""
+    rows = -(-dataset.height // factor)
+    cols = -(-dataset.width // factor)
+    out = np.zeros((rows, cols), dtype=bool)
+    # Whole-width strips avoid refetching mask blocks.
+    strip = factor * COVERAGE_STRIP_CELLS
+    for top in range(0, dataset.height, strip):
+        height = min(strip, dataset.height - top)
+        raw = dataset.read_masks(1, window=Window(0, top, dataset.width, height))
+        padded_h = -(-height // factor) * factor
+        padded = np.zeros((padded_h, cols * factor), dtype=bool)
+        padded[:height, : dataset.width] = raw > 0
+        block = padded.reshape(padded_h // factor, factor, cols, factor).any(
+            axis=(1, 3)
+        )
+        out[top // factor : top // factor + block.shape[0]] = block
+    return out
+
+
+def build_coverage(cog: Reader, bounds) -> Coverage | None:
+    """Build a conservative tile prefilter, or return None to disable it."""
+    if not SKIP_EMPTY_TILES:
+        return None
+    w, s, e, n = bounds
+    if e <= w or n <= s:
+        return None
+    try:
+        dataset = cog.dataset
+        source = reduce_mask(dataset, COVERAGE_SOURCE_FACTOR)
+        # Preserve any valid source cell during reprojection.
+        mask = np.zeros(source.shape, dtype=np.uint8)
+        rasterio.warp.reproject(
+            source.astype(np.uint8),
+            mask,
+            src_transform=dataset.transform
+            * rasterio.Affine.scale(COVERAGE_SOURCE_FACTOR, COVERAGE_SOURCE_FACTOR),
+            src_crs=dataset.crs,
+            dst_transform=rasterio.transform.from_bounds(
+                w, s, e, n, source.shape[1], source.shape[0]
+            ),
+            dst_crs=rasterio.crs.CRS.from_epsg(4326),
+            resampling=rasterio.enums.Resampling.max,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: no coverage prefilter: {exc}", file=sys.stderr, flush=True)
+        return None
+
+    mask = mask > 0
+    if mask.all():
+        return None
+    if not mask.any():
+        print("warning: source mask is empty, not prefiltering", file=sys.stderr)
+        return None
+
+    # Expand by one cell to cover reprojection edges.
+    vertical = mask.copy()
+    vertical[1:, :] |= mask[:-1, :]
+    vertical[:-1, :] |= mask[1:, :]
+    grown = vertical.copy()
+    grown[:, 1:] |= vertical[:, :-1]
+    grown[:, :-1] |= vertical[:, 1:]
+    return Coverage(grown, bounds)
+
+
 def estimate_tile_count(bounds, min_z, max_z) -> int:
+    """Return the bbox tile count without per-tile allocation."""
     total = 0
     for _, xmin, xmax, ymin, ymax in tile_ranges(bounds, min_z, max_z):
         total += (xmax - xmin + 1) * (ymax - ymin + 1)
     return total
+
+
+def iter_tiles(z: int, xmin: int, xmax: int, ymin: int, ymax: int, coverage):
+    """Yield the (x, y) at this zoom worth reading, without materialising."""
+    for x in range(xmin, xmax + 1):
+        for y in range(ymin, ymax + 1):
+            if coverage is None or coverage.intersects(x, y, z):
+                yield x, y
 
 
 def patch_item_asset(
@@ -222,6 +363,8 @@ def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | Non
         return "outside", None
     except Exception:  # noqa: BLE001
         return "failed", None
+    if not img.mask.any():
+        return "empty", None
     # add_mask keeps alpha, so footprint padding stays transparent.
     return "ok", img.render(img_format=TILE_FORMAT, add_mask=True, quality=WEBP_QUALITY)
 
@@ -231,6 +374,7 @@ def generate_mbtiles(
     out_path: Path,
     min_zoom: int,
     max_zoom: int,
+    deadline: float | None = None,
 ) -> None:
     """Render the COG into an MBTiles archive over its native bbox."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -242,17 +386,24 @@ def generate_mbtiles(
             rasterio.crs.CRS.from_epsg(4326)
         )  # (w, s, e, n)
 
-    total = estimate_tile_count(bounds, min_zoom, max_zoom)
-    print(
-        f"tile plan: z{min_zoom}..z{max_zoom}, ~{total} tiles, bounds={bounds}",
-        flush=True,
-    )
-    if total > MAX_TILE_COUNT:
-        raise SystemExit(
-            f"tile count {total} exceeds MAX_TILE_COUNT={MAX_TILE_COUNT}; "
-            f"rerun with a lower max_zoom"
+        total = estimate_tile_count(bounds, min_zoom, max_zoom)
+        print(
+            f"tile plan: z{min_zoom}..z{max_zoom}, <={total} tiles, bounds={bounds}",
+            flush=True,
         )
+        if total > MAX_TILE_COUNT:
+            raise SystemExit(
+                f"tile count {total} exceeds MAX_TILE_COUNT={MAX_TILE_COUNT}; "
+                f"rerun with a lower max_zoom"
+            )
 
+        coverage = build_coverage(cog, bounds)
+    if coverage is not None:
+        print(
+            f"footprint prefilter: {coverage.cells}-cell grid, "
+            f"{coverage.valid_share * 100:.1f}% of the bbox holds pixels",
+            flush=True,
+        )
     conn = sqlite3.connect(out_path)
     should_cleanup = False
     try:
@@ -280,34 +431,46 @@ def generate_mbtiles(
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("maxzoom", str(max_zoom)))
 
         encoded_bytes = 0
+        processed = 0
         pool = ThreadPoolExecutor(max_workers=TILE_WORKERS)
         # Cleared only on full success, so every abnormal exit cancels.
         aborting = True
         try:
             for z, xmin, xmax, ymin, ymax in tile_ranges(bounds, min_zoom, max_zoom):
                 start = time.monotonic()
-                futures = {}
-                for x in range(xmin, xmax + 1):
-                    for y in range(ymin, ymax + 1):
-                        fut = pool.submit(_render_tile, cog_url, x, y, z)
-                        futures[fut] = (x, y)
+                at_zoom = (xmax - xmin + 1) * (ymax - ymin + 1)
+                pending = iter_tiles(z, xmin, xmax, ymin, ymax, coverage)
                 written = 0
                 outside = 0
-                for fut in as_completed(futures):
-                    x, y = futures[fut]
-                    status, tile = fut.result()
-                    if status == "outside":
-                        outside += 1
-                        continue
-                    if status == "cancelled":
-                        # Stop draining rather than insert a NULL blob.
-                        raise Terminated("tile generation cancelled")
-                    if status == "failed":
-                        status, tile = _render_tile(cog_url, x, y, z)
+                empty = 0
+                submitted = 0
+                while batch := list(islice(pending, TILE_BATCH)):
+                    futures = {
+                        pool.submit(_render_tile, cog_url, x, y, z): (x, y)
+                        for x, y in batch
+                    }
+                    submitted += len(batch)
+                    for fut in as_completed(futures):
+                        # Check before status-specific continues.
+                        if deadline is not None and time.monotonic() > deadline:
+                            should_cleanup = True
+                            raise BudgetExhausted(
+                                f"ran out of time at z{z} of z{min_zoom}..z{max_zoom} "
+                                f"after {processed} tiles; rerun with a lower max_zoom"
+                            )
+                        processed += 1
+                        x, y = futures[fut]
+                        status, tile = fut.result()
+                        if status == "failed":
+                            status, tile = _render_tile(cog_url, x, y, z)
                         if status == "outside":
                             outside += 1
                             continue
+                        if status == "empty":
+                            empty += 1
+                            continue
                         if status == "cancelled":
+                            # Stop draining rather than insert a NULL blob.
                             raise Terminated("tile generation cancelled")
                         if status == "failed":
                             should_cleanup = True
@@ -315,35 +478,38 @@ def generate_mbtiles(
                                 f"unexpected tile render failure for z={z}, "
                                 f"x={x}, y={y}"
                             )
-                    encoded_bytes += len(tile)
-                    if encoded_bytes > MAX_ENCODED_BYTES:
-                        should_cleanup = True
-                        raise SystemExit(
-                            f"encoded tile bytes {encoded_bytes} exceed "
-                            f"MAX_ENCODED_BYTES={MAX_ENCODED_BYTES} at z{z}; "
-                            f"rerun with a lower max_zoom"
+                        encoded_bytes += len(tile)
+                        if encoded_bytes > MAX_ENCODED_BYTES:
+                            should_cleanup = True
+                            raise SystemExit(
+                                f"encoded tile bytes {encoded_bytes} exceed "
+                                f"MAX_ENCODED_BYTES={MAX_ENCODED_BYTES} at z{z}; "
+                                f"rerun with a lower max_zoom"
+                            )
+                        tms_y = (1 << z) - 1 - y
+                        cur.execute(
+                            "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
+                            (z, x, tms_y, tile),
                         )
-                    tms_y = (1 << z) - 1 - y
-                    cur.execute(
-                        "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
-                        (z, x, tms_y, tile),
-                    )
-                    written += 1
-                conn.commit()
+                        written += 1
+                    conn.commit()
                 msg = (
-                    f"z{z}: {written}/{len(futures)} tiles in "
+                    f"z{z}: {written}/{submitted} tiles in "
                     f"{time.monotonic() - start:.1f}s, "
                     f"{encoded_bytes / 1024**2:.1f} MiB total"
                 )
                 if outside > 0:
                     msg += f", outside={outside}"
+                if empty > 0:
+                    msg += f", empty={empty}"
+                if at_zoom > submitted:
+                    msg += f", off-footprint={at_zoom - submitted}"
                 print(msg, flush=True)
             _close_thread_readers(pool, cog_url)
             aborting = False
         finally:
             if aborting:
-                # A level is queued at once, so waiting would render a
-                # failed run to completion and pin every tile - an OOM.
+                # Do not wait for the rest of a failed batch.
                 _stop_rendering.set()
                 pool.shutdown(wait=False, cancel_futures=True)
             else:
@@ -528,6 +694,8 @@ def main() -> int:
         max_zoom = int(env("MAX_ZOOM", "0"))
         canonical = env("CANONICAL", "false").lower() == "true"
         gsd = float(env("GSD", "0") or "0")
+        budget = int(env("SOFT_DEADLINE_SECONDS", "0") or "0")
+        deadline = start + budget if budget > 0 else None
 
         public_base = env(
             "S3_PUBLIC_BASE_URL",
@@ -583,7 +751,7 @@ def main() -> int:
 
             # Upload before callbacks so callback failure cannot lose the archive.
             if fmt == "mbtiles":
-                generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
+                generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom, deadline)
                 store(output_key, "mbtiles", mbtiles_path)
                 register(output_key, "mbtiles", mbtiles_path)
             elif fmt == "pmtiles":
@@ -604,7 +772,9 @@ def main() -> int:
                     )
                     download(bucket, mbtiles_key, mbtiles_path)
                 else:
-                    generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
+                    generate_mbtiles(
+                        cog_url, mbtiles_path, min_zoom, max_zoom, deadline
+                    )
                     store(mbtiles_key, "mbtiles", mbtiles_path)
 
                 pmtiles_path = workdir / f"{item_id}.pmtiles"
@@ -617,6 +787,14 @@ def main() -> int:
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
         exit_code = 0
+    except BudgetExhausted as exc:
+        exit_code = BUDGET_EXIT_CODE
+        print(
+            f"worker budget exhausted: item_id={item_id} format={fmt} reason={exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        put_error(bucket, lock_key, str(exc))
     except Terminated as exc:
         # Return 143 after cleanup releases the lock.
         exit_code = TERMINATED_EXIT_CODE
@@ -654,7 +832,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     code = main()
-    if code == TERMINATED_EXIT_CODE:
+    if code in (TERMINATED_EXIT_CODE, BUDGET_EXIT_CODE):
         # Avoid atexit waiting on in-flight GDAL threads after lock release.
         sys.stdout.flush()
         sys.stderr.flush()

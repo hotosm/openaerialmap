@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import threading
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,8 @@ import generate
 
 
 class FakeReader:
+    dataset = types.SimpleNamespace(width=4096, height=4096)
+
     def __init__(self, *args, **kwargs):
         self._bounds = (-10.0, -10.0, 10.0, 10.0)
 
@@ -525,3 +528,199 @@ def test_s3_object_size_does_not_treat_errors_as_absent(monkeypatch):
     monkeypatch.setattr(generate, "_s3_client", Boom)
     with pytest.raises(generate.botocore.exceptions.ClientError):
         generate.s3_object_size("bucket", "key")
+
+
+def test_an_unreadable_mask_falls_back_to_rendering_everything():
+    assert generate.build_coverage(FakeReader(), (-10.0, -10.0, 10.0, 10.0)) is None
+
+
+def test_a_fully_valid_source_gets_no_prefilter(tmp_path: Path):
+    import numpy as np
+    import rasterio
+    import rasterio.crs
+    from rasterio.transform import from_origin
+    from rio_tiler.io import Reader
+
+    path = tmp_path / "full.tif"
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        width=512,
+        height=512,
+        count=3,
+        dtype="uint8",
+        crs="EPSG:3857",
+        transform=from_origin(0, 0, 0.05, 0.05),
+    ) as dst:
+        dst.write(np.full((3, 512, 512), 200, dtype="uint8"))
+
+    with Reader(str(path)) as cog:
+        bounds = cog.get_geographic_bounds(rasterio.crs.CRS.from_epsg(4326))
+        assert generate.build_coverage(cog, bounds) is None
+
+
+def test_generate_mbtiles_does_not_read_tiles_off_the_footprint(
+    monkeypatch, tmp_mbtiles_path: Path
+):
+    monkeypatch.setattr(generate, "Reader", FakeReader)
+    render_calls = []
+
+    def fake_render_tile(cog_url: str, x: int, y: int, z: int):
+        render_calls.append((x, y, z))
+        return "ok", b"tile-bytes"
+
+    class OnlyOrigin:
+        cells = "1x1"
+        valid_share = 0.25
+
+        def intersects(self, x: int, y: int, z: int) -> bool:
+            return (x, y) == (0, 0)
+
+    monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
+    monkeypatch.setattr(generate, "build_coverage", lambda cog, bounds: OnlyOrigin())
+    monkeypatch.setattr(
+        generate,
+        "tile_ranges",
+        lambda bounds, min_z, max_z: [(0, 0, 1, 0, 0)],
+    )
+
+    generate.generate_mbtiles("https://example.test/cog.tif", tmp_mbtiles_path, 0, 0)
+
+    assert render_calls == [(0, 0, 0)]
+    with sqlite3.connect(tmp_mbtiles_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0] == 1
+
+
+def test_a_tile_that_renders_empty_is_not_stored(monkeypatch, tmp_mbtiles_path: Path):
+    monkeypatch.setattr(generate, "Reader", FakeReader)
+
+    def fake_render_tile(cog_url: str, x: int, y: int, z: int):
+        if (x, y, z) == (0, 0, 0):
+            return "empty", None
+        return "ok", b"tile-bytes"
+
+    monkeypatch.setattr(generate, "_render_tile", fake_render_tile)
+    monkeypatch.setattr(
+        generate,
+        "tile_ranges",
+        lambda bounds, min_z, max_z: [(0, 0, 1, 0, 0)],
+    )
+
+    generate.generate_mbtiles("https://example.test/cog.tif", tmp_mbtiles_path, 0, 0)
+
+    with sqlite3.connect(tmp_mbtiles_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["ok", "empty", "outside"],
+)
+def test_an_exhausted_time_budget_aborts_before_the_job_controller_does(
+    monkeypatch, tmp_mbtiles_path: Path, status: str
+):
+    monkeypatch.setattr(generate, "Reader", FakeReader)
+    tile = b"tile-bytes" if status == "ok" else None
+    monkeypatch.setattr(
+        generate,
+        "_render_tile",
+        lambda cog_url, x, y, z: (status, tile),
+    )
+    monkeypatch.setattr(
+        generate,
+        "tile_ranges",
+        lambda bounds, min_z, max_z: [(0, 0, 1, 0, 0)],
+    )
+
+    with pytest.raises(generate.BudgetExhausted) as excinfo:
+        generate.generate_mbtiles(
+            "https://example.test/cog.tif",
+            tmp_mbtiles_path,
+            0,
+            0,
+            deadline=time.monotonic() - 1,
+        )
+
+    assert "lower max_zoom" in str(excinfo.value)
+    assert not tmp_mbtiles_path.exists()
+
+
+@pytest.fixture
+def thin_footprint_cog(tmp_path: Path) -> Path:
+    """Create a COG with a one-pixel diagonal and detached island."""
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    n = 2048
+    data = np.zeros((3, n, n), dtype="uint8")
+    mask = np.zeros((n, n), dtype="uint8")
+    for i in range(n):
+        mask[i, i] = 255
+    mask[1500:1502, 300:302] = 255
+    data[:, mask > 0] = 200
+
+    path = tmp_path / "thin.tif"
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        width=n,
+        height=n,
+        count=3,
+        dtype="uint8",
+        crs="EPSG:3857",
+        transform=from_origin(0, 0, 0.05, 0.05),
+        tiled=True,
+        blockxsize=256,
+        blockysize=256,
+        compress="deflate",
+    ) as dst:
+        dst.write(data)
+        dst.write_mask(mask)
+        dst.build_overviews([2, 4, 8, 16])
+    return path
+
+
+def test_the_prefilter_keeps_every_tile_that_has_pixels(thin_footprint_cog: Path):
+    """The prefilter must not reject a tile containing imagery."""
+    import rasterio
+    import rasterio.crs
+    from rio_tiler.io import Reader
+
+    # Reset module state changed by cancellation tests.
+    generate._stop_rendering.clear()
+
+    try:
+        with Reader(str(thin_footprint_cog)) as cog:
+            bounds = cog.get_geographic_bounds(rasterio.crs.CRS.from_epsg(4326))
+            coverage = generate.build_coverage(cog, bounds)
+            assert coverage is not None, "a partly-masked source must be prefiltered"
+
+            zoom = generate.derive_max_zoom_from_gsd(0.05)
+            _, xmin, xmax, ymin, ymax = next(
+                iter(generate.tile_ranges(bounds, zoom, zoom))
+            )
+            checked = dropped = 0
+            for x in range(xmin, xmax + 1):
+                for y in range(ymin, ymax + 1):
+                    if coverage.intersects(x, y, zoom):
+                        continue
+                    dropped += 1
+                    status, _ = generate._render_tile(
+                        str(thin_footprint_cog), x, y, zoom
+                    )
+                    assert status in ("outside", "empty"), (
+                        f"prefilter dropped tile z{zoom}/{x}/{y}, renders {status}"
+                    )
+                    checked += 1
+    finally:
+        # Close the Reader cached by _render_tile on this thread.
+        reader = getattr(generate._thread_local, "reader", None)
+        if reader is not None:
+            reader.__exit__(None, None, None)
+            generate._thread_local.reader = None
+
+    assert dropped > 0, "this fixture is meant to exercise real skipping"
+    assert checked == dropped

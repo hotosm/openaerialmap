@@ -53,6 +53,8 @@ config:
   workerMaxTileCount: 150000
   # Quoted: unquoted, Helm renders it as 4.294967296e+09.
   workerMaxEncodedBytes: "4294967296"
+  # Set false to render the full scene bbox without footprint filtering.
+  workerSkipEmptyTiles: true
   perIpRatePerSecond: "0.1"
   perIpBurst: 2
   # The in-cluster URL the worker calls to patch STAC assets.
