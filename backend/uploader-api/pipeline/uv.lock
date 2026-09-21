@@ -343,15 +343,25 @@ name = "oam-pipeline-convert"
 version = "0.1.0"
 source = { virtual = "convert" }
 dependencies = [
+    { name = "numpy" },
     { name = "rasterio" },
     { name = "rio-cogeo" },
 ]
 
+[package.dev-dependencies]
+test = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2" },
     { name = "rasterio", specifier = ">=1.5" },
     { name = "rio-cogeo", specifier = ">=7" },
 ]
+
+[package.metadata.requires-dev]
+test = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "oam-pipeline-fetch"

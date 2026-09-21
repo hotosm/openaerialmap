@@ -65,6 +65,13 @@ services:
       target: test
     command: ["pytest", "validate/tests"]
 
+  test-convert:
+    build:
+      context: backend
+      dockerfile: uploader-api/pipeline/convert/Dockerfile
+      target: test
+    command: ["pytest", "convert/tests"]
+
   test-metadata:
     build:
       context: backend

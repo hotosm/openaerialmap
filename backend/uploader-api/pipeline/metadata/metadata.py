@@ -22,7 +22,7 @@ from pyproj import Geod
 from pystac import Asset, Link, MediaType
 from pystac.extensions.file import FileExtension
 from rasterio import Affine, features
-from rasterio.enums import ColorInterp, Resampling
+from rasterio.enums import ColorInterp, MaskFlags, Resampling
 from rasterio.warp import transform_geom
 from shapely.affinity import translate
 from shapely.geometry import MultiPolygon, box, mapping, shape
@@ -342,8 +342,9 @@ def _renders(
     colormap: str | dict | None,
     rescale: list[list[float]] | None,
     nodata: float | None,
+    has_mask: bool = False,
 ) -> dict:
-    """Titiler render hints (render extension) so the browse is generated on demand."""
+    """Build TiTiler render hints without overriding visual masks."""
     browse = {"assets": ["visual"], "title": product_type.capitalize(), "bidx": idx}
     if rescale:
         browse["rescale"] = rescale
@@ -351,8 +352,11 @@ def _renders(
         browse["colormap"] = colormap
     elif colormap:
         browse["colormap_name"] = colormap
-    # Visual COG borders use 0; other data keeps its source nodata value.
-    browse_nodata = 0 if product_type == "visual" else nodata
+    # Unmasked visual COG borders use 0; other data keeps its source nodata value.
+    if product_type == "visual":
+        browse_nodata = None if has_mask else 0
+    else:
+        browse_nodata = nodata
     if browse_nodata is not None:
         browse["nodata"] = browse_nodata
     renders = {"browse": browse}
@@ -490,6 +494,22 @@ def _footprint(
         return None
 
 
+def _lineage(opts: dict) -> str:
+    """Describe how the visual COG was derived from the archived original."""
+    if opts.get("lossy"):
+        return (
+            f"Lossy display COG (compress {opts.get('compress')} quality "
+            f"{opts.get('quality')}, transparency from the source mask as "
+            f"{opts.get('mask')}) derived from the archived original; the "
+            "unmodified upload is the 'original' asset."
+        )
+    return (
+        f"Lossless COG (compress {opts.get('compress')} level {opts.get('level')}, "
+        f"predictor {opts.get('predictor')}) derived from the archived original; "
+        "per-band GDAL checksums matched the source (corruption check)."
+    )
+
+
 def _load_provenance(cog_path: str) -> dict | None:
     """Read the convert step's <cog>.json provenance sidecar, if present."""
     try:
@@ -553,6 +573,7 @@ def build_item(
         bands = _band_info(src)
         idx, colormap, rescale, thumb, alpha = _browse(src, product_type, bands)
         src_nodata = src.nodata
+        has_mask = any(MaskFlags.per_dataset in f for f in src.mask_flag_enums)
         _write_thumbnail(thumb, alpha, thumbnail_path)
 
         fp = _footprint(src)
@@ -640,7 +661,7 @@ def build_item(
     if footprint_area is not None:
         item.properties["oam:footprint_area"] = footprint_area
     item.properties["renders"] = _renders(
-        product_type, idx, colormap, rescale, src_nodata
+        product_type, idx, colormap, rescale, src_nodata, has_mask
     )
     if RENDER_EXT_URI not in item.stac_extensions:
         item.stac_extensions.append(RENDER_EXT_URI)
@@ -658,11 +679,9 @@ def build_item(
         # Keep the filterable primary version separate from the software map.
         if software.get("oam-uploader-convert"):
             item.properties["processing:version"] = software["oam-uploader-convert"]
-        item.properties["processing:lineage"] = (
-            f"Lossless COG (compress {opts.get('compress')} level {opts.get('level')}, "
-            f"predictor {opts.get('predictor')}) derived from the archived original; "
-            "per-band GDAL checksums matched the source (corruption check)."
-        )
+        item.properties["processing:lineage"] = _lineage(opts)
+        if opts.get("lossy"):
+            item.assets["visual"].title = f"Display COG (lossy {opts.get('compress')})"
         if prov.get("created_at"):
             item.properties["processing:datetime"] = prov["created_at"]
         if PROC_EXT_URI not in item.stac_extensions:

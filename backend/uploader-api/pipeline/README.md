@@ -19,8 +19,9 @@ back to `uploader-api` via the per-upload callback token.
   S3 or downloads a remote `source_url`, then reports the original checksum.
 - **`validate`** (`uploader-validate`): product-type-aware checks for CRS, size,
   content, and GeoTIFF format (exit 5/6/7/8).
-- **`convert`** (`uploader-convert`): raster to native-dtype lossless COG using
-  the GDAL COG driver; verifies losslessness and COG layout.
+- **`convert`** (`uploader-convert`): visual RGB(A) to lossy WEBP COG;
+  everything else to native-dtype lossless ZSTD COG. Verifies content and COG
+  layout.
 - **`metadata`** (`uploader-metadata`): builds the OAM STAC item with
   **`stactools-hotosm`**, including original and COG assets, checksums,
   per-type render parameters, and a thumbnail.
@@ -42,9 +43,9 @@ upload, the item carries up to three tracks:
 
 - **`original`** - the unmodified upload, kept as-is for archival / recovery. A
   STAC asset is only a pointer, so cataloging it does not alter the bytes.
-- **`visual`** (the COG) - a lossless, single-pass COG in the source's **native**
-  dtype and band count (never downcast). This is the analysis-ready, byte-range
-  asset; losslessness is verified against the source per band.
+- **`visual`** (the COG) - a byte-range serving copy. Visual RGB(A) uses lossy
+  WEBP q90; other products remain native-dtype lossless ZSTD. See
+  [decision 0008](../../../docs/decisions/0008-lossy-visual-cogs.md).
 - **2D display** - rendered on demand by titiler from the COG using the
   `renders` params written per `oam:product_type` (`visual` shown as-is;
   `multispectral`/`sar`/`elevation`/`pseudocolor` get band selection, rescale and

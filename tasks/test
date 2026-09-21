@@ -36,7 +36,7 @@ chart:
 
 # Every uploader suite in its built image.
 [no-cd]
-uploader: uploader-api fetch validate metadata
+uploader: uploader-api fetch validate convert metadata
   {{docker}} compose -f compose.test.yaml down --remove-orphans
 
 # Uploader API unit tests (app/tests).
@@ -53,6 +53,11 @@ fetch:
 [no-cd]
 validate:
   {{docker}} compose -f compose.test.yaml run --rm --build test-validate
+
+# Pipeline convert-step unit tests (convert/tests).
+[no-cd]
+convert:
+  {{docker}} compose -f compose.test.yaml run --rm --build test-convert
 
 # Pipeline metadata-step unit tests (metadata/tests).
 [no-cd]
