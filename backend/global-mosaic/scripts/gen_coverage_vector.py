@@ -4,10 +4,9 @@ Generate the OAM global PMTiles archives from the pgSTAC catalogue.
 Produces two independent PMTiles files:
 
 - ``global-coverage.pmtiles`` (``density`` layer): Web-Mercator grid
-  cells at z0-13 with a ``count`` property per cell. Rendered by
-  chiitiler over z0-13 (see ``backend/global-tms``). TiTiler takes
-  over at z14+ for real imagery, so we deliberately do not emit
-  anything past z13 here.
+  cells at z0-13 with total and per-collection image counts. Rendered by
+  chiitiler over z0-13 (see ``backend/global-tms``); TiTiler serves real
+  imagery at z14+.
 
 - ``global-data.pmtiles`` (``globalcoverage`` layer): per-image
   polygon footprints at z0-13 with rich metadata (title, provider,
@@ -54,8 +53,15 @@ if not PG_DSN:
 
 COLLECTION = os.getenv("COLLECTION", "openaerialmap")
 
-# Density (grid cells) - filename is preserved for the global-tms
-# pipeline which points at s3://oin-hotosm-temp/global-coverage.pmtiles.
+# Deployment allowlist for collections shown in the browser.
+# Footprints and density use it; stats remain scoped to COLLECTION.
+FOOTPRINT_COLLECTIONS = [
+    c.strip()
+    for c in os.getenv("FOOTPRINT_COLLECTIONS", COLLECTION).split(",")
+    if c.strip()
+]
+
+# Density stores total and per-collection counts for the allowlist.
 OUTPUT_DENSITY_GEOJSON = os.getenv(
     "OUTPUT_DENSITY_GEOJSON", "/app/output/global-density.geojson"
 )
@@ -220,12 +226,15 @@ def _image_buckets(
     acq_ts: datetime | None,
     gsd: float | None,
     now: datetime,
+    collection: str | None = None,
 ) -> tuple[str, ...]:
     """
     All bucket keys an image increments. Kept as a tuple so the inner
     binning loop just iterates without allocating a new list per image.
     """
     buckets: list[str] = []
+    if collection:
+        buckets.append(f"count_col_{collection}")
     plat = (platform or "").lower()
     buckets.append(PLATFORM_BUCKETS.get(plat, PLATFORM_DEFAULT_BUCKET))
     lb = _license_bucket(license_str)
@@ -240,7 +249,7 @@ def _image_buckets(
 
 def get_density_features() -> None:
     """
-    Query PgSTAC for OAM image centroids + bboxes and pre-bin them into
+    Query PgSTAC for image centroids + bboxes and pre-bin them into
     Web-Mercator tile-cell grids at multiple zoom levels. Each grid cell
     carries:
 
@@ -273,7 +282,8 @@ def get_density_features() -> None:
     # `count_aircraft`, so the frontend's satellite/uav filters match
     # nothing.
     centroid_query = """
-        SELECT ST_X(ST_Centroid(geometry)) AS lon,
+        SELECT collection::text AS collection,
+               ST_X(ST_Centroid(geometry)) AS lon,
                ST_Y(ST_Centroid(geometry)) AS lat,
                ST_XMin(geometry) AS xmin,
                ST_YMin(geometry) AS ymin,
@@ -301,12 +311,15 @@ def get_density_features() -> None:
                    THEN (content->'properties'->>'gsd')::double precision
                END AS gsd
         FROM pgstac.items
-        WHERE collection = %s
+        WHERE collection = ANY(%s)
           AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
     """
-    params = [COLLECTION] + list(BBOX)
+    params = [FOOTPRINT_COLLECTIONS] + list(BBOX)
 
-    log.info(f"Fetching OAM centroids + bboxes for density grid (bbox={BBOX})...")
+    log.info(
+        f"Fetching centroids + bboxes for density grid "
+        f"(collections={FOOTPRINT_COLLECTIONS}, bbox={BBOX})..."
+    )
     now = datetime.now(timezone.utc)
     # Each record: (lon, lat, xmin, ymin, xmax, ymax, buckets)
     records: list[tuple[float, float, float, float, float, float, tuple[str, ...]]] = []
@@ -314,6 +327,7 @@ def get_density_features() -> None:
         with connect(PG_DSN) as conn, conn.cursor() as cur:
             cur.execute(centroid_query, params)
             for (
+                collection,
                 lon,
                 lat,
                 xmin,
@@ -344,6 +358,7 @@ def get_density_features() -> None:
                             acq_ts,
                             float(gsd) if gsd is not None else None,
                             now,
+                            collection,
                         ),
                     )
                 )
@@ -377,7 +392,8 @@ def get_density_features() -> None:
                 for bk in buckets:
                     bkt[bk] = bkt.get(bk, 0) + 1
 
-            for (x, y), (count, bw, bs, be, bn, bkt) in cells.items():
+            # Database row order is undefined; sort cells for reproducible output.
+            for (x, y), (count, bw, bs, be, bn, bkt) in sorted(cells.items()):
                 w = _tile2lon(x, cell_zoom)
                 e = _tile2lon(x + 1, cell_zoom)
                 n = _tile2lat(y, cell_zoom)
@@ -437,7 +453,7 @@ def get_density_features() -> None:
 
 def density_to_pmtiles() -> None:
     """
-    Run tippecanoe to build the density PMTiles archive with a single
+    Run tippecanoe to build a density PMTiles archive with a single
     `density` layer of pre-binned grid cells (polygons for fill + points
     for labels).
     """
@@ -499,7 +515,9 @@ def _build_render_query(renders: dict) -> str | None:
     return "&".join(parts) or None
 
 
-def _extract_feature_properties(feature_id: str, content: dict) -> dict:
+def _extract_feature_properties(
+    feature_id: str, content: dict, collection: str | None = None
+) -> dict:
     """
     Flatten STAC Item content into the minimal property set the browser
     consumes. Missing fields are omitted so tippecanoe doesn't emit
@@ -543,6 +561,8 @@ def _extract_feature_properties(feature_id: str, content: dict) -> dict:
     # See frontend/src/browse/components/Map.tsx.
     out = {
         "_id": feature_id,
+        # Additive for compatibility with clients that only know `_id`.
+        "collection": collection,
         "title": props.get("title"),
         "provider": provider_name,
         "platform": props.get("oam:platform_type"),
@@ -583,20 +603,23 @@ def get_footprint_features() -> None:
     can render sidebar cards and filter on without any STAC API calls.
     """
     where_bbox = "AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)"
-    params = [COLLECTION] + list(BBOX)
-
+    params = [FOOTPRINT_COLLECTIONS] + list(BBOX)
     query = f"""
         SELECT
             id::text AS id,
+            collection::text AS collection,
             ST_AsGeoJSON(geometry) AS geom,
             content
         FROM pgstac.items
-        WHERE collection = %s
+        WHERE collection = ANY(%s)
         {where_bbox}
-        ORDER BY (content->>'datetime')::timestamptz DESC;
+        ORDER BY datetime DESC NULLS LAST;
     """
 
-    log.info(f"Querying PgSTAC for footprints (bbox={BBOX})...")
+    log.info(
+        f"Querying PgSTAC for footprints "
+        f"(collections={FOOTPRINT_COLLECTIONS}, bbox={BBOX})..."
+    )
     Path(OUTPUT_FOOTPRINTS_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
     row_count = 0
     try:
@@ -607,12 +630,14 @@ def get_footprint_features() -> None:
         ):
             cur.execute(query, params)
             for row in cur:
-                feature_id, geom_json, content = row
+                feature_id, collection, geom_json, content = row
                 if not geom_json:
                     continue
                 try:
                     geom = json.loads(geom_json)
-                    properties = _extract_feature_properties(feature_id, content or {})
+                    properties = _extract_feature_properties(
+                        feature_id, content or {}, collection
+                    )
                     feature = {
                         "type": "Feature",
                         "geometry": geom,

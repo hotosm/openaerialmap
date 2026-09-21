@@ -61,10 +61,10 @@ The two archives are:
 
 1. **`global-coverage.pmtiles`** - a `density` layer of Web-Mercator
    grid cells at z0-13 with a `count` property per cell (number of
-   image centroids that fall inside). This is the "heatmap" view of
-   where imagery exists at world/regional zooms. Also served through
-   `global-tms` as a raster TMS for clients that don't speak PMTiles
-   (e.g. QGIS).
+   image centroids that fall inside). MADR 0009 defines how this works
+   across collections. This is the "heatmap" view of where imagery
+   exists at world/regional zooms. It is also served through
+   `global-tms` for clients that don't speak PMTiles (e.g. QGIS).
 2. **`global-data.pmtiles`** - a `globalcoverage` layer of per-image
    footprint polygons at z0-13 with rich metadata (title, provider,
    platform, GSD, sensor, license, acquisition end, thumbnail URL,
