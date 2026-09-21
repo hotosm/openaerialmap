@@ -609,8 +609,9 @@ def get_footprint_features() -> None:
             id::text AS id,
             collection::text AS collection,
             ST_AsGeoJSON(geometry) AS geom,
-            content
-        FROM pgstac.items
+            -- Raw content is dehydrated: missing item_assets keys are "𒍟※" strings.
+            pgstac.content_hydrate(items) AS content
+        FROM pgstac.items AS items
         WHERE collection = ANY(%s)
         {where_bbox}
         ORDER BY datetime DESC NULLS LAST;
