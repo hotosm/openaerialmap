@@ -17,4 +17,4 @@ from the projects inception.
 - [0006 - Tilepack API for MBTiles / PMTiles downloads](./0006-tilepack-api.md)
 - [0007 - Uploader stack (Litestar + HTMX + Kubernetes)](./0007-uploader-stack.md)
 - [0008 - Lossy WEBP COGs for visual imagery](./0008-lossy-visual-cogs.md)
-- [0009 - Browse more than one STAC collection, behind an allowlist](./0009-multi-collection-browse.md)
+- [0009 - Allowlist STAC collections shown in Browse](./0009-multi-collection-browse.md)
