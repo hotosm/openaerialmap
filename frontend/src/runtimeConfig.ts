@@ -11,7 +11,8 @@ type RuntimeConfigKey =
   | "VITE_UPLOADER_URL"
   | "VITE_PACKAGER_URL"
   | "VITE_BASEMAP_STYLE_URL"
-  | "VITE_ANNOUNCEMENT_URL";
+  | "VITE_ANNOUNCEMENT_URL"
+  | "VITE_INTAKE_URL";
 
 declare global {
   interface Window {
