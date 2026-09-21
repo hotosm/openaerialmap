@@ -81,11 +81,7 @@ export default function Browse() {
     setMapBounds(exactBounds);
   };
 
-  // Sources seen in the tiles so far. Accumulates rather than tracking the
-  // current view, for two reasons: selecting a source filters `features` down
-  // to that one source, which would otherwise collapse the chip to a single
-  // option and strand the user with no way back; and panning to an area
-  // covered by only one source should not make the others unselectable.
+  // Accumulate collections so filtering and panning cannot remove source options.
   const handleCollectionsUpdate = (ids: string[]) => {
     setSeenCollections((prev) => {
       const next = new Set(prev);

@@ -92,12 +92,7 @@ export const SIDEBAR_PAGE_SIZE = 10;
 export const DEFAULT_CENTER: [number, number] = [0, 20];
 export const DEFAULT_ZOOM = 2;
 
-// Display names for the pgSTAC collections the browse map can show. The
-// generator decides WHICH collections appear (FOOTPRINT_COLLECTIONS); this only
-// decides what they are CALLED. Kept as a small hand-maintained registry, the
-// same shape Planetary Computer and NASA VEDA use for per-collection display
-// config. Unknown ids fall back to the raw id, so a new collection appears
-// with a usable label before anyone edits this file.
+// Display names for collections; unknown ids fall back to the raw id.
 export const COLLECTION_LABELS: Record<string, string> = {
   openaerialmap: "OpenAerialMap",
   "vantor-opendata": "Vantor Open Data",

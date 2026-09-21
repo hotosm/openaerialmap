@@ -39,10 +39,7 @@ const VALID_PLATFORMS = ["", "satellite", "uav", "aircraft"];
 // can emit so a rogue URL can't inject an arbitrary substring into the
 // filter expression.
 const VALID_LICENSES = ["", "CC-BY 4.0", "CC BY-NC 4.0", "CC BY-SA 4.0"];
-// Collection ids come from the tiles rather than a fixed UI list, so validate
-// by shape instead of membership: STAC ids are word characters, dots and
-// dashes. Matched exactly (not substring-wise) in buildFilter, so a value that
-// matches nothing simply yields an empty map.
+// Collection ids aren't a fixed list, so validate by shape, not membership.
 const COLLECTION_ID_RE = /^[\w.-]{1,128}$/;
 
 export function readInitialFilters(): Filters {
@@ -96,8 +93,6 @@ export function writeFilters(f: Filters): void {
       if (f[key]) p.set(key, f[key]);
       else p.delete(key);
     });
-    // `source` rather than `collection`: shorter, and it reads as the
-    // user-facing concept rather than the pgSTAC one.
     if (f.collection) p.set("source", f.collection);
     else p.delete("source");
   });

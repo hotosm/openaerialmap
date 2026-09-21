@@ -263,9 +263,6 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           <span className="truncate max-w-[130px]" title={p.provider}>
             {p.provider}
           </span>
-          {/* Which STAC collection this item came from. Neutral grey rather
-              than a per-source colour: sources are open-ended, so a colour
-              scheme would need a palette entry for every new catalogue. */}
           <span
             className="ml-auto shrink-0 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-[10px] font-medium tracking-wide text-gray-600 uppercase"
             title={`STAC source: ${p.collection}`}

@@ -30,10 +30,7 @@ export type ImageFeature = Feature<Polygon | MultiPolygon, ImageProperties>;
 // by backend/global-mosaic/scripts/gen_coverage_vector.py; keep in sync.
 export interface RawTileProperties {
   _id: string;
-  // Emitted by the generator's footprint query. Absent on legacy tiles built
-  // before multi-collection support, hence optional - callers fall back to
-  // COLLECTION_ID so a tile rebuild and a frontend deploy can land in either
-  // order without breaking item URLs.
+  // Absent on legacy tiles; callers fall back to COLLECTION_ID.
   collection?: string;
   uuid?: string;
   title?: string;
@@ -59,8 +56,7 @@ export type DatePreset = "" | "week" | "month" | "year";
 export type ResolutionPreset = "" | "lt05" | "05to2" | "2to10" | "gt10";
 
 export interface Filters {
-  // pgSTAC collection id, or "" for all. Exact match, unlike `license`
-  // which is substring-matched.
+  // pgSTAC collection id, or "" for all. Exact match.
   collection: string;
   // Date is a preset picker rather than a free-form range so the
   // density grid can look up a matching pre-baked count bucket at

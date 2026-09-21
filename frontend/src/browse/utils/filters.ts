@@ -207,8 +207,6 @@ function resolutionBucketKey(preset: ResolutionPreset): string | null {
 // world-zoom count and the zoomed-in sidebar count agree.
 export function densityCountExpr(f: Filters): unknown {
   const keys: string[] = [];
-  // Source first: without it, picking a source leaves the grid showing the
-  // combined total of every collection, which is simply the wrong number.
   if (f.collection) {
     keys.push(`${COLLECTION_COUNT_PREFIX}${f.collection}`);
   }
