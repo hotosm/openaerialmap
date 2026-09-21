@@ -38,6 +38,8 @@ env:
   S3_EXTERNAL_ENDPOINT: ""
   # Production asset links require a public S3 or CDN URL.
   PUBLIC_ASSET_BASE_URL: ""
+  # Set to "public-read" for ACL-based public access.
+  S3_OBJECT_ACL: ""
   S3_BUCKET: oam
   S3_REGION: us-east-1
   ARGO_NAMESPACE: oam

@@ -248,6 +248,9 @@ Configure these bucket-wide settings outside the application:
 
 - CORS must allow the uploader origin and expose `ETag` for multipart uploads.
 - A lifecycle rule should abort incomplete multipart uploads after seven days.
+- Catalogue assets must be anonymously readable. For buckets without a public
+  read policy, including prod's cross-account `oin-hotosm-temp`, set
+  `S3_OBJECT_ACL=public-read` and grant writers `s3:PutObjectAcl`.
 
 When updating lifecycle configuration, preserve existing retention and tiering
 rules: `PutBucketLifecycleConfiguration` replaces the complete configuration.

@@ -469,10 +469,14 @@ def _fetch_from_url(
             except FileNotFoundError:
                 pass
         log.info("fetch: extracted %s orthophoto bytes from the ODM archive", size)
-    # Only now that the bytes are checked: this bucket is world-readable. Before
-    # input.tif, so a later attempt finds the object it sizes the file against.
+    # Only now that the bytes are checked: this object is readable anonymously.
+    # Before input.tif, so a later attempt finds the object it sizes against.
     log.info("fetch: archiving the original")
-    s3.upload_file(partial, bucket, key, ExtraArgs={"ContentType": "image/tiff"})
+    extra = {"ContentType": "image/tiff"}
+    acl = os.environ.get("S3_OBJECT_ACL", "")
+    if acl:
+        extra["ACL"] = acl
+    s3.upload_file(partial, bucket, key, ExtraArgs=extra)
     _publish(partial, dest)
 
 

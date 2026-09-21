@@ -194,6 +194,8 @@ class Settings(BaseSettings):
     PUBLIC_ASSET_BASE_URL: str | None = None
     S3_BUCKET: str = "oam"
     S3_REGION: str = "us-east-1"
+    # Empty for public buckets; "public-read" for ACL-based buckets.
+    S3_OBJECT_ACL: str = ""
     AWS_ACCESS_KEY_ID: str | None = None
     AWS_SECRET_ACCESS_KEY: SecretStr | None = None
 

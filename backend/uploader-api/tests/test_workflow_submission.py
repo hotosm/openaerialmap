@@ -130,6 +130,13 @@ def test_every_parameter_value_is_a_string(api):
     assert all(isinstance(v, str) for v in params(call).values())
 
 
+def test_the_acl_is_passed_to_the_workflow(api, monkeypatch):
+    monkeypatch.setattr(settings, "S3_OBJECT_ACL", "public-read")
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT)
+    assert params(fake.created[0])["object-acl"] == "public-read"
+
+
 # Workspace sizing. Every run used to take a 300Gi volume whatever it was
 # processing, and the ceiling that volume implies was a constant in validate.
 

@@ -78,6 +78,8 @@ Do not re-litigate these without asking a maintainer:
   botocore's default upload checksums break presigned PUTs against
   MinIO/rustfs. Every boto3 client that presigns must keep this config - see
   `backend/uploader-api/app/uploads/s3.py`.
+- **Prod object storage is ACL-based.** Every write to `oin-hotosm-temp` must
+  use `S3_OBJECT_ACL=public-read`; local stores use a public bucket policy.
 - **pgstac is the catalogue store.** STAC items live in pgstac; do not add a
   parallel item table or an ORM layer over it.
 - **Pipeline stages are separate images.** `fetch`, `validate` and `metadata`

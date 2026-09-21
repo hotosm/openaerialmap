@@ -47,6 +47,11 @@ def _client(endpoint: str | None):
     )
 
 
+def acl_kwargs() -> dict[str, str]:
+    """Return the configured canned ACL, omitting an empty value."""
+    return {"ACL": settings.S3_OBJECT_ACL} if settings.S3_OBJECT_ACL else {}
+
+
 @lru_cache
 def internal_client():
     """S3 client for in-network/server-side calls."""

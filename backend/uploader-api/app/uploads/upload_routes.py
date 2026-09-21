@@ -22,6 +22,7 @@ from app.db.database import db_conn
 from app.db.models import ANONYMOUS_SUB, DbUpload, UploadStatus
 from app.uploads import pipeline_routes
 from app.uploads.s3 import (
+    acl_kwargs,
     external_client,
     internal_client,
     key_owner_prefix,
@@ -81,11 +82,13 @@ async def create_multipart(
 
     # Failed S3 sessions must not count toward the user's upload limit.
     try:
+        # Set the ACL before the browser starts uploading parts.
         resp = await run_blocking(
             internal_client().create_multipart_upload,
             Bucket=settings.S3_BUCKET,
             Key=upload.s3_key,
             ContentType=data.content_type,
+            **acl_kwargs(),
         )
     except botocore.exceptions.ClientError as err:
         await DbUpload.set_status_owned(
@@ -145,6 +148,45 @@ async def list_parts(data: ListPartsBody, auth_user: object) -> list:
     return resp.get("Parts", [])
 
 
+async def _resolve_parts(s3, data: CompleteMultipartBody) -> list[dict] | None:
+    """Use client ETags, falling back to S3 when CORS hid them."""
+    if data.parts and all(p.ETag for p in data.parts):
+        return [{"ETag": p.ETag, "PartNumber": p.PartNumber} for p in data.parts]
+
+    listed: list[dict] = []
+    marker = 0
+    try:
+        while True:
+            resp = await run_blocking(
+                s3.list_parts,
+                Bucket=settings.S3_BUCKET,
+                Key=data.key,
+                UploadId=data.upload_id,
+                PartNumberMarker=marker,
+            )
+            listed += [
+                {"ETag": p["ETag"], "PartNumber": p["PartNumber"]}
+                for p in resp.get("Parts", [])
+            ]
+            if not resp.get("IsTruncated"):
+                break
+            marker = resp["NextPartNumberMarker"]
+    except botocore.exceptions.ClientError:
+        log.warning("Could not list the parts of %s.", data.key)
+        return None
+
+    return sorted(listed, key=lambda p: p["PartNumber"]) or None
+
+
+async def _already_uploaded(s3, key: str) -> bool:
+    """Whether the finished object is there, so a late retry can be a success."""
+    try:
+        await run_blocking(s3.head_object, Bucket=settings.S3_BUCKET, Key=key)
+    except botocore.exceptions.ClientError:
+        return False
+    return True
+
+
 @post("/s3/completemultipart")
 async def complete_multipart(
     data: CompleteMultipartBody, auth_user: object, db: AsyncConnection
@@ -178,30 +220,35 @@ async def complete_multipart(
         )
 
     s3 = internal_client()
-    try:
-        await run_blocking(
-            s3.complete_multipart_upload,
-            Bucket=settings.S3_BUCKET,
-            Key=data.key,
-            UploadId=data.upload_id,
-            MultipartUpload={
-                "Parts": [
-                    {"ETag": p.ETag, "PartNumber": p.PartNumber} for p in data.parts
-                ]
-            },
-        )
-    except botocore.exceptions.ClientError as err:
-        # A retry may find the object after the multipart upload has closed.
-        try:
-            await run_blocking(s3.head_object, Bucket=settings.S3_BUCKET, Key=data.key)
-            log.info("Multipart already completed for %s; continuing.", data.key)
-        except botocore.exceptions.ClientError:
-            # Release the claim, so the caller can fix the parts and try again.
+    parts = await _resolve_parts(s3, data)
+    if parts is None:
+        # A retry may find an object whose multipart session is already closed.
+        if not await _already_uploaded(s3, data.key):
             await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=err.response["Error"]["Message"],
-            ) from err
+                detail="Upload parts are missing their ETags and S3 cannot list them.",
+            )
+        log.info("Multipart already completed for %s; continuing.", data.key)
+    else:
+        try:
+            await run_blocking(
+                s3.complete_multipart_upload,
+                Bucket=settings.S3_BUCKET,
+                Key=data.key,
+                UploadId=data.upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        except botocore.exceptions.ClientError as err:
+            # A retry may find the object after the multipart upload has closed.
+            if not await _already_uploaded(s3, data.key):
+                # Release the claim, so the caller can fix the parts and retry.
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=err.response["Error"]["Message"],
+                ) from err
+            log.info("Multipart already completed for %s; continuing.", data.key)
 
     workflow_name = await start_processing(db, upload)
     return {"upload_id": upload_id, "workflow": workflow_name}

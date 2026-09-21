@@ -15,6 +15,7 @@ from psycopg import AsyncConnection
 
 import app
 from app.auth.auth_deps import get_user_sub
+from app.config import settings
 from app.db.models import ANONYMOUS_SUB, DbUpload, DbUser
 from app.htmx.page_routes import (
     MAX_TRACKED,
@@ -171,16 +172,15 @@ def test_an_id_that_resolves_to_nothing_says_so(monkeypatch):
 async def test_the_upload_session_hands_back_the_row_id(monkeypatch):
     """Return the database row ID with a multipart session."""
     row = DbUpload(id=str(uuid.uuid4()), s3_key="anonymous/x/o.tif")
+    s3 = MagicMock()
+    s3.create_multipart_upload.return_value = {"UploadId": "mp-1"}
 
     async def fake_row(*args, **kwargs):
         return row
 
     monkeypatch.setattr(upload_routes, "create_upload_row", fake_row)
-    monkeypatch.setattr(
-        upload_routes,
-        "internal_client",
-        lambda: MagicMock(create_multipart_upload=lambda **kw: {"UploadId": "mp-1"}),
-    )
+    monkeypatch.setattr(upload_routes, "internal_client", lambda: s3)
+    monkeypatch.setattr(settings, "S3_OBJECT_ACL", "public-read")
     resp = await upload_routes.create_multipart.fn(
         data=CreateMultipartBody(filename="o.tif", title="t", size_bytes=1),
         auth_user=_USER,
@@ -188,3 +188,4 @@ async def test_the_upload_session_hands_back_the_row_id(monkeypatch):
     )
     assert resp["id"] == row.id
     assert resp["key"] == row.s3_key
+    assert s3.create_multipart_upload.call_args.kwargs["ACL"] == "public-read"

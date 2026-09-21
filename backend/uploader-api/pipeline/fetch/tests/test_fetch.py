@@ -252,6 +252,7 @@ def test_nodeodm_archive_flow_stores_only_the_extracted_tiff(
             self.uploaded = Path(source).read_bytes()
             assert (bucket, key) == ("oam", "user/id/orthophoto.tif")
             assert ExtraArgs == {"ContentType": "image/tiff"}
+            assert "ACL" not in ExtraArgs, "rustfs and MinIO reject the argument"
 
     monkeypatch.setenv("ALLOW_PRIVATE_HOSTS", "true")
     s3 = _S3()
@@ -445,3 +446,25 @@ def test_a_finished_download_is_not_done_twice(tmp_path, local, archived, comple
             return {"ContentLength": archived}
 
     assert fetch._complete_input(_S3(), str(dest), bucket="oam", key="k") is complete
+
+
+def test_the_archived_original_carries_the_configured_acl(
+    server, tmp_path, monkeypatch
+):
+    seen = {}
+
+    class _S3:
+        def upload_file(self, source, bucket, key, ExtraArgs):
+            seen.update(ExtraArgs)
+
+    monkeypatch.setenv("ALLOW_PRIVATE_HOSTS", "true")
+    monkeypatch.setenv("S3_OBJECT_ACL", "public-read")
+    _fetch_from_url(
+        _S3(),
+        f"{server}/task/abc/download/all.zip",
+        dest=str(tmp_path / "input.tif"),
+        bucket="oam",
+        key="user/id/orthophoto.tif",
+        max_bytes=1024**2,
+    )
+    assert seen == {"ContentType": "image/tiff", "ACL": "public-read"}

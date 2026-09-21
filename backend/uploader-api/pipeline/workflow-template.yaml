@@ -84,6 +84,9 @@ spec:
       # uploader does not have to pass it.
       - name: awsregion
         value: "us-east-1"
+      # Optional canned ACL for uploaded objects.
+      - name: object-acl
+        value: ""
 
   # uploader-api replaces this claim per upload, sized from the object and on a
   # class that reclaims. Argo takes no parameter in a PVC size, so the fallback
@@ -229,6 +232,7 @@ spec:
           - { name: AWS_DEFAULT_REGION, value: "{{workflow.parameters.awsregion}}" }
           - { name: S3_ENDPOINT, value: "{{workflow.parameters.awsurl}}" }
           - { name: S3_BUCKET, value: "{{workflow.parameters.bucket}}" }
+          - { name: S3_OBJECT_ACL, value: "{{workflow.parameters.object-acl}}" }
           - { name: S3_KEY, value: "{{workflow.parameters.key}}" }
           - { name: FRONT_URL, value: "{{workflow.parameters.fronturl}}" }
           - { name: UPLOAD_ID, value: "{{workflow.parameters.id}}" }
@@ -351,7 +355,9 @@ spec:
             set -eu
             EP="{{workflow.parameters.awsurl}}"
             AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
-            $AWS s3 cp /data/output.tif \
+            ACL="{{workflow.parameters.object-acl}}"
+            ACL_ARG=""; [ -n "$ACL" ] && ACL_ARG="--acl $ACL"
+            $AWS s3 cp $ACL_ARG /data/output.tif \
               {{workflow.parameters.s3-path}}cog-{{workflow.parameters.filename}}
         volumeMounts:
           - { name: workspace, mountPath: /data }
@@ -378,8 +384,10 @@ spec:
             set -eu
             EP="{{workflow.parameters.awsurl}}"
             AWS="aws"; [ -n "$EP" ] && AWS="aws --endpoint-url=$EP"
-            $AWS s3 cp /data/metadata.json {{workflow.parameters.s3-path}}metadata.json
-            $AWS s3 cp /data/thumbnail.png {{workflow.parameters.s3-path}}thumbnail.png
+            ACL="{{workflow.parameters.object-acl}}"
+            ACL_ARG=""; [ -n "$ACL" ] && ACL_ARG="--acl $ACL"
+            $AWS s3 cp $ACL_ARG /data/metadata.json {{workflow.parameters.s3-path}}metadata.json
+            $AWS s3 cp $ACL_ARG /data/thumbnail.png {{workflow.parameters.s3-path}}thumbnail.png
         volumeMounts:
           - { name: workspace, mountPath: /data }
       retryStrategy:

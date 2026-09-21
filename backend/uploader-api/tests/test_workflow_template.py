@@ -153,6 +153,19 @@ def test_the_fetch_step_gets_the_size_limit_it_has_to_enforce():
     assert env["MAX_FETCH_BYTES"] == "{{workflow.parameters.max-fetch-bytes}}"
 
 
+def test_uploads_receive_the_optional_object_acl():
+    defaults = {p["name"]: p.get("value") for p in SPEC["arguments"]["parameters"]}
+    assert defaults["object-acl"] == ""
+
+    env = {e["name"]: e.get("value") for e in STEPS["fetch-source"]["container"]["env"]}
+    assert env["S3_OBJECT_ACL"] == "{{workflow.parameters.object-acl}}"
+
+    for step in ("s3-upload-cog", "s3-upload-meta"):
+        script = STEPS[step]["container"]["args"][0]
+        assert 'ACL="{{workflow.parameters.object-acl}}"' in script
+        assert "$AWS s3 cp $ACL_ARG" in script
+
+
 # Sizing.
 
 

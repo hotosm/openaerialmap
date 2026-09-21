@@ -83,9 +83,9 @@ class ListPartsBody(BaseModel):
 
 
 class Part(BaseModel):
-    """A completed part."""
+    """A completed part; CORS may prevent the browser reading its ETag."""
 
-    ETag: str
+    ETag: str | None = None
     PartNumber: int
 
 

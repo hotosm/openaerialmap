@@ -116,6 +116,7 @@ def submit_geotiff_workflow(
         "uuid": user_sub,
         "state": callback_token,
         "externalaws": _public_asset_base_url(),
+        "object-acl": settings.S3_OBJECT_ACL,
         "awsurl": settings.S3_ENDPOINT or "",
         "fronturl": settings.WF_CALLBACK_URL,
         "image-tag": settings.PIPELINE_IMAGE_TAG,
