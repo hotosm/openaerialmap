@@ -39,6 +39,8 @@ const VALID_PLATFORMS = ["", "satellite", "uav", "aircraft"];
 // can emit so a rogue URL can't inject an arbitrary substring into the
 // filter expression.
 const VALID_LICENSES = ["", "CC-BY 4.0", "CC BY-NC 4.0", "CC BY-SA 4.0"];
+// Collection ids aren't a fixed list, so validate by shape, not membership.
+const COLLECTION_ID_RE = /^[\w.-]{1,128}$/;
 
 export function readInitialFilters(): Filters {
   const params = new URLSearchParams(window.location.search);
@@ -52,7 +54,9 @@ export function readInitialFilters(): Filters {
   const platform = VALID_PLATFORMS.includes(rawPlatform) ? rawPlatform : "";
   const rawLicense = params.get("license") || "";
   const license = VALID_LICENSES.includes(rawLicense) ? rawLicense : "";
-  return { date, platform, resolution, license };
+  const rawCollection = params.get("source") || "";
+  const collection = COLLECTION_ID_RE.test(rawCollection) ? rawCollection : "";
+  return { date, platform, resolution, license, collection };
 }
 
 export function readSelectedId(): string | null {
@@ -89,5 +93,7 @@ export function writeFilters(f: Filters): void {
       if (f[key]) p.set(key, f[key]);
       else p.delete(key);
     });
+    if (f.collection) p.set("source", f.collection);
+    else p.delete("source");
   });
 }

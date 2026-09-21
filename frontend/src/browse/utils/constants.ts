@@ -23,6 +23,11 @@ export const DENSITY_SOURCE_URL = `pmtiles://${DENSITY_PMTILES_URL}`;
 
 export const DENSITY_SOURCE_LAYER = "density";
 
+// Per-source counts on a density cell, e.g. `count_col_vantor-opendata`.
+// Written by _image_buckets() in backend/global-mosaic/scripts/gen_coverage_vector.py;
+// a change here needs a matching change there.
+export const COLLECTION_COUNT_PREFIX = "count_col_";
+
 // TiTiler endpoint for per-item bounds, previews, and raster tiles.
 export const STAC_TITILER_URL = getRuntimeConfig(
   "VITE_STAC_TITILER_URL",
@@ -86,3 +91,17 @@ export const SIDEBAR_PAGE_SIZE = 10;
 
 export const DEFAULT_CENTER: [number, number] = [0, 20];
 export const DEFAULT_ZOOM = 2;
+
+// Display names for collections; unknown ids fall back to the raw id.
+export const COLLECTION_LABELS: Record<string, string> = {
+  openaerialmap: "OpenAerialMap",
+  "vantor-opendata": "Vantor Open Data",
+  "maxar-opendata": "Maxar Open Data",
+  "noaa-emergency-response": "NOAA Emergency Response",
+  "cop-dem-glo-30": "Copernicus DEM GLO-30",
+};
+
+export function collectionLabel(id: string | undefined | null): string {
+  if (!id) return COLLECTION_LABELS[COLLECTION_ID] ?? COLLECTION_ID;
+  return COLLECTION_LABELS[id] ?? id;
+}

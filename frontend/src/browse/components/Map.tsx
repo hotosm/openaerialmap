@@ -12,6 +12,7 @@ import {
   PMTILES_SOURCE_LAYER,
   DENSITY_SOURCE_URL,
   DENSITY_SOURCE_LAYER,
+  COLLECTION_COUNT_PREFIX,
   FOOTPRINT_MIN_ZOOM,
   LARGE_IMAGE_THRESHOLD_SQ_KM,
   TMS_LARGE_MIN_ZOOM,
@@ -41,6 +42,8 @@ interface Props {
   selectedFeature: ImageFeature | null;
   onSelect: (f: ImageFeature | null) => void;
   onFeaturesUpdate: (fs: ImageFeature[]) => void;
+  // Collection IDs available independently of the active filter.
+  onCollectionsUpdate?: (ids: string[]) => void;
   searchBbox: BBox | null;
   onSearchArea: (bbox: BBox, center: [number, number], exactBounds: BBox) => void;
   previewsEnabled: boolean;
@@ -69,6 +72,7 @@ export default function OamMap({
   selectedFeature,
   onSelect,
   onFeaturesUpdate,
+  onCollectionsUpdate,
   searchBbox,
   onSearchArea,
   previewsEnabled,
@@ -101,6 +105,7 @@ export default function OamMap({
   const selectedFeatureRef = useRef(selectedFeature);
   const onHoverRef = useRef(onHover);
   const onFeaturesUpdateRef = useRef(onFeaturesUpdate);
+  const onCollectionsUpdateRef = useRef(onCollectionsUpdate);
   const filtersRef = useRef(filters);
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -127,7 +132,8 @@ export default function OamMap({
   }, [onHover]);
   useEffect(() => {
     onFeaturesUpdateRef.current = onFeaturesUpdate;
-  }, [onFeaturesUpdate]);
+    onCollectionsUpdateRef.current = onCollectionsUpdate;
+  }, [onFeaturesUpdate, onCollectionsUpdate]);
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
@@ -181,6 +187,39 @@ export default function OamMap({
     } catch (e) {
       console.error("Error querying rendered features:", e);
     }
+  };
+
+  // Read collections from footprints at high zoom and density buckets at low zoom.
+  // querySourceFeatures is unaffected by layer filters.
+  const emitSeenCollections = () => {
+    if (!map.current || !onCollectionsUpdateRef.current) return;
+    const ids = new Set<string>();
+    try {
+      const all = map.current.querySourceFeatures("oam-tiles", {
+        sourceLayer: PMTILES_SOURCE_LAYER,
+      });
+      for (const f of all) {
+        const c = (f.properties as RawTileProperties).collection;
+        if (c) ids.add(c);
+      }
+    } catch {
+      // Source not ready yet; the next idle event will retry.
+    }
+    try {
+      const cells = map.current.querySourceFeatures("oam-density", {
+        sourceLayer: DENSITY_SOURCE_LAYER,
+      });
+      for (const cell of cells) {
+        for (const key of Object.keys(cell.properties || {})) {
+          if (key.startsWith(COLLECTION_COUNT_PREFIX)) {
+            ids.add(key.slice(COLLECTION_COUNT_PREFIX.length));
+          }
+        }
+      }
+    } catch {
+      // Density source not ready yet; the next idle event will retry.
+    }
+    if (ids.size) onCollectionsUpdateRef.current(Array.from(ids).sort());
   };
 
   const applyFilters = (f: Filters) => {
@@ -590,6 +629,7 @@ export default function OamMap({
       });
 
       map.current!.on("idle", () => {
+        emitSeenCollections();
         emitVisibleFeatures();
         setMapZoom(map.current!.getZoom());
         setIdleTick((t) => t + 1);
@@ -883,6 +923,7 @@ export default function OamMap({
       const p = selectedFeature.properties;
       const rawProps: RawTileProperties = {
         _id: p.id,
+        collection: p.collection,
         asset_name: p.assetName,
         render_params: p.renderParams ?? undefined,
       };
@@ -897,6 +938,7 @@ export default function OamMap({
           fetchItemBounds(
             itemBoundsRef.current,
             p.id,
+            p.collection,
             p.assetName,
             () => setItemBoundsTick((t) => t + 1),
             () => unmountedRef.current,

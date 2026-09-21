@@ -1,3 +1,4 @@
+import { COLLECTION_ID, COLLECTION_COUNT_PREFIX } from "./constants";
 import type { DatePreset, Filters, RawTileProperties, ResolutionPreset } from "./types";
 
 // Both client-side (matchesFilters) and MapLibre-side (buildFilter)
@@ -53,6 +54,8 @@ function matchesResolution(gsd: number | undefined, preset: ResolutionPreset): b
 }
 
 export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
+  // Legacy footprints predate the `collection` property; they can only be OAM.
+  if (f.collection && (p.collection || COLLECTION_ID) !== f.collection) return false;
   if (f.platform) {
     const plat = (p.platform || "").toLowerCase();
     if (f.platform === "uav") {
@@ -83,6 +86,9 @@ export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
 // straight to `map.setFilter(...)`, which resets the layer filter.
 export function buildFilter(f: Filters): unknown[] | null {
   const conditions: unknown[] = ["all"];
+  if (f.collection) {
+    conditions.push(["==", ["coalesce", ["get", "collection"], COLLECTION_ID], f.collection]);
+  }
   if (f.platform) {
     if (f.platform === "uav") {
       conditions.push([
@@ -201,6 +207,9 @@ function resolutionBucketKey(preset: ResolutionPreset): string | null {
 // world-zoom count and the zoomed-in sidebar count agree.
 export function densityCountExpr(f: Filters): unknown {
   const keys: string[] = [];
+  if (f.collection) {
+    keys.push(`${COLLECTION_COUNT_PREFIX}${f.collection}`);
+  }
   if (f.platform) {
     const k = platformBucketKey(f.platform);
     if (k) keys.push(k);

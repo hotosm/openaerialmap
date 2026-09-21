@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import type { ImageFeature } from "../utils/types";
-import { COLLECTION_ID, STAC_BROWSER_URL, STAC_TITILER_URL, STAC_URL } from "../utils/constants";
-import { formatDate, formatPlatform, toSentenceCase } from "../utils/format";
+import {
+  COLLECTION_ID,
+  STAC_BROWSER_URL,
+  STAC_TITILER_URL,
+  STAC_URL,
+  collectionLabel,
+} from "../utils/constants";
+import { formatDate, formatPlatform, formatSensor } from "../utils/format";
 import { triggerTilepack, type TilepackFormat } from "../utils/tilepack";
 
 interface Props {
@@ -24,7 +30,7 @@ interface Props {
 function tmsTemplate(p: ImageFeature["properties"]): string {
   if (!p.id) return "";
   const base =
-    `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${p.id}` +
+    `${STAC_TITILER_URL}/collections/${p.collection || COLLECTION_ID}/items/${p.id}` +
     `/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=${p.assetName}`;
   return p.renderParams ? `${base}&${p.renderParams}` : `${base}&nodata=0`;
 }
@@ -35,9 +41,9 @@ function tmsTemplate(p: ImageFeature["properties"]): string {
 // compact grid the sidebar can show. The OAM deployment uses history-
 // mode routing (path segment, no `#/`), so the ingress rewrite handles
 // the SPA route.
-function stacBrowserItemUrl(itemId: string): string {
+function stacBrowserItemUrl(itemId: string, collection: string): string {
   const stacHostPath = STAC_URL.replace(/^https?:\/\//, "");
-  return `${STAC_BROWSER_URL}/external/${stacHostPath}/collections/${COLLECTION_ID}/items/${itemId}`;
+  return `${STAC_BROWSER_URL}/external/${stacHostPath}/collections/${collection || COLLECTION_ID}/items/${itemId}`;
 }
 
 // One state machine per format. The button always presents as
@@ -251,11 +257,17 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           </h3>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2 flex-wrap">
           <span className="font-medium text-gray-700">{formatDate(p.date)}</span>
           <span className="text-gray-300">•</span>
-          <span className="truncate max-w-[150px]" title={p.provider}>
+          <span className="truncate max-w-[130px]" title={p.provider}>
             {p.provider}
+          </span>
+          <span
+            className="ml-auto shrink-0 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-[10px] font-medium tracking-wide text-gray-600 uppercase"
+            title={`STAC source: ${p.collection}`}
+          >
+            {collectionLabel(p.collection)}
           </span>
         </div>
 
@@ -350,7 +362,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
             </div>
             <div>
               <span className="block text-[10px] uppercase text-gray-400 font-bold">Sensor</span>
-              {toSentenceCase(p.sensor)}
+              {formatSensor(p.sensor)}
             </div>
             <div>
               <span className="block text-[10px] uppercase text-gray-400 font-bold">
@@ -387,7 +399,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           {p.id && (
             <div className="mt-4 pt-3 border-t border-gray-200 text-right">
               <a
-                href={stacBrowserItemUrl(p.id)}
+                href={stacBrowserItemUrl(p.id, p.collection)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={stop}
