@@ -55,7 +55,7 @@ Each schema version has one source file under
 `stac-extension/json-schema/v{version}/schema.json`. The current version is:
 
 ```text
-https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
+https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json
 ```
 
 Do not edit a released schema. The `docs/oam/` and

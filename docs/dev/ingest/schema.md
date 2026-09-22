@@ -8,7 +8,7 @@ adds the small amount of metadata needed by OpenAerialMap.
 The current extension is:
 
 ```text
-https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
+https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json
 ```
 
 Every Item is validated while it is built. Invalid Items are reported and are
@@ -76,6 +76,27 @@ supplies the information; there is no need to invent values.
 | `properties.oam:external_id`                | ID from the system that submitted the imagery, such as an ODM task.  |
 | `properties.processing:*`                   | Software, version, time and lineage used to create the image.        |
 
+### Uploader
+
+Set by the uploader and legacy OAM sync. Third-party imports omit these fields.
+
+| Field                           | Purpose                                                        |
+| ------------------------------- | -------------------------------------------------------------- |
+| `properties.oam:uploader_id`    | Uploading account as `provider\|id`. See below.                |
+| `properties.oam:uploader_name`  | That account's display name or username at the time of upload. |
+| `properties.oam:uploader_email` | That account's contact email, where one is known.              |
+
+`oam:uploader_id` is namespaced so the two catalogues cannot collide:
+
+| Prefix              | Meaning                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `hotosm\|`          | A HOT login, from the current uploader.                     |
+| `oam-legacy\|`      | An account from the legacy OAM API.                         |
+| `custom\|anonymous` | Uploaded anonymously; the account is withheld, not unknown. |
+
+The uploading account may differ from the imagery producer recorded in
+`oam:producer_name` and `providers`.
+
 ### Assets and links
 
 | Field                         | Purpose                                                 |
@@ -111,7 +132,8 @@ available.
 
 | Version  | Notes                                                      |
 | -------- | ---------------------------------------------------------- |
-| `v0.2.0` | Current version. Supports all `oam:` fields listed above.  |
+| `v0.3.0` | Current version. Supports all `oam:` fields listed above.  |
+| `v0.2.0` | Everything except the `oam:uploader_*` fields.             |
 | `v0.1.0` | Only supports `oam:platform_type` and `oam:producer_name`. |
 
 Released schemas must not change. Old Items continue to point to the version
@@ -127,19 +149,29 @@ for the release steps.
 ## Updating existing Items
 
 Rebuilding an Item applies the current schema version. A normal sync cannot do
-this because it skips IDs already in PgSTAC. Dump the source and load it with
-upsert instead:
+this because it skips IDs already in PgSTAC.
+
+!!! danger "Not for the `openaerialmap` collection"
+
+    A dump-and-upsert replaces the whole stored Item, and a rebuilt Item
+    carries only the assets `create_item` produces. Tilepack writes `mbtiles`
+    and `pmtiles` onto Items in `openaerialmap`, and an upsert deletes them.
+    Patch those Items instead - see
+    [Backfill](./backfill.md#updating-existing-items).
+
+For an external provider, whose Items nothing patches after ingest, dump the
+source and load it with upsert:
 
 ```bash
-hotosm dump-oam \
-  --uploaded-after 2016-01-01 \
+hotosm dump-maxar \
+  --uploaded-after 2023-01-01 \
   --handle-exceptions IGNORE \
-  --file oam.ndjson
+  --file maxar.ndjson
 
-pypgstac load items --method upsert oam.ndjson
+pypgstac load items --method upsert maxar.ndjson
 ```
 
-Repeat with `dump-<provider>` for an external provider. See
+Repeat with `dump-<provider>` for another external provider. See
 [Backfill](./backfill.md#updating-existing-items) for more detail.
 
 <!-- markdownlint-enable MD013 MD046 -->

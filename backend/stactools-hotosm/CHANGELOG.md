@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (adapted from [@hfu](https://github.com/hfu)'s external STAC harvester).
 - Validate every third-party Item against the OAM extension before loading it,
   as Items from the OAM metadata API already were.
+- Record the uploading account on Items as `oam:uploader_id`, `oam:uploader_name`
+  and `oam:uploader_email` (OAM extension v0.3.0). The legacy sync retains
+  `user._id` for account reconciliation.
 
 ### Changed
 

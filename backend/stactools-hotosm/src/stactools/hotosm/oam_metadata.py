@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass
+
+# Matches the OAM extension schema.
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
 
 
 @dataclass
@@ -59,12 +63,20 @@ class OamMetadata:
     # Link to static metadata this was derived from
     metadata_url: str
 
+    # Uploading account as `provider|id`.
+    uploader_id: str | None = None
+    # Account display name or username.
+    uploader_name: str | None = None
+    # Account email.
+    uploader_email: str | None = None
+
     def sanitize(self) -> OamMetadata:
         """Return a sanitized version of this metadata item."""
         self._sanitize_acquisition_datetime()
         self._sanitize_license()
         self._sanitize_platform()
         self._sanitize_sensor()
+        self._sanitize_uploader()
         return self
 
     def _sanitize_acquisition_datetime(self):
@@ -90,6 +102,13 @@ class OamMetadata:
     def _sanitize_platform(self):
         """Sanitize platform to a slug representation."""
         self.platform = self.platform.lower().replace("_", "-")
+
+    def _sanitize_uploader(self):
+        """Drop blank or invalid uploader fields."""
+        self.uploader_id = (self.uploader_id or "").strip() or None
+        self.uploader_name = (self.uploader_name or "").strip() or None
+        email = (self.uploader_email or "").strip().lower()
+        self.uploader_email = email if _EMAIL.match(email) else None
 
     def _sanitize_sensor(self):
         """Sanitize bad sensor values."""

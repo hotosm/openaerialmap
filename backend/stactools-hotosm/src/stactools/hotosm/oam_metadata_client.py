@@ -13,6 +13,18 @@ from stactools.hotosm.oam_metadata import OamMetadata
 
 logger = logging.getLogger(__name__)
 
+LEGACY_ID_PREFIX = "oam-legacy"
+
+
+def _split_contact(contact: str | None) -> tuple[str | None, str | None]:
+    """Split a legacy contact into name and email."""
+    if not contact:
+        return None, None
+    parts = [part.strip() for part in contact.split(",") if part.strip()]
+    email = next((part for part in reversed(parts) if "@" in part), None)
+    name = next((part for part in parts if "@" not in part), None)
+    return name, email
+
 
 @dataclass(frozen=True)
 class OamMetadataClient:
@@ -39,6 +51,10 @@ class OamMetadataClient:
         if uploaded_at:
             uploaded_at = dt.datetime.fromisoformat(result["uploaded_at"])
 
+        contact_name, contact_email = _split_contact(result.get("contact"))
+        user = result.get("user") or {}
+        uploader_id = f"{LEGACY_ID_PREFIX}|{user['_id']}" if user.get("_id") else None
+
         return OamMetadata(
             id=result["_id"],
             title=result["title"],
@@ -59,6 +75,9 @@ class OamMetadataClient:
             image_file_size=result["file_size"],
             thumbnail_url=result["properties"]["thumbnail"],
             metadata_url=result["meta_uri"],
+            uploader_id=uploader_id,
+            uploader_name=user.get("name") or contact_name,
+            uploader_email=contact_email,
         )
 
     def get_count(self) -> int:

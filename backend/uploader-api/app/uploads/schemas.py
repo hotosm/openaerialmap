@@ -137,11 +137,7 @@ def _parse_iso(value: str | None) -> dt.datetime | None:
 def clean_metadata(
     metadata: dict[str, str], title: str, contact_default: str | None = None
 ) -> dict[str, str]:
-    """Validate the acquisition window and keep only known metadata fields.
-
-    `contact` falls back to the signed-in user's display name. Their email would
-    be more useful but goes into a public catalogue, so it stays opt-in.
-    """
+    """Validate the acquisition window and keep known metadata fields."""
     start = _parse_iso(metadata.get("acquisition_start"))
     if start is None:
         raise HTTPException(

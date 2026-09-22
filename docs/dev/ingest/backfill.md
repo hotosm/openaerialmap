@@ -118,6 +118,23 @@ pypgstac load items --method upsert maxar.ndjson
 `dump-<source>` rebuilds the Items without checking PgSTAC. `upsert` then
 inserts missing Items and replaces existing ones.
 
+!!! danger "Not for `openaerialmap`: a rebuild deletes its tilepack assets"
+
+    `upsert` replaces the whole Item, and a rebuilt Item carries only the
+    assets `create_item` produces: `visual`, `thumbnail` and `metadata`.
+    Anything patched in afterwards is destroyed. Tilepack writes `mbtiles` and
+    `pmtiles` onto Items in `openaerialmap`, and that is the only collection it
+    writes to, so `maxar-opendata` and `vantor-opendata` are safe to rebuild.
+
+    To add a field to Items already stored, start from the stored Item rather
+    than a rebuilt one: read it, set the new properties, upsert that. The
+    assets survive because they were never dropped, and nothing re-reads the
+    remote imagery, so it is also far faster.
+
+    This is why `oam:uploader_id` is absent from legacy Items synced before OAM
+    extension v0.3.0. Nothing is lost by waiting: `user._id` and `contact` stay
+    available from `api.openaerialmap.org` for as long as it is up.
+
 ## Find all missing legacy Items in a date range
 
 List legacy Items missing from PgSTAC:

@@ -38,6 +38,7 @@ DOCS_DIR = Path(__file__).parents[3].joinpath("docs")
 RELEASED_SCHEMA_SHA256 = {
     "0.1.0": "f8512228a01361265f07d99710056687006b2facb487c57cfe5b90d2a9f5fdfa",
     "0.2.0": "1f442028f486d84fcecbfd63f55e2f872724b654f00e68f8d6ffc1efc4b653d4",
+    "0.3.0": "d4961e9ffc77f5dd311d4e6171c106ff522c8177976368f65e7deda5d3878e4f",
 }
 
 
@@ -194,6 +195,49 @@ def test_v0_2_0_fields_reject_bad_values(
     example_extension_item: dict, key: str, value: Any
 ):
     """Reject invalid v0.2.0 field values."""
+    item = copy.deepcopy(example_extension_item)
+    item["properties"][key] = value
+
+    register_oam_extension_schemas()
+    with pytest.raises(STACValidationError):
+        pystac.Item.from_dict(item).validate()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("oam:uploader_id", "hotosm|1234"),
+        ("oam:uploader_id", "oam-legacy|67f8a774f769c0a050db59c2"),
+        ("oam:uploader_id", "custom|anonymous"),
+        ("oam:uploader_name", "spwoodcock"),
+        ("oam:uploader_email", "someone@example.org"),
+    ],
+)
+def test_v0_3_0_fields_accepted(example_extension_item: dict, key: str, value: Any):
+    """Ensure every field v0.3.0 added is usable."""
+    item = copy.deepcopy(example_extension_item)
+    item["properties"][key] = value
+
+    register_oam_extension_schemas()
+    pystac.Item.from_dict(item).validate()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("oam:uploader_id", "1234"),
+        ("oam:uploader_id", "HOTOSM|1234"),
+        ("oam:uploader_id", "hotosm|"),
+        ("oam:uploader_id", 1234),
+        ("oam:uploader_name", ""),
+        ("oam:uploader_email", "not-an-email"),
+        ("oam:uploadr_id", "typo"),
+    ],
+)
+def test_v0_3_0_fields_reject_bad_values(
+    example_extension_item: dict, key: str, value: Any
+):
+    """Reject invalid v0.3.0 field values."""
     item = copy.deepcopy(example_extension_item)
     item["properties"][key] = value
 

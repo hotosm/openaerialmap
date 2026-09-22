@@ -241,7 +241,13 @@ def sync_oam(
     handle_exceptions: HandleExceptionsType,
     **_pgstac_options: Any,
 ):
-    """Sync new STAC Items from OAM metadata API to PgSTAC."""
+    """Sync new STAC Items from OAM metadata API to PgSTAC.
+
+    Items already in PgSTAC are skipped. Do not lift that filter to backfill a
+    new extension field: the load is a whole-Item upsert, and a rebuilt Item
+    drops the assets other services patch in afterwards - tilepack's `mbtiles`
+    and `pmtiles`. See docs/dev/ingest/backfill.md.
+    """
     uploaded_after = parse_uploaded_since(uploaded_since, uploaded_after)
     loader = Loader(ctx.obj["pgstac"])
     client = OamMetadataClient.new()

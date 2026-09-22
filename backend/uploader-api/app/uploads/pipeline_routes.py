@@ -16,7 +16,7 @@ from psycopg import AsyncConnection
 
 from app.blocking import run_blocking
 from app.config import settings
-from app.db.models import DbUpload, UploadStatus
+from app.db.models import ANONYMOUS_SUB, DbUpload, DbUser, UploadStatus
 from app.uploads import argo
 from app.uploads.pgstac import find_item_by_checksum, upsert_item, validate_item
 from app.uploads.schemas import ChecksumBody, WorkflowStatusBody
@@ -42,15 +42,32 @@ async def _failure_message(upload_id: str) -> str:
     return detail or _GENERIC_FAILURE
 
 
+async def _uploader_meta(db: AsyncConnection, upload: DbUpload) -> dict[str, str]:
+    """Return public uploader metadata for a STAC Item."""
+    sub = upload.user_sub
+    if not sub:
+        return {}
+    meta = {"uploader_id": sub}
+    if sub == ANONYMOUS_SUB:
+        return meta
+    try:
+        user = await DbUser.one(db, sub)
+    except KeyError:
+        log.warning("Upload %s has no mirrored user row for %s", upload.id, sub)
+        return meta
+    name = user.username or user.name
+    if name:
+        meta["uploader_name"] = name
+    if user.email_address:
+        meta["uploader_email"] = user.email_address
+    return meta
+
+
 @get("/uploads/{upload_id:str}/pipeline/meta", exclude_from_auth=True)
 async def pipeline_meta(
     upload_id: FromPath[str], request: Request, db: AsyncConnection
 ) -> dict[str, str]:
-    """Return the metadata the pipeline writes to its `meta.json`.
-
-    Read back here instead of passed as workflow parameters: these are free-text
-    fields and they have no business in argv.
-    """
+    """Return metadata for the pipeline's `meta.json`."""
     upload = await authorized_upload(db, upload_id, request)
     meta = dict(upload.dataset_meta or {})
     meta["title"] = upload.title or upload_id
@@ -58,6 +75,7 @@ async def pipeline_meta(
         meta["external_id"] = upload.external_id
     if upload.external_url:
         meta["external_url"] = upload.external_url
+    meta.update(await _uploader_meta(db, upload))
     return meta
 
 

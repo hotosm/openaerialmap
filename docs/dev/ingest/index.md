@@ -64,8 +64,10 @@ Use a generous window. Existing Items are skipped before conversion, so the
 main cost is reading more source metadata. A window that is too narrow can
 miss imagery published with an older date.
 
-A normal sync never updates an Item already in PgSTAC. To update existing
-metadata, [dump the Items and upsert them](./backfill.md#updating-existing-items).
+A normal sync never updates an Item already in PgSTAC. How to update existing
+metadata depends on the collection, because an upsert replaces the whole Item
+and `openaerialmap` carries assets written after ingest: see
+[Updating existing Items](./backfill.md#updating-existing-items).
 
 ## Errors
 
