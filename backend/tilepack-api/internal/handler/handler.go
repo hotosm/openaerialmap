@@ -84,6 +84,9 @@ func (h *Handler) Routes() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	mux.HandleFunc("GET /processes", h.getProcesses)
+	mux.HandleFunc("GET /processes/{processID}", h.getProcess)
+	mux.HandleFunc("POST /processes/{processID}/execution", h.postProcessExecution)
 	mux.HandleFunc("POST /tilepacks/{id}", h.postTilepack)
 	// Preflight for browser CORS requests to the public trigger
 	// endpoint. Response headers are added by corsMiddleware.
@@ -179,6 +182,148 @@ type response struct {
 	Message    string `json:"message,omitempty"`
 }
 
+type processDescription struct {
+	ID               string         `json:"id"`
+	Title            string         `json:"title"`
+	Description      string         `json:"description"`
+	Version          string         `json:"version,omitempty"`
+	JobControlOptions []string      `json:"jobControlOptions,omitempty"`
+	OutputTransmission []string     `json:"outputTransmission,omitempty"`
+	Keywords         []string       `json:"keywords,omitempty"`
+	Inputs           map[string]any `json:"inputs,omitempty"`
+	Outputs          map[string]any `json:"outputs,omitempty"`
+	Links            []map[string]any `json:"links,omitempty"`
+}
+
+type processListResponse struct {
+	Processes []processDescription `json:"processes"`
+}
+
+const tilepackProcessID = "tilepack"
+
+func (h *Handler) getProcesses(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, processListResponse{Processes: []processDescription{tilepackProcessDescription()}})
+}
+
+func (h *Handler) getProcess(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("processID") != tilepackProcessID {
+		writeJSON(w, http.StatusNotFound, response{Status: "error", Message: "process not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, tilepackProcessDescription())
+}
+
+func (h *Handler) postProcessExecution(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("processID") != tilepackProcessID {
+		writeJSON(w, http.StatusNotFound, response{Status: "error", Message: "process not found"})
+		return
+	}
+	id, format, minZoomQ, maxZoomQ, err := parseProcessExecutionInputs(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, response{Status: "error", Message: err.Error()})
+		return
+	}
+	h.handleTilepackRequest(w, r, id, format, minZoomQ, maxZoomQ)
+}
+
+func parseProcessExecutionInputs(r *http.Request) (string, string, string, string, error) {
+	query := r.URL.Query()
+	id := query.Get("id")
+	if id == "" {
+		id = query.Get("item_id")
+	}
+	format := strings.ToLower(query.Get("format"))
+	minZoomQ := query.Get("min_zoom")
+	maxZoomQ := query.Get("max_zoom")
+
+	if r.Body != nil && r.ContentLength != 0 {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			return "", "", "", "", errors.New("invalid JSON body")
+		}
+		if v, ok := body["id"]; ok && id == "" {
+			if s, ok := v.(string); ok {
+				id = s
+			}
+		}
+		if inputs, ok := body["inputs"].(map[string]any); ok {
+			if v, ok := inputs["id"]; ok && id == "" {
+				if s, ok := v.(string); ok {
+					id = s
+				}
+			}
+			if v, ok := inputs["format"]; ok && format == "" {
+				if s, ok := v.(string); ok {
+					format = strings.ToLower(s)
+				}
+			}
+			if v, ok := inputs["min_zoom"]; ok && minZoomQ == "" {
+				minZoomQ = fmt.Sprint(v)
+			}
+			if v, ok := inputs["max_zoom"]; ok && maxZoomQ == "" {
+				maxZoomQ = fmt.Sprint(v)
+			}
+		}
+		if v, ok := body["format"]; ok && format == "" {
+			if s, ok := v.(string); ok {
+				format = strings.ToLower(s)
+			}
+		}
+		if v, ok := body["min_zoom"]; ok && minZoomQ == "" {
+			minZoomQ = fmt.Sprint(v)
+		}
+		if v, ok := body["max_zoom"]; ok && maxZoomQ == "" {
+			maxZoomQ = fmt.Sprint(v)
+		}
+	}
+	if id == "" {
+		return "", "", "", "", errors.New("stac item id is required")
+	}
+	if format == "" {
+		return "", "", "", "", errors.New("format must be pmtiles or mbtiles")
+	}
+	return id, strings.ToLower(format), minZoomQ, maxZoomQ, nil
+}
+
+func tilepackProcessDescription() processDescription {
+	return processDescription{
+		ID:          tilepackProcessID,
+		Title:       "Tilepack archive generation",
+		Description: "Generate a canonical or custom PMTiles or MBTiles archive for a single OAM STAC item using the existing tilepack worker, S3 output path, and pgSTAC publication flow.",
+		Version:     "1.0.0",
+		JobControlOptions: []string{"async-execute"},
+		OutputTransmission: []string{"reference"},
+		Keywords:    []string{"tilepack", "pmtiles", "mbtiles", "stac", "openaerialmap"},
+		Inputs: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{"type": "string", "description": "STAC item id in the openaerialmap collection"},
+				"format": map[string]any{"type": "string", "enum": []string{"pmtiles", "mbtiles"}},
+				"min_zoom": map[string]any{"type": "integer", "minimum": 0, "maximum": 24},
+				"max_zoom": map[string]any{"type": "integer", "minimum": 0, "maximum": 24},
+			},
+			"required": []string{"id", "format"},
+		},
+		Outputs: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"status": map[string]any{"type": "string", "description": "accepted, in_progress, ready, or error"},
+				"url": map[string]any{"type": "string", "description": "Public S3 URL for a ready archive"},
+				"message": map[string]any{"type": "string"},
+			},
+		},
+		Links: []map[string]any{{
+			"rel": "self",
+			"type": "application/json",
+			"href": "/processes/tilepack",
+		}, {
+			"rel": "execution",
+			"type": "application/json",
+			"href": "/processes/tilepack/execution",
+		}},
+	}
+}
+
 // postTilepack starts or polls tilepack generation for one STAC item.
 //
 // Endpoint:
@@ -203,11 +348,15 @@ type response struct {
 //
 // 409 is terminal for retry_after seconds; 429 is retryable.
 func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
-	started := time.Now()
 	id := r.PathValue("id")
 	format := strings.ToLower(r.URL.Query().Get("format"))
 	minZoomQ := r.URL.Query().Get("min_zoom")
 	maxZoomQ := r.URL.Query().Get("max_zoom")
+	h.handleTilepackRequest(w, r, id, format, minZoomQ, maxZoomQ)
+}
+
+func (h *Handler) handleTilepackRequest(w http.ResponseWriter, r *http.Request, id, format, minZoomQ, maxZoomQ string) {
+	started := time.Now()
 	ip := clientIP(r)
 	zoomMode := "custom"
 	if minZoomQ == "" && maxZoomQ == "" {

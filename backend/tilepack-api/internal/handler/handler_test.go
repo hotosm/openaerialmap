@@ -377,6 +377,98 @@ func TestPostTilepack_EarlyValidationPaths(t *testing.T) {
 	}
 }
 
+func TestProcessDiscoveryRoutes(t *testing.T) {
+	h := &Handler{}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/processes", nil)
+	h.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /processes status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	var list struct {
+		Processes []map[string]any `json:"processes"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&list); err != nil {
+		t.Fatalf("decode /processes: %v", err)
+	}
+	if len(list.Processes) == 0 {
+		t.Fatal("GET /processes returned no processes")
+	}
+	if got := list.Processes[0]["id"]; got != "tilepack" {
+		t.Fatalf("first process id = %#v, want %q", got, "tilepack")
+	}
+
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/processes/tilepack", nil)
+	h.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /processes/tilepack status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	var proc map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&proc); err != nil {
+		t.Fatalf("decode /processes/tilepack: %v", err)
+	}
+	if proc["id"] != "tilepack" {
+		t.Fatalf("process id = %#v, want %q", proc["id"], "tilepack")
+	}
+	if proc["title"] == "" {
+		t.Fatal("process title is empty")
+	}
+
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/processes/unknown", nil)
+	h.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("GET /processes/unknown status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestProcessExecutionValidationUsesTilepackRules(t *testing.T) {
+	h := &Handler{}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/processes/tilepack/execution?id=valid_id-123&format=zip", nil)
+	h.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	var resp response
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Message != "format must be pmtiles or mbtiles" {
+		t.Fatalf("message = %q, want %q", resp.Message, "format must be pmtiles or mbtiles")
+	}
+}
+
+func TestParseProcessExecutionInputs_RejectsMalformedJSON(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/processes/tilepack/execution?format=pmtiles", strings.NewReader("{\"id\":\"abc"))
+	_, _, _, _, err := parseProcessExecutionInputs(req)
+	if err == nil {
+		t.Fatal("parseProcessExecutionInputs() expected malformed JSON error")
+	}
+	if got, want := err.Error(), "invalid JSON body"; got != want {
+		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
+func TestParseProcessExecutionInputs_UsesCanonicalInputsObject(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/processes/tilepack/execution", strings.NewReader(`{"inputs":{"id":"valid_id-123","format":"pmtiles","min_zoom":"3","max_zoom":"8"}}`))
+	id, format, minZoomQ, maxZoomQ, err := parseProcessExecutionInputs(req)
+	if err != nil {
+		t.Fatalf("parseProcessExecutionInputs() unexpected error: %v", err)
+	}
+	if id != "valid_id-123" {
+		t.Fatalf("id = %q, want %q", id, "valid_id-123")
+	}
+	if format != "pmtiles" {
+		t.Fatalf("format = %q, want %q", format, "pmtiles")
+	}
+	if minZoomQ != "3" || maxZoomQ != "8" {
+		t.Fatalf("zoom values = (%q, %q), want (%q, %q)", minZoomQ, maxZoomQ, "3", "8")
+	}
+}
+
 func TestClientIP(t *testing.T) {
 	tests := []struct {
 		name       string
