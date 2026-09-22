@@ -50,10 +50,20 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Match the frontend's resets, so both headers are the same height. */
+hot-header {
+  line-height: 1.5;
+}
+hot-header,
+hot-header * {
+  box-sizing: border-box;
+}
+
 /* Login / account button sizing (mirrors Drone-TM). */
 hotosm-auth {
   --font-family: var(--hot-font-sans);
-  --login-btn-text-size: var(--hot-font-size-x-small);
+  /* 2rem tall, like the other header controls. */
+  --login-btn-padding: calc((2rem - 1.5em) / 2) var(--hot-spacing-medium);
 }
 
 /* Header controls, mirrored from frontend/src/index.css. */
