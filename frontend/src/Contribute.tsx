@@ -81,12 +81,13 @@ const CHECKS: { q: string; why: string; href?: string }[] = [
     why: "URLs that keep pointing at the same file, so the index stays correct.",
   },
   {
-    q: "Acquisition dates",
-    why: "Often missing, and hard to add later. Map data is dated from the imagery it came from.",
+    q: "Basic metadata per image",
+    href: DOCS_SCHEMA,
+    why: "Acquisition date, sensor or platform, provider and license. A STAC catalog is preferred and read as-is; other formats are mapped.",
   },
   {
-    q: "Resolution",
-    why: "Buildings and roads are traceable below about 70 cm. Most mapping uses 35 to 50 cm.",
+    q: "Resolution fit for mapping",
+    why: "Detailed enough to trace buildings and roads: drone imagery at a few centimetres per pixel, satellite imagery at 30 to 50 cm.",
   },
   {
     q: "An open license",
