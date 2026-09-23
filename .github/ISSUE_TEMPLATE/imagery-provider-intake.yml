@@ -90,8 +90,8 @@ body:
         - label: The imagery is publicly accessible without credentials
         - label: The imagery is Cloud Optimized GeoTIFF
         - label: The URLs are stable over time
-        - label: Every item carries an acquisition date
-        - label: Ground sample distance is recorded per item
+        - label: Every item carries an acquisition date, sensor or platform, provider and license
+        - label: The imagery is sub-metre, detailed enough to trace buildings and roads
         - label: We can keep the catalog updated as new imagery is published
 
   - type: dropdown
