@@ -30,9 +30,7 @@ class FakeResponse:
         return False
 
 
-def test_register_uses_a_60_second_http_timeout(
-    register_module, monkeypatch, tmp_path
-):
+def test_register_uses_a_60_second_http_timeout(register_module, monkeypatch, tmp_path):
     item_path = tmp_path / "item.json"
     item_path.write_text(json.dumps({"id": "item-1"}))
     calls = []
