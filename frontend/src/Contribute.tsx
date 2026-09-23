@@ -83,13 +83,11 @@ const CHECKS: { q: string; why: string; href?: string }[] = [
   {
     q: "Basic metadata per image",
     href: DOCS_SCHEMA,
-    why:
-      "Acquisition date, sensor or platform, provider and license. A STAC catalog is preferred and read as-is; other formats are mapped.",
+    why: "Acquisition date, sensor or platform, provider and license. A STAC catalog is preferred and read as-is; other formats are mapped.",
   },
   {
     q: "Resolution fit for mapping",
-    why:
-      "Detailed enough to trace buildings and roads: drone imagery at a few centimetres per pixel, satellite imagery at 30 to 50 cm.",
+    why: "Detailed enough to trace buildings and roads: drone imagery at a few centimetres per pixel, satellite imagery at 30 to 50 cm.",
   },
   {
     q: "An open license",
