@@ -80,11 +80,14 @@ supplies the information; there is no need to invent values.
 
 Set by the uploader and legacy OAM sync. Third-party imports omit these fields.
 
-| Field                           | Purpose                                                        |
-| ------------------------------- | -------------------------------------------------------------- |
-| `properties.oam:uploader_id`    | Uploading account as `provider\|id`. See below.                |
-| `properties.oam:uploader_name`  | That account's display name or username at the time of upload. |
-| `properties.oam:uploader_email` | That account's contact email, where one is known.              |
+| Field                          | Purpose                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
+| `properties.oam:uploader_id`   | Uploading account as `provider\|id`. See below.                |
+| `properties.oam:uploader_name` | That account's display name or username at the time of upload. |
+
+Items are public, so they never carry an email address. The extension still
+defines `oam:uploader_email`, but nothing writes it. Resolve an account's email
+privately from `oam:uploader_id`.
 
 `oam:uploader_id` is namespaced so the two catalogues cannot collide:
 

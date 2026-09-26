@@ -58,8 +58,6 @@ async def _uploader_meta(db: AsyncConnection, upload: DbUpload) -> dict[str, str
     name = user.username or user.name
     if name:
         meta["uploader_name"] = name
-    if user.email_address:
-        meta["uploader_email"] = user.email_address
     return meta
 
 
