@@ -24,7 +24,12 @@ import {
   DEFAULT_ZOOM,
 } from "../utils/constants";
 import { readInitialView, writeView } from "../utils/url";
-import { buildFilter, densityCountExpr, matchesFilters } from "../utils/filters";
+import {
+  buildFilter,
+  densityCountExpr,
+  isDensityCountApproximate,
+  matchesFilters,
+} from "../utils/filters";
 import { transformFeature } from "../utils/format";
 import { bboxAreaKm2, getFullBbox, type BBox } from "../utils/geo";
 import { ItemBoundsCache, fetchItemBounds, getTmsUrl, thumbUrl } from "../utils/tiles";
@@ -263,10 +268,14 @@ export default function OamMap({
       ] as FilterSpecification);
     }
     if (map.current.getLayer("density-count")) {
-      map.current.setLayoutProperty("density-count", "text-field", [
-        "to-string",
-        countExpr,
-      ] as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>);
+      const countText = isDensityCountApproximate(f)
+        ? ["concat", "up to ", ["to-string", countExpr]]
+        : ["to-string", countExpr];
+      map.current.setLayoutProperty(
+        "density-count",
+        "text-field",
+        countText as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>,
+      );
       map.current.setFilter("density-count", [
         "all",
         ["==", ["geometry-type"], "Point"],
