@@ -178,8 +178,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     const title = `OAM - ${p.title || p.id}`;
     const [left, bottom, right, top] = bbox(feature);
     const josm = "http://127.0.0.1:8111";
-    const zoomUrl =
-      `${josm}/zoom?left=${left}&right=${right}&top=${top}&bottom=${bottom}`;
+    const zoomUrl = `${josm}/zoom?left=${left}&right=${right}&top=${top}&bottom=${bottom}`;
     const imageryUrl =
       `${josm}/imagery?type=tms&max_zoom=22&bounds=${bottom},${left},${top},${right}` +
       `&title=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
