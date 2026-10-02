@@ -11,9 +11,9 @@ container start. `50-oam-links.sh` runs right after and appends
 nginx config and `SB_*` handling are untouched, so the eoAPI Helm chart only
 needs `browser.image` pointed at this image.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `SB_*` | upstream | all STAC Browser options, unchanged |
+| Variable          | Default                                            | Purpose                                       |
+| ----------------- | -------------------------------------------------- | --------------------------------------------- |
+| `SB_*`            | upstream                                           | all STAC Browser options, unchanged           |
 | `OAM_TITILER_URL` | `SB_catalogUrl` with `/stac` replaced by `/raster` | TiTiler-pgSTAC base URL for the tile template |
 
 ```sh

@@ -21,7 +21,9 @@
 
   function titilerUrl() {
     if (cfg.oamTitilerUrl) return cfg.oamTitilerUrl.replace(/\/+$/, "");
-    return String(cfg.catalogUrl || "").replace(/\/+$/, "").replace(/\/stac$/, "/raster");
+    return String(cfg.catalogUrl || "")
+      .replace(/\/+$/, "")
+      .replace(/\/stac$/, "/raster");
   }
 
   function dataAssetName(item) {
@@ -44,14 +46,19 @@
   // Mirror backend/global-mosaic/scripts/gen_coverage_vector.py:_build_render_query
   // and frontend/src/browse/components/ImageCard.tsx:tmsTemplate.
   function renderQuery(item) {
-    var browse = (item.properties && item.properties.renders && item.properties.renders.browse) || {};
+    var browse =
+      (item.properties && item.properties.renders && item.properties.renders.browse) || {};
     var parts = [];
-    (browse.bidx || []).forEach(function (b) { parts.push("bidx=" + parseInt(b, 10)); });
+    (browse.bidx || []).forEach(function (b) {
+      parts.push("bidx=" + parseInt(b, 10));
+    });
     (browse.rescale || []).forEach(function (pair) {
       parts.push("rescale=" + encodeURIComponent(pair[0] + "," + pair[1]));
     });
-    if (browse.colormap_name) parts.push("colormap_name=" + encodeURIComponent(String(browse.colormap_name)));
-    if (browse.colormap) parts.push("colormap=" + encodeURIComponent(JSON.stringify(browse.colormap)));
+    if (browse.colormap_name)
+      parts.push("colormap_name=" + encodeURIComponent(String(browse.colormap_name)));
+    if (browse.colormap)
+      parts.push("colormap=" + encodeURIComponent(JSON.stringify(browse.colormap)));
     if (browse.nodata !== undefined && browse.nodata !== null) {
       parts.push("nodata=" + encodeURIComponent(String(browse.nodata)));
     }
@@ -59,10 +66,17 @@
   }
 
   function tileTemplate(item, asset) {
-    return titilerUrl() + "/collections/" + encodeURIComponent(item.collection) +
-      "/items/" + encodeURIComponent(item.id) +
-      "/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=" + encodeURIComponent(asset) +
-      "&" + renderQuery(item);
+    return (
+      titilerUrl() +
+      "/collections/" +
+      encodeURIComponent(item.collection) +
+      "/items/" +
+      encodeURIComponent(item.id) +
+      "/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=" +
+      encodeURIComponent(asset) +
+      "&" +
+      renderQuery(item)
+    );
   }
 
   function center(item) {
@@ -72,8 +86,14 @@
   }
 
   function addLinks(item) {
-    if (!item || item.type !== "Feature" || !item.collection || !Array.isArray(item.links)) return item;
-    if (item.links.some(function (l) { return OAM_RELS.indexOf(l.rel) !== -1; })) return item;
+    if (!item || item.type !== "Feature" || !item.collection || !Array.isArray(item.links))
+      return item;
+    if (
+      item.links.some(function (l) {
+        return OAM_RELS.indexOf(l.rel) !== -1;
+      })
+    )
+      return item;
     var asset = dataAssetName(item);
     if (!asset || !isRaster(item.assets[asset])) return item;
 
@@ -89,37 +109,53 @@
         rel: "xyz",
         href: tiles,
         type: "image/png",
-        title: "XYZ tile URL (copy link address, add as XYZ layer in QGIS)"
+        title: "XYZ tile URL (copy link address, add as XYZ layer in QGIS)",
       },
       {
         rel: "josm",
-        href: "http://127.0.0.1:8111/imagery?type=tms&max_zoom=22" + bounds + "&title=" +
-          encodeURIComponent(title) + "&url=" + encodeURIComponent(tiles),
+        href:
+          "http://127.0.0.1:8111/imagery?type=tms&max_zoom=22" +
+          bounds +
+          "&title=" +
+          encodeURIComponent(title) +
+          "&url=" +
+          encodeURIComponent(tiles),
         type: "text/html",
-        title: "Open in JOSM (needs JOSM running with Remote Control)"
-      }
+        title: "Open in JOSM (needs JOSM running with Remote Control)",
+      },
     ];
     if (c) {
       links.push({
         rel: "id-editor",
-        href: "https://www.openstreetmap.org/edit?editor=id#map=16/" + c.lat + "/" + c.lon +
-          "&background=" + encodeURIComponent("custom:" + tiles),
+        href:
+          "https://www.openstreetmap.org/edit?editor=id#map=16/" +
+          c.lat +
+          "/" +
+          c.lon +
+          "&background=" +
+          encodeURIComponent("custom:" + tiles),
         type: "text/html",
-        title: "Open in iD"
+        title: "Open in iD",
       });
     }
     // STAC Browser only shows `title` on its own Link objects (stac-js), so
     // build ours with the class the item's existing links use.
     var Link = item.links.length ? item.links[0].constructor : null;
-    item.links = item.links.concat(links.map(function (l) {
-      return Link && Link.length >= 1 ? new Link(l, item) : l;
-    }));
+    item.links = item.links.concat(
+      links.map(function (l) {
+        return Link && Link.length >= 1 ? new Link(l, item) : l;
+      }),
+    );
     return item;
   }
 
   var previous = cfg.preprocessSTAC;
   cfg.preprocessSTAC = function (stac, state, getters) {
     if (typeof previous === "function") stac = previous(stac, state, getters);
-    try { return addLinks(stac); } catch (e) { return stac; }
+    try {
+      return addLinks(stac);
+    } catch (e) {
+      return stac;
+    }
   };
 })();
