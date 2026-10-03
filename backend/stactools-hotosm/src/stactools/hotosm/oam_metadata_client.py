@@ -51,7 +51,7 @@ class OamMetadataClient:
         if uploaded_at:
             uploaded_at = dt.datetime.fromisoformat(result["uploaded_at"])
 
-        contact_name, contact_email = _split_contact(result.get("contact"))
+        contact_name, _ = _split_contact(result.get("contact"))
         user = result.get("user") or {}
         uploader_id = f"{LEGACY_ID_PREFIX}|{user['_id']}" if user.get("_id") else None
 
@@ -77,7 +77,6 @@ class OamMetadataClient:
             metadata_url=result["meta_uri"],
             uploader_id=uploader_id,
             uploader_name=user.get("name") or contact_name,
-            uploader_email=contact_email,
         )
 
     def get_count(self) -> int:

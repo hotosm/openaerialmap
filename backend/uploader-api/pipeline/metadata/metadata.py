@@ -646,7 +646,6 @@ def build_item(
         metadata_url=metadata_url,
         uploader_id=user_md.get("uploader_id"),
         uploader_name=user_md.get("uploader_name"),
-        uploader_email=user_md.get("uploader_email"),
     ).sanitize()
 
     item = create_item(oam)
