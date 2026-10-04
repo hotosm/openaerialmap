@@ -169,6 +169,12 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     setTimeout(() => setCopyFeedback(null), 2000);
   };
 
+  const shareUrl = () => {
+    const url = new URL(window.location.href);
+    if (p.id) url.searchParams.set("selected_id", p.id);
+    return url.toString();
+  };
+
   const handleOpenJosm = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const url = tmsTemplate(p);
@@ -308,6 +314,16 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
       {isExpanded && (
         <div className="bg-gray-50 px-4 py-4 text-xs border-t border-gray-100 text-gray-600">
           <div className="mb-4 pb-3 border-b border-gray-200 space-y-2">
+            <div className="flex gap-2">
+              <wa-button
+                size="s"
+                appearance="outlined"
+                class="flex-1"
+                onClick={(e) => handleCopy(e, shareUrl(), "link")}
+              >
+                {copyFeedback === "link" ? "Copied!" : "Copy Share Link"}
+              </wa-button>
+            </div>
             <div className="flex gap-2">
               <wa-button
                 size="s"
