@@ -169,16 +169,23 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     setTimeout(() => setCopyFeedback(null), 2000);
   };
 
+  // JOSM Remote Control: `url` must be a plain template (no `tms[22]:` prefix,
+  // see #336) and the last parameter. `bounds` (minlat,minlon,maxlat,maxlon)
+  // stops JOSM requesting tiles outside the footprint.
   const handleOpenJosm = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const url = tmsTemplate(p);
     const title = `OAM - ${p.title || p.id}`;
-    const tmsUrl = `tms[22]:${url}`;
-    const josmUrl = `http://127.0.0.1:8111/imagery?title=${encodeURIComponent(
-      title,
-    )}&type=tms&url=${encodeURIComponent(tmsUrl)}`;
+    const [left, bottom, right, top] = bbox(feature);
+    const josm = "http://127.0.0.1:8111";
+    const zoomUrl = `${josm}/zoom?left=${left}&right=${right}&top=${top}&bottom=${bottom}`;
+    const imageryUrl =
+      `${josm}/imagery?type=tms&max_zoom=22&bounds=${bottom},${left},${top},${right}` +
+      `&title=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
     try {
-      await fetch(josmUrl);
+      await fetch(zoomUrl);
+      const res = await fetch(imageryUrl);
+      if (!res.ok) throw new Error(`JOSM returned ${res.status}`);
     } catch {
       alert(
         "Could not connect to JOSM. Make sure JOSM is running and 'Remote Control' is enabled.",
