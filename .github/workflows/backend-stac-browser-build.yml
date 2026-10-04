@@ -1,0 +1,17 @@
+name: Build STAC Browser
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/stac-browser/**"
+  workflow_dispatch:
+
+jobs:
+  image-build-and-push:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/stac-browser/
+      image_name: ghcr.io/${{ github.repository }}/stac-browser
+      dockerfile: Dockerfile

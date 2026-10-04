@@ -24,6 +24,13 @@ jobs:
       build_target: prod
       dockerfile: Dockerfile
 
+  stac-browser:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/stac-browser/
+      image_name: ghcr.io/${{ github.repository }}/stac-browser
+      dockerfile: Dockerfile
+
   frontend:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
     with:
