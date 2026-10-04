@@ -73,9 +73,12 @@ type TilepackState =
   | { kind: "ready"; url: string }
   | { kind: "error"; message: string };
 
+type CopyTarget = "link" | "tms";
+type CopyFeedback = { target: CopyTarget; status: "success" | "error" };
+
 export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   const [isExpanded, setIsExpanded] = useState(isSelected);
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [pmtilesState, setPmtilesState] = useState<TilepackState>({
     kind: "idle",
   });
@@ -83,6 +86,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     kind: "idle",
   });
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const copyFeedbackTimeoutRef = useRef<number | null>(null);
   // Guards the tilepack POST callback: cards unmount when the sidebar
   // pages or the user pans away, so a resolving fetch can otherwise
   // call setState on a dead component.
@@ -91,6 +95,9 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
+      if (copyFeedbackTimeoutRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+      }
     };
   }, []);
   // Track previous selection in state (not a ref - see
@@ -162,11 +169,34 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-  const handleCopy = (e: React.MouseEvent, text: string, feedbackId: string) => {
+  const showCopyFeedback = (feedback: CopyFeedback) => {
+    if (copyFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(copyFeedbackTimeoutRef.current);
+    }
+    setCopyFeedback(feedback);
+    copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setCopyFeedback(null);
+      copyFeedbackTimeoutRef.current = null;
+    }, 2000);
+  };
+
+  const handleCopy = async (e: React.MouseEvent, text: string, target: CopyTarget) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(text);
-    setCopyFeedback(feedbackId);
-    setTimeout(() => setCopyFeedback(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      if (!unmountedRef.current) {
+        showCopyFeedback({ target, status: "success" });
+      }
+    } catch {
+      if (!unmountedRef.current) {
+        showCopyFeedback({ target, status: "error" });
+      }
+    }
+  };
+
+  const copyLabel = (target: CopyTarget, defaultLabel: string) => {
+    if (copyFeedback?.target !== target) return defaultLabel;
+    return copyFeedback.status === "success" ? "Copied!" : "Copy failed";
   };
 
   const shareUrl = () => {
@@ -216,6 +246,13 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           : "border-gray-100 bg-white hover:bg-gray-50 border-l-4 border-l-transparent"
       }`}
     >
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {copyFeedback
+          ? copyFeedback.status === "success"
+            ? `${copyFeedback.target === "link" ? "Link" : "TMS URL"} copied to clipboard.`
+            : `Could not copy the ${copyFeedback.target === "link" ? "link" : "TMS URL"}. Try again.`
+          : ""}
+      </span>
       {isSelected && (
         // Prominent deselect affordance. When an image is selected the
         // map fades non-selected footprints, so the user needs an
@@ -313,16 +350,25 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
 
       {isExpanded && (
         <div className="bg-gray-50 px-4 py-4 text-xs border-t border-gray-100 text-gray-600">
-          <div className="mb-4 pb-3 border-b border-gray-200 space-y-2">
-            <div className="flex gap-2">
-              <wa-button
-                size="s"
-                appearance="outlined"
-                class="flex-1"
+          <div className="mb-4 pb-3 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                Image actions
+              </span>
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700 transition-colors cursor-pointer"
                 onClick={(e) => handleCopy(e, shareUrl(), "link")}
               >
-                {copyFeedback === "link" ? "Copied!" : "Copy Share Link"}
-              </wa-button>
+                <wa-icon
+                  name="link"
+                  variant="solid"
+                  auto-width
+                  class="text-[11px]"
+                  aria-hidden="true"
+                />
+                {copyLabel("link", "Copy link")}
+              </button>
             </div>
             <div className="flex gap-2">
               <wa-button
@@ -331,7 +377,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 class="flex-1"
                 onClick={(e) => handleCopy(e, tmsTemplate(p), "tms")}
               >
-                {copyFeedback === "tms" ? "Copied!" : "Copy TMS"}
+                {copyLabel("tms", "Copy TMS")}
               </wa-button>
               <wa-button size="s" appearance="outlined" class="flex-1" onClick={handleOpenId}>
                 Open iD
@@ -340,7 +386,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 Open JOSM
               </wa-button>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mt-2">
               <TilepackButton
                 format="pmtiles"
                 state={pmtilesState}
