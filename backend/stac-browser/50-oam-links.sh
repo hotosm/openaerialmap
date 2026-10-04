@@ -6,7 +6,7 @@
 set -e
 runtime_config=/usr/share/nginx/html/runtime-config.js
 {
-  printf 'window.STAC_BROWSER_CONFIG.oamTitilerUrl = %s;\n' \
+    printf 'window.STAC_BROWSER_CONFIG.oamTitilerUrl = %s;\n' \
     "$(jq -cn --arg v "${OAM_TITILER_URL:-}" '$v')"
-  cat /usr/share/nginx/html/oam-links.js
+    cat /usr/share/nginx/html/oam-links.js
 } >> "$runtime_config"
