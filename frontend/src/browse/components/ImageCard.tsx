@@ -73,12 +73,9 @@ type TilepackState =
   | { kind: "ready"; url: string }
   | { kind: "error"; message: string };
 
-type CopyTarget = "link" | "tms";
-type CopyFeedback = { target: CopyTarget; status: "success" | "error" };
-
 export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   const [isExpanded, setIsExpanded] = useState(isSelected);
-  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [pmtilesState, setPmtilesState] = useState<TilepackState>({
     kind: "idle",
   });
@@ -86,7 +83,6 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     kind: "idle",
   });
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const copyFeedbackTimeoutRef = useRef<number | null>(null);
   // Guards the tilepack POST callback: cards unmount when the sidebar
   // pages or the user pans away, so a resolving fetch can otherwise
   // call setState on a dead component.
@@ -95,9 +91,6 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
-      if (copyFeedbackTimeoutRef.current !== null) {
-        window.clearTimeout(copyFeedbackTimeoutRef.current);
-      }
     };
   }, []);
   // Track previous selection in state (not a ref - see
@@ -169,34 +162,21 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-  const showCopyFeedback = (feedback: CopyFeedback) => {
-    if (copyFeedbackTimeoutRef.current !== null) {
-      window.clearTimeout(copyFeedbackTimeoutRef.current);
-    }
-    setCopyFeedback(feedback);
-    copyFeedbackTimeoutRef.current = window.setTimeout(() => {
-      setCopyFeedback(null);
-      copyFeedbackTimeoutRef.current = null;
-    }, 2000);
-  };
-
-  const handleCopy = async (e: React.MouseEvent, text: string, target: CopyTarget) => {
+  const handleCopy = async (e: React.MouseEvent, text: string, feedbackId: string) => {
     e.stopPropagation();
     try {
       await navigator.clipboard.writeText(text);
-      if (!unmountedRef.current) {
-        showCopyFeedback({ target, status: "success" });
-      }
+      setCopyFeedback(feedbackId);
     } catch {
-      if (!unmountedRef.current) {
-        showCopyFeedback({ target, status: "error" });
-      }
+      setCopyFeedback(`${feedbackId}-failed`);
     }
+    setTimeout(() => setCopyFeedback(null), 2000);
   };
 
-  const copyLabel = (target: CopyTarget, defaultLabel: string) => {
-    if (copyFeedback?.target !== target) return defaultLabel;
-    return copyFeedback.status === "success" ? "Copied!" : "Copy failed";
+  const copyLabel = (feedbackId: string, defaultLabel: string) => {
+    if (copyFeedback === feedbackId) return "Copied!";
+    if (copyFeedback === `${feedbackId}-failed`) return "Copy failed";
+    return defaultLabel;
   };
 
   const shareUrl = () => {
@@ -248,9 +228,9 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     >
       <span className="sr-only" aria-live="polite" aria-atomic="true">
         {copyFeedback
-          ? copyFeedback.status === "success"
-            ? `${copyFeedback.target === "link" ? "Link" : "TMS URL"} copied to clipboard.`
-            : `Could not copy the ${copyFeedback.target === "link" ? "link" : "TMS URL"}. Try again.`
+          ? copyFeedback.endsWith("-failed")
+            ? `Could not copy the ${copyFeedback.startsWith("link") ? "link" : "TMS URL"}. Try again.`
+            : `${copyFeedback === "link" ? "Link" : "TMS URL"} copied to clipboard.`
           : ""}
       </span>
       {isSelected && (
@@ -357,7 +337,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               </span>
               <button
                 type="button"
-                className="flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 rounded-sm text-xs font-semibold text-cyan-600 transition-colors cursor-pointer hover:text-cyan-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600"
                 onClick={(e) => handleCopy(e, shareUrl(), "link")}
               >
                 <wa-icon
