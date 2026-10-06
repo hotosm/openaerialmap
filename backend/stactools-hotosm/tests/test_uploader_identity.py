@@ -106,7 +106,9 @@ def test_the_item_never_publishes_an_email(
     item.validate()
 
     assert "@" not in json.dumps(item.to_dict())
-    assert item.common_metadata.providers[0].description == published
+    providers = item.common_metadata.providers
+    assert providers is not None
+    assert providers[0].description == published
     assert item.properties["oam:uploader_id"] == "oam-legacy|67f8a774f769c0a050db59c2"
 
 
