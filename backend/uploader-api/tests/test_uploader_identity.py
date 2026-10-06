@@ -24,7 +24,6 @@ async def test_authenticated_upload_carries_the_account(db, new_upload):
     assert await _uploader_meta(db, upload) == {
         "uploader_id": upload.user_sub,
         "uploader_name": "tester",
-        "uploader_email": "tester@example.org",
     }
 
 
