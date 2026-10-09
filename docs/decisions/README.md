@@ -19,3 +19,4 @@ from the projects inception.
 - [0008 - Lossy WEBP COGs for visual imagery](./0008-lossy-visual-cogs.md)
 - [0009 - Allowlist STAC collections shown in Browse](./0009-multi-collection-browse.md)
 - [0010 - Helm chart as the single deployment definition](./0010-helm-deployment-parity.md)
+- [0011 - Record imagery ownership on STAC Items](./0011-imagery-ownership.md)
