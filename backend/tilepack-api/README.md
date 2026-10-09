@@ -33,13 +33,36 @@ stop polling. **429** (busy or rate limited) is retryable: back off for
 ## API Surface
 
 ```text
+GET  /processes
+GET  /processes/{processId}
+POST /processes/{processId}/execution
 POST /tilepacks/{stac_item_id}?format=pmtiles|mbtiles[&min_zoom=N&max_zoom=N]
 GET  /healthz
 ```
 
+The `/processes` routes are a minimal, OGC-compatible façade around the
+existing tilepack implementation. This is intentionally the first tilepack
+process and not a complete OGC Processes catalog for the wider OAM platform.
+The tilepack service currently owns the `tilepack` process namespace; future
+multi-service `/processes` integration should decide exact route ownership via
+ingress/Gateway matching rather than by assuming a single global process index.
+
 The only user input is a STAC item id (regex-validated, max 128 chars,
 must exist in the configured `openaerialmap` STAC collection) and the
 output format.
+
+### Process discovery and execution
+
+```http
+GET /processes
+GET /processes/tilepack
+POST /processes/tilepack/execution?id=67ac...&format=pmtiles
+```
+
+The process description advertises the current supported tilepack inputs and
+outputs based on the real API behavior. Execution reuses the same validation,
+idempotent S3 lock/output checks, Kubernetes Job creation, and pgSTAC update
+sequence as the legacy `/tilepacks/{id}` endpoint.
 
 Zoom behavior has two modes:
 
