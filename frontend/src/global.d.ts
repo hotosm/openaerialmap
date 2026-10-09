@@ -20,6 +20,15 @@ type HotAnnouncementAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, 
   "storage-key"?: string;
 };
 
+// Only the attributes SiteHeader sets; see @hotosm/hanko-auth's README.
+type HotosmAuthAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
+  "hanko-url"?: string;
+  "redirect-after-login"?: string;
+  "redirect-after-logout"?: string;
+  "button-variant"?: "filled" | "outline" | "plain";
+  "button-color"?: "primary" | "neutral" | "danger";
+};
+
 type WaButtonAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
   variant?: string;
   appearance?: string;
@@ -106,6 +115,7 @@ type WaCalloutAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLEl
 interface CustomElements {
   "hot-announcement": HotAnnouncementAttributes;
   "hot-header": HotHeaderAttributes;
+  "hotosm-auth": HotosmAuthAttributes;
   "hotosm-tool-menu": DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>;
   "wa-button": WaButtonAttributes;
   "wa-card": WaCardAttributes;
