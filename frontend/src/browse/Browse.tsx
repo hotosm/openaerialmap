@@ -85,9 +85,7 @@ export default function Browse() {
     );
     if (changedKeys.length === 0) return;
     trackVirtualPageView();
-    changedKeys.forEach((key) =>
-      trackEvent("browse", `filter_${key}`, newFilters[key] || "clear"),
-    );
+    changedKeys.forEach((key) => trackEvent("browse", `filter_${key}`, newFilters[key] || "clear"));
   };
 
   const handleLocationSelect = (bbox: BBox) => setMapBbox(bbox);
