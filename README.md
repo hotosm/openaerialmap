@@ -40,29 +40,26 @@ A revamp of OpenAerialMap, originally developed back in the 2010s.
   - [STAC API][4] deployment of eoAPI.
   - [STAC creation and extension][3] for OAM metadata requirements, data
     ingestion.
-- New frontend: hosted in this repository.
-- Old Frontend: <https://github.com/hotosm/oam-browser> (currently used as
-  frontend + uploader)
-- Old API: <https://github.com/hotosm/oam-api> (currently used for login / upload)
+- Main frontend: the OAM Browser in `frontend/`.
+- Uploader: a separate application in `backend/uploader-api/`.
+- Additional catalogue viewers: STAC Browser and STAC Map.
+- Legacy frontend: <https://github.com/hotosm/oam-browser>.
+- Legacy API: <https://github.com/hotosm/oam-api>.
 
 ### Frontend Parts
 
-The frontend prototype was developed as part of the revamp deliverables.
-
-The idea has since morphed into [stac-map](https://github.com/developmentseed/stac-map).
-We should probably migrate to that and consolidate efforts within the community.
+The main OAM Browser is built specifically for OpenAerialMap.
+STAC Map was evaluated as a replacement, but the team chose a dedicated
+browser to better meet OAM users' needs and match other HOT tools.
+See the [frontend decision](docs/decisions/0004-frontend-stack.md).
 
 Main parts:
 
-- Main OpenAerialMap landing page, with links to different parts and docs / info.
-- Documentation site with tutorials etc.
-- The uploader site. This should be HOT themed, with shared auth and consistent
-  look / style.
-- `stac-browser` for a catalog search from the backend STAC.
-- `stac-map` to display the global coverage pmtiles layer (giving indication of
-  where imagery is currently present), plus map-based search of the STAC once
-  the user zooms into their area of interest (+ filtering based on various
-  criteria).
+- Landing page linking to the browser, uploader, and other tools.
+- OAM Browser for finding, previewing, filtering, and downloading imagery.
+- Uploader for sharing imagery, with the shared HOT login.
+- Documentation with usage and setup guides.
+- STAC Browser and STAC Map as additional ways to explore the catalogue.
 
 ## Contributing 👍🎉
 
@@ -81,30 +78,41 @@ Reach out to us if you have any questions!
 
 ## Roadmap
 
+✅ Implemented · 🔄 In progress · 📅 Planned
+
+Versions are original planning targets and may change.
+
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
-| Status | Feature | Description | Version | Effort (person-months) |
-|:------:|:-------|:------------|:-------:|:----------------------:|
-| ✅ | New OAM backend based on STAC | Core backend using pgSTAC, FastAPI STAC endpoints, and TiTiler integration. | v2.0-alpha | 1.5 |
-| ✅ | Kubernetes-based deployment of eoAPI for OAM STAC | A scalable, open-source infrastructure to support the growing volume of imagery hosted and indexed in OAM. | v2.0-alpha | 1.0 |
-| ✅ | STAC extension for OAM and metadata ingested from old API | STAC is the industry standard to describe geospatial information - including imagery - so it can be more easily indexed, discovered, and worked with. This extension aligns legacy OAM metadata with STAC. | v2.0-alpha | 1.5 |
-| ✅ | Revamped global mosaic | The global tiled mosaic of OAM imagery (previously available from Kontur) has been redesigned to use a combined approach: visualize footprints at lower zoom levels, and dynamically switch to full-resolution imagery at higher zoom levels. | v2.0-alpha | 0.5 |
-| ✅ | Prototype frontend based on STAC | This initial prototype lays the foundation for the new frontend, enabling rich interactions with available imagery, dynamic filtering, advanced search, and an overall modern user experience on the OAM platform. | v2.0-alpha | 1.0 |
-| ✅ | Documentation site | Public docs with setup, endpoints, and usage guides for API, mosaic/TMS, and frontend. | v2.0-alpha | 0.5 |
-| 🔄 | New frontend feature parity with old frontend | Features from the old Node.js frontend are being implemented in the new OAM Browser to ensure continuity in user experience and functionality. | v2.0 | 2.0 |
-| 📅 | Improvements to the STAC catalog search | Allow users to search across the full STAC metadata, beyond the basic set of elements currently supported in OAM. | v2.1 | 1.5 |
-| 📅 | Preset + advanced filtering | Improve user experience and efficiency by creating preset filters (e.g. all imagery for the selected AOI collected in the last week) and advanced filtering to find specific imagery. | v2.1 | 1.5 |
-| 📅 | Migrate frontend to stac-map | Move the UI to the community stac-map component (OAM theme) to reduce maintenance while keeping feature parity. | v2.1 | 1.5 |
-| 📅 | Cross-catalog search and display | Develop automations to harvest external STAC catalog metadata and cache previews, enabling faster, seamless display of available imagery in a unified OAM Browser interface. | v2.2 | 1.0 |
-| 📅 | Better visualization of imagery | Improve how imagery distribution and density are visualized in the OAM Browser, so users can quickly see what is available and what the imagery looks like before downloading. | v2.2 | 0.5 |
-| 📅 | Dynamic tile creation | Provide dynamic Tile Map Service (TMS) generated on the fly using TiTiler, so imagery can be easily used in JOSM/iD and other mapping software. | v2.2 | 2.0 |
-| 📅 | New user management and API | Create a system for user accounts, allowing drone pilots and satellite providers to log in (via OSM OAuth and Google), manage the imagery they have uploaded (delete, rename, etc.), and see contribution statistics. | v2.3 | 4.0 |
-| 📅 | New uploader API & UI | Develop an efficient web application that allows users to upload very large imagery files from their computer or from cloud services like Google Drive or Dropbox. This is critical to remove contribution barriers, since many imagery files are too big for the current uploader. | v2.3 | 4.0 |
-| 📅 | Catalog expansion | Add additional STAC catalog ingestion workflows by engaging more providers, and create ingestion processes to “map” publicly available STACs to the OAM metadata schema. This will significantly expand the amount of imagery available through OAM's unified discovery interface. | v2.4 | 2.0 |
-| 📅 | Integration with ODM | Develop a plugin for OpenDroneMap to allow drone pilots to publish imagery directly to OAM (without having to download the GeoTIFF and manually upload it). | v2.4 | 2.0 |
-| 📅 | Imagery and user statistics | Provide rich user and data statistics to foster the open imagery community and more clearly visualize growth and usage over time. | v2.4 | 2.0 |
-| 📅 | Support for multispectral and non-optical imagery | Allow users to upload more advanced imagery formats and non-optical data that can be rendered and visualized alongside common RGB imagery. | v2.5 | 2.0 |
-| 📅 | Support for DEMs | Add capabilities to upload Digital Elevation Models (DEMs) and 3D point clouds - common byproducts of drone mapping - that can be used for risk modeling and humanitarian mapping (e.g. DTMs for flood modeling). | v2.5 | 2.0 |
+| Status | Feature | Description | Version |
+|:------:|:-------|:------------|:-------:|
+| ✅ | Standard imagery catalogue | Organize imagery using STAC, including records from the old catalogue. | v2.0-alpha |
+| ✅ | Global coverage map | See where imagery is available and zoom in to preview it. | v2.0-alpha |
+| ✅ | OAM Browser | Find, filter, preview, and download imagery in OAM's main browser. | v2.0 |
+| ✅ | Additional catalogue viewers | Explore the catalogue through STAC Map and STAC Browser. | – |
+| ✅ | Mapping tool support | Use OAM imagery in QGIS and OpenStreetMap editors. | v2.2 |
+| ✅ | New uploader | Upload large imagery files or public file links, with HOT login and progress tracking. | v2.3 |
+| ✅ | New site soft launch | Offer the new OAM site alongside the old site. | – |
+| ✅ | Offline downloads | Request supported imagery as MBTiles or PMTiles for offline use. | – |
+| ✅ | Provider contribution page | Help imagery providers share their data with OAM. | – |
+| ✅ | Basic statistics | Show imagery totals and coverage area. | – |
+| ✅ | Elevation catalogue | Provide access to Copernicus GLO-30 elevation data. | – |
+| ✅ | Documentation | Provide guides for using OAM and its mapping services. | v2.0-alpha |
+| 🔄 | Complete site transition | Finish moving from the old OAM site to the new platform. | – |
+| 🔄 | More imagery providers | Expand the catalogue with imagery from additional providers. | v2.4 |
+| 📅 | Advanced search | Add flexible date, image-detail, and cloud-cover filters. | v2.1 |
+| 📅 | Contributor tools | Let contributors edit imagery details, delete uploads, and view their contributions. | v2.3 |
+| 📅 | Broader catalogue discovery | Find imagery from more external catalogues in one place. | v2.2 |
+| 📅 | OpenDroneMap integration | Publish imagery directly from OpenDroneMap. | v2.4 |
+| 📅 | Public imagery statistics | Show coverage and growth by provider, year, and image detail. | v2.4 |
+| 📅 | More imagery types | Support multispectral and other specialized imagery. | v2.5 |
+| 📅 | Elevation and 3D uploads | Let contributors share elevation models and 3D point clouds. | v2.5 |
+| 📅 | More accurate maps | Improve imagery outlines, preview alignment, and coverage estimates. | – |
+| 📅 | Easier imagery access | Make finished uploads easier to find and large downloads easier to use. | – |
+| 📅 | Shared imagery management | Let organizations manage imagery together and preserve ownership from the old site. | – |
+| 📅 | Usage and contributor impact | Show how OAM and contributed imagery are used. | – |
+| 📅 | New imagery alerts | Notify users when imagery becomes available in areas they follow. | – |
+| 📅 | Credits and impact stories | Recognize supporters and share examples of OAM's impact. | – |
 <!-- prettier-ignore-end -->
 <!-- markdownlint-restore -->
 
