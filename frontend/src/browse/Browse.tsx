@@ -35,7 +35,8 @@ export default function Browse() {
   });
 
   // Ref, not state, so the Escape-key effect below keeps its deps.
-  const trackedSelectedId = useRef<string | null>(null);
+  // Seeded from the URL so a restored share link is not re-counted.
+  const trackedSelectedId = useRef<string | null>(readSelectedId());
   const handleSelectFeature = (feature: ImageFeature | null) => {
     const nextId = feature ? feature.properties.id : null;
     setSelectedFeature(feature);

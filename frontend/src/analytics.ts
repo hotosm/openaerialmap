@@ -1,14 +1,10 @@
-// Matomo usage tracking, cookieless. No-op unless VITE_MATOMO_URL and
-// VITE_MATOMO_SITE_ID are both set.
+// Matomo usage tracking, cookieless, loaded through the shared <hot-tracking>
+// element. No-op unless VITE_MATOMO_URL and VITE_MATOMO_SITE_ID are both set.
+import "@hotosm/ui/dist/components/tracking/tracking.js";
 import { getOptionalRuntimeConfig } from "./runtimeConfig";
 
+// window._paq is declared by @hotosm/ui.
 type PaqEntry = (string | boolean)[];
-
-declare global {
-  interface Window {
-    _paq?: PaqEntry[];
-  }
-}
 
 // Only an http(s) URL may become a <script src>.
 function readMatomoUrl(): string | undefined {
@@ -31,19 +27,20 @@ export function initAnalytics(): void {
   push(["disableCookies"]);
   push(["setDoNotTrack", true]);
   push(["alwaysUseSendBeacon"]);
-  push(["setTrackerUrl", `${MATOMO_URL}/matomo.php`]);
-  push(["setSiteId", MATOMO_SITE_ID as string]);
   push(["setCustomUrl", reportableUrl()]);
-  push(["trackPageView"]);
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `${MATOMO_URL}/matomo.js`;
-  document.head.appendChild(script);
+  if (document.referrer) push(["setReferrerUrl", reportableUrl(document.referrer)]);
+  // showConsent is a property; the attribute defaults to on.
+  const el = document.createElement("hot-tracking");
+  el.setAttribute("site-id", MATOMO_SITE_ID as string);
+  el.setAttribute("domain", window.location.hostname);
+  el.matomoURL = MATOMO_URL as string;
+  el.showConsent = false;
+  document.body.appendChild(el);
 }
 
 // Map position is dropped so Pages groups by filters and selection, not viewport.
-function reportableUrl(): string {
-  const url = new URL(window.location.href);
+function reportableUrl(href = window.location.href): string {
+  const url = new URL(href);
   ["lat", "lon", "zoom"].forEach((k) => url.searchParams.delete(k));
   url.hash = "";
   return url.toString();
