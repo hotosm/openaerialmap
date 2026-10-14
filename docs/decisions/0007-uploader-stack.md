@@ -46,9 +46,9 @@ challenge. This design builds on that work.
 - **Litestar + HTMX + Postgres + Kubernetes.** What we chose. A typed async Python
   API, HTML rendered and owned by the server with HTMX for the interactive parts,
   and plain JavaScript only for the file transfer. It matches Field-TM, so we
-  already know how to run it. It runs under Compose locally and Helm in
-  production, Argo makes the processing steps explicit, and Postgres keeps state
-  across restarts.
+  already know how to run it. It runs from the Helm chart everywhere, Argo
+  makes the processing steps explicit, and Postgres keeps state across
+  restarts.
 
 ## Decision Outcome
 
@@ -67,7 +67,8 @@ steps visible and keeps database credentials out of workflow pods.
 the map frontend. HTMX handles interaction, with plain JavaScript reserved for
 the multipart transfer.
 
-**Running it.** Use Compose + Talos for local development and Helm for production.
+**Running it.** Deploy with the Helm chart everywhere; see
+[0010](./0010-helm-deployment-parity.md).
 
 ### Consequences
 
