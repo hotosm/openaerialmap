@@ -1,6 +1,7 @@
 import SiteHeader from "./SiteHeader";
 import { UPLOADER_URL } from "./browse/utils/constants";
 import { getRuntimeConfig } from "./runtimeConfig";
+import { trackEvent } from "./analytics";
 import { CommonsFigure, RoutesFigure, MappingFigure } from "./contribute/figures";
 import "./Contribute.css";
 
@@ -117,6 +118,7 @@ export default function Contribute() {
                   variant="brand"
                   size="l"
                   onClick={() => {
+                    trackEvent("navigation", "upload", "contribute");
                     window.location.href = UPLOADER_URL;
                   }}
                 >
@@ -130,6 +132,7 @@ export default function Contribute() {
                   size="l"
                   class="contribute-hero-secondary"
                   onClick={() => {
+                    trackEvent("navigation", "intake", "contribute");
                     window.location.href = INTAKE_URL;
                   }}
                 >

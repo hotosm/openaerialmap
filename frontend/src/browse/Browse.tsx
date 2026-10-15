@@ -9,6 +9,7 @@ import type { Basemap } from "./utils/basemaps";
 import MiniMap from "./components/MiniMap";
 import type { Filters, ImageFeature } from "./utils/types";
 import { EMPTY_FILTERS } from "./utils/types";
+import { trackEvent, trackVirtualPageView } from "../analytics";
 import type { BBox } from "./utils/geo";
 import { readInitialFilters, readSelectedId, writeFilters, writeSelectedId } from "./utils/url";
 
@@ -33,9 +34,17 @@ export default function Browse() {
     return { ...EMPTY_FILTERS, ...f };
   });
 
+  // Ref, not state, so the Escape-key effect below keeps its deps.
+  // Seeded from the URL so a restored share link is not re-counted.
+  const trackedSelectedId = useRef<string | null>(readSelectedId());
   const handleSelectFeature = (feature: ImageFeature | null) => {
+    const nextId = feature ? feature.properties.id : null;
     setSelectedFeature(feature);
-    writeSelectedId(feature ? feature.properties.id : null);
+    writeSelectedId(nextId);
+    if (nextId === trackedSelectedId.current) return;
+    trackedSelectedId.current = nextId;
+    trackVirtualPageView();
+    if (nextId) trackEvent("browse", "select_item", nextId);
   };
 
   // Escape deselects. The selected footprint fades surrounding
@@ -72,6 +81,12 @@ export default function Browse() {
   const handleFilterChange = (newFilters: Filters) => {
     setFilters(newFilters);
     writeFilters(newFilters);
+    const changedKeys = (Object.keys(newFilters) as (keyof Filters)[]).filter(
+      (key) => newFilters[key] !== filters[key],
+    );
+    if (changedKeys.length === 0) return;
+    trackVirtualPageView();
+    changedKeys.forEach((key) => trackEvent("browse", `filter_${key}`, newFilters[key] || "clear"));
   };
 
   const handleLocationSelect = (bbox: BBox) => setMapBbox(bbox);
