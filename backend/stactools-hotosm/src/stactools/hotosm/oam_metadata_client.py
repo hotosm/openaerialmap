@@ -53,6 +53,9 @@ class OamMetadataClient:
 
         contact_name, contact_email = _split_contact(result.get("contact"))
         user = result.get("user") or {}
+        if isinstance(user, str):
+            # The single-item endpoint returns the bare account id.
+            user = {"_id": user}
         uploader_id = f"{LEGACY_ID_PREFIX}|{user['_id']}" if user.get("_id") else None
 
         return OamMetadata(
