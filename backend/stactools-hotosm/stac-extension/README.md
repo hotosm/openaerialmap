@@ -1,7 +1,7 @@
 # Humanitarian OpenStreetMap Team OpenAerialMap Extension Specification
 
 - **Title:** Humanitarian OpenStreetMap Team OpenAerialMap (OAM) Extension
-- **Identifier:** <https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json>
+- **Identifier:** <https://docs.imagery.hotosm.org/oam/v0.4.0/schema.json>
 - **Field Name Prefix:** oam
 - **Scope:** Item
 - **Extension [Maturity Classification](https://github.com/radiantearth/stac-spec/tree/master/extensions/README.md#extension-maturity):** Proposal
@@ -10,7 +10,7 @@
 Defines STAC metadata used by HOT's OpenAerialMap project.
 
 - [Item example](./examples/item.json)
-- [JSON Schema](./json-schema/v0.3.0/schema.json)
+- [JSON Schema](./json-schema/v0.4.0/schema.json)
 - [Changelog](./CHANGELOG.md)
 
 ## Fields
@@ -36,6 +36,7 @@ The fields in the table below can be used in these parts of STAC documents:
 | oam:acquisition_time_estimated                                                                        | boolean | `true` when the acquisition datetime was estimated rather than supplied by the data provider.                                                                                             |
 | oam:acquisition_source                                                                                | string | Where the acquisition datetime came from. Omitted when the data provider supplied it.                                                                                                     |
 | oam:external_id                                                                                       | string | Identifier for this imagery in the external system that submitted it.                                                                                                                     |
+| oam:owner_id                                                                                          | string | Current owner as `provider\|id`: a user, an organisation, or an unclaimed legacy account. Changes on transfer, unlike `oam:uploader_id`.                                                   |
 
 ### Additional Field Information
 

@@ -78,6 +78,8 @@ class OamMetadataClient:
             image_file_size=result["file_size"],
             thumbnail_url=result["properties"]["thumbnail"],
             metadata_url=result["meta_uri"],
+            # Unclaimed until the legacy account is matched to a HOT login.
+            owner_id=uploader_id,
             uploader_id=uploader_id,
             uploader_name=user.get("name") or contact_name,
         )

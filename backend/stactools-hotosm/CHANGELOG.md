@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Record the uploading account on Items as `oam:uploader_id` and
   `oam:uploader_name` (OAM extension v0.3.0). The legacy sync retains
   `user._id` for account reconciliation.
+- Record the current owner on Items as `oam:owner_id` (OAM extension v0.4.0),
+  separate from the uploader so a transfer keeps who uploaded the imagery.
+  Legacy Items are owned by their `oam-legacy|<id>` account until claimed.
 
 ### Changed
 

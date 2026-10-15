@@ -39,6 +39,7 @@ RELEASED_SCHEMA_SHA256 = {
     "0.1.0": "f8512228a01361265f07d99710056687006b2facb487c57cfe5b90d2a9f5fdfa",
     "0.2.0": "1f442028f486d84fcecbfd63f55e2f872724b654f00e68f8d6ffc1efc4b653d4",
     "0.3.0": "d4961e9ffc77f5dd311d4e6171c106ff522c8177976368f65e7deda5d3878e4f",
+    "0.4.0": "70bb00b369b4a3e3aca8e01b3ba60b06f9bd6207c56b44eee23feb6a2021b93c",
 }
 
 
@@ -238,6 +239,44 @@ def test_v0_3_0_fields_reject_bad_values(
     example_extension_item: dict, key: str, value: Any
 ):
     """Reject invalid v0.3.0 field values."""
+    item = copy.deepcopy(example_extension_item)
+    item["properties"][key] = value
+
+    register_oam_extension_schemas()
+    with pytest.raises(STACValidationError):
+        pystac.Item.from_dict(item).validate()
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "hotosm|1234",
+        "oam-legacy|67f8a774f769c0a050db59c2",
+    ],
+)
+def test_v0_4_0_fields_accepted(example_extension_item: dict, value: str):
+    """Ensure every field v0.4.0 added is usable."""
+    item = copy.deepcopy(example_extension_item)
+    item["properties"]["oam:owner_id"] = value
+
+    register_oam_extension_schemas()
+    pystac.Item.from_dict(item).validate()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("oam:owner_id", "1234"),
+        ("oam:owner_id", "HOTOSM|1234"),
+        ("oam:owner_id", "hotosm|"),
+        ("oam:owner_id", 1234),
+        ("oam:ownr_id", "typo"),
+    ],
+)
+def test_v0_4_0_fields_reject_bad_values(
+    example_extension_item: dict, key: str, value: Any
+):
+    """Reject invalid v0.4.0 field values."""
     item = copy.deepcopy(example_extension_item)
     item["properties"][key] = value
 
