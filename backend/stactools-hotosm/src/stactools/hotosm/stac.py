@@ -152,7 +152,7 @@ def create_item(oam_metadata: OamMetadata) -> Item:
     item.common_metadata.providers = [
         Provider(
             name=oam_metadata.provider,
-            description=oam_metadata.contact,
+            description=oam_metadata.contact or None,
             roles=[
                 ProviderRole.PRODUCER,
                 ProviderRole.LICENSOR,
@@ -173,8 +173,6 @@ def create_item(oam_metadata: OamMetadata) -> Item:
         item.properties["oam:uploader_id"] = oam_metadata.uploader_id
     if oam_metadata.uploader_name:
         item.properties["oam:uploader_name"] = oam_metadata.uploader_name
-    if oam_metadata.uploader_email:
-        item.properties["oam:uploader_email"] = oam_metadata.uploader_email
 
     item.add_asset(
         "visual",

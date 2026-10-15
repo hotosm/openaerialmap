@@ -55,7 +55,7 @@ def _item(tmp_path, **meta) -> dict:
 
 
 def test_the_uploading_account_reaches_the_item(tmp_path):
-    """Copy uploader metadata to the Item."""
+    """Copy uploader metadata to the Item, but never an email."""
     item = _item(
         tmp_path,
         uploader_id="hotosm|1234",
@@ -65,7 +65,7 @@ def test_the_uploading_account_reaches_the_item(tmp_path):
 
     assert item["properties"]["oam:uploader_id"] == "hotosm|1234"
     assert item["properties"]["oam:uploader_name"] == "tester"
-    assert item["properties"]["oam:uploader_email"] == "tester@example.org"
+    assert "oam:uploader_email" not in item["properties"]
 
 
 def test_an_anonymous_upload_says_so(tmp_path):
