@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [v0.4.0]
+
+### Added
+
+- `oam:owner_id`, the current owner of the imagery as `provider|id`: a user
+  (`hotosm|<id>`) or an unclaimed legacy account (`oam-legacy|<id>`). Unlike
+  `oam:uploader_id`, it changes when the imagery is transferred.
+
+All new fields are optional.
+
 ## [v0.3.0]
 
 ### Added
@@ -49,6 +59,7 @@ All new fields are optional.
 - Move the schema URL to `https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json`.
 
 [Unreleased]: https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension
+[v0.4.0]: https://docs.imagery.hotosm.org/oam/v0.4.0/schema.json
 [v0.3.0]: https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json
 [v0.2.0]: https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 [v0.1.0]: https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json
