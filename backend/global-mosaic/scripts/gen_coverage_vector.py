@@ -11,7 +11,7 @@ Produces two independent PMTiles files:
 - ``global-data.pmtiles`` (``globalcoverage`` layer): per-image
   polygon footprints at z0-13 with rich metadata (title, provider,
   platform, gsd, sensor, license, acquisition_end, thumbnail, uuid,
-  tms, file_size). The frontend reads this layer client-side
+  tms, file_size, owner_id). The frontend reads this layer client-side
   to drive sidebar cards, filters, and TMS handoff without any STAC
   API calls.
 
@@ -590,6 +590,9 @@ def _extract_feature_properties(
         # plain visual items to nodata=0.
         "render_params": _build_render_query(props.get("renders") or {}),
         "file_size": file_size,
+        # Lets the map highlight one account's imagery. Absent on Items
+        # without an owner, e.g. anonymous uploads.
+        "owner_id": props.get("oam:owner_id"),
     }
 
     # Strip nulls so tippecanoe doesn't bloat tiles with empty keys.
