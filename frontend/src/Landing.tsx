@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import SiteHeader from "./SiteHeader";
 import { appUrl } from "./appUrl";
+import { trackEvent } from "./analytics";
 import {
   PACKAGER_URL,
   STAC_BROWSER_CATALOG_URL,
@@ -201,6 +202,7 @@ export default function Landing() {
                 size="l"
                 class="landing-hero-upload"
                 onClick={() => {
+                  trackEvent("navigation", "upload", "landing");
                   window.location.href = UPLOADER_URL;
                 }}
               >

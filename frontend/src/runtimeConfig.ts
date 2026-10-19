@@ -12,7 +12,9 @@ type RuntimeConfigKey =
   | "VITE_PACKAGER_URL"
   | "VITE_BASEMAP_STYLE_URL"
   | "VITE_ANNOUNCEMENT_URL"
-  | "VITE_INTAKE_URL";
+  | "VITE_INTAKE_URL"
+  | "VITE_MATOMO_URL"
+  | "VITE_MATOMO_SITE_ID";
 
 declare global {
   interface Window {

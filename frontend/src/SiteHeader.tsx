@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { ANNOUNCEMENT_URL, API_URL, UPLOADER_URL } from "./browse/utils/constants";
 import { appUrl } from "./appUrl";
+import { trackEvent } from "./analytics";
 
 // Keep these tabs aligned with backend/uploader-api/app/templates/layout.html.
 
@@ -31,7 +32,13 @@ const HEADER_TABS: HeaderTab[] = [
     label: "Docs",
     clickEvent: () => window.open("https://docs.imagery.hotosm.org/", "_blank"),
   },
-  { label: "Upload", clickEvent: () => (window.location.href = UPLOADER_URL) },
+  {
+    label: "Upload",
+    clickEvent: () => {
+      trackEvent("navigation", "upload", "header");
+      window.location.href = UPLOADER_URL;
+    },
+  },
   {
     label: "Report a bug",
     clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
