@@ -34,6 +34,24 @@ cookie is scoped to the parent domain, so a `localhost` frontend cannot
 sign in. Testing it needs the app served over HTTPS from an origin the
 Hanko instance allows.
 
+### My imagery
+
+Signed in, the sidebar gets two tabs. **My imagery** lists the Items
+whose `oam:owner_id` is the user's `hotosm|<id>`, from a CQL2 search on
+`VITE_STAC_URL` (ADR 0011). The search is public and needs no token.
+The list is current, while the coverage PMTiles are rebuilt on a
+schedule, so the map draws these footprints from the search results at
+every zoom, with a dot per image below `FOOTPRINT_MIN_ZOOM`.
+
+- The filter bar applies to the list on the client. Results load 100 at
+  a time, so the count says so while more pages remain.
+- In either tab, footprints whose PMTiles `owner_id` matches the user are
+  outlined in `MY_IMAGERY_COLOR`.
+- `?view=mine` opens the tab directly. Signed out, it shows all imagery.
+
+To see your own uploads locally, `VITE_STAC_URL` has to point at the
+local STAC API; it defaults to production.
+
 ### Credit
 
 Layout, filter bar, disambig popup and preview/TMS handoff started

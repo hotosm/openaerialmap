@@ -49,10 +49,21 @@ export function formatDate(dateString: string | null | undefined): string {
 // Called on both viewport (`querySourceFeatures`) and click hits, so keep
 // it cheap.
 export function transformFeature(mvtFeature: GeoJSONFeature): ImageFeature {
-  const p = mvtFeature.properties as unknown as RawTileProperties;
+  return toImageFeature(
+    mvtFeature.geometry as ImageFeature["geometry"],
+    mvtFeature.properties as unknown as RawTileProperties,
+  );
+}
+
+// Shared by tile features and STAC search results (see utils/stac.ts), so
+// both render the same card.
+export function toImageFeature(
+  geometry: ImageFeature["geometry"],
+  p: RawTileProperties,
+): ImageFeature {
   return {
     type: "Feature",
-    geometry: mvtFeature.geometry as ImageFeature["geometry"],
+    geometry,
     properties: {
       id: p._id,
       collection: p.collection || COLLECTION_ID,

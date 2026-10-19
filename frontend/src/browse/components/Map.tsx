@@ -22,6 +22,7 @@ import {
   MAX_PREVIEWS,
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
+  MY_IMAGERY_COLOR,
 } from "../utils/constants";
 import { readInitialView, writeView } from "../utils/url";
 import {
@@ -30,10 +31,10 @@ import {
   isDensityCountApproximate,
   matchesFilters,
 } from "../utils/filters";
-import { transformFeature } from "../utils/format";
+import { toImageFeature, transformFeature } from "../utils/format";
 import { bboxAreaKm2, getFullBbox, type BBox } from "../utils/geo";
 import { ItemBoundsCache, fetchItemBounds, getTmsUrl, thumbUrl } from "../utils/tiles";
-import type { Filters, ImageFeature, RawTileProperties } from "../utils/types";
+import type { Filters, ImageFeature, RawFeature, RawTileProperties } from "../utils/types";
 import {
   BASEMAP_GLYPHS,
   BASEMAP_SPRITE,
@@ -57,6 +58,10 @@ interface Props {
   onHover: (id: string | null) => void;
   basemap: Basemap;
   filters: Filters;
+  // Signed-in owner id; their footprints are outlined in MY_IMAGERY_COLOR.
+  ownerId?: string | null;
+  // Their imagery from the STAC search, drawn at every zoom. Null hides it.
+  myImagery?: RawFeature[] | null;
 }
 
 const TMS_PREFIX = "tms-";
@@ -86,6 +91,8 @@ export default function OamMap({
   onHover,
   basemap,
   filters,
+  ownerId = null,
+  myImagery = null,
 }: Props) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -112,6 +119,10 @@ export default function OamMap({
   const onFeaturesUpdateRef = useRef(onFeaturesUpdate);
   const onCollectionsUpdateRef = useRef(onCollectionsUpdate);
   const filtersRef = useRef(filters);
+  const ownerIdRef = useRef(ownerId);
+  // Full Items by id. A click hit on the GeoJSON layer is clipped to its
+  // tile, so selection takes the geometry from here instead.
+  const myFeaturesRef = useRef(new Map<string, RawFeature>());
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [idleTick, setIdleTick] = useState(0);
@@ -142,6 +153,9 @@ export default function OamMap({
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+  useEffect(() => {
+    ownerIdRef.current = ownerId;
+  }, [ownerId]);
 
   const closePopup = () => {
     popupRef.current?.remove();
@@ -233,6 +247,18 @@ export default function OamMap({
     ["footprint-fill", "footprint-line"].forEach((id) => {
       if (map.current!.getLayer(id)) map.current!.setFilter(id, filter);
     });
+  };
+
+  // Outline the signed-in user's footprints, using the `owner_id` the
+  // coverage PMTiles carry. Footprints built before it existed have none and
+  // keep the default colour; My imagery draws those from the search instead.
+  const applyOwnerColour = (owner: string | null) => {
+    if (!map.current?.getLayer("footprint-line")) return;
+    map.current.setPaintProperty(
+      "footprint-line",
+      "line-color",
+      owner ? ["case", ["==", ["get", "owner_id"], owner], MY_IMAGERY_COLOR, "#00B0FF"] : "#00B0FF",
+    );
   };
 
   // Swap the density layer's count source (fill ramp, label text, and
@@ -487,6 +513,38 @@ export default function OamMap({
           "line-opacity": 0.8,
         },
       });
+
+      // My imagery, from the STAC search rather than the PMTiles, so it is
+      // current and visible at every zoom. Empty until the list loads. Below
+      // the zoom where footprints are too small to see, a dot marks each one.
+      const empty: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+      map.current!.addSource("my-imagery", { type: "geojson", data: empty, promoteId: "_id" });
+      map.current!.addSource("my-imagery-points", { type: "geojson", data: empty });
+      map.current!.addLayer({
+        id: "my-imagery-fill",
+        type: "fill",
+        source: "my-imagery",
+        paint: { "fill-color": MY_IMAGERY_COLOR, "fill-opacity": 0.15 },
+      });
+      map.current!.addLayer({
+        id: "my-imagery-line",
+        type: "line",
+        source: "my-imagery",
+        paint: { "line-color": MY_IMAGERY_COLOR, "line-width": 2 },
+      });
+      map.current!.addLayer({
+        id: "my-imagery-point",
+        type: "circle",
+        source: "my-imagery-points",
+        maxzoom: FOOTPRINT_MIN_ZOOM,
+        paint: {
+          "circle-color": MY_IMAGERY_COLOR,
+          "circle-radius": 5,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
       map.current!.addLayer({
         id: "footprint-hover",
         type: "line",
@@ -507,9 +565,18 @@ export default function OamMap({
         filter: ["==", "_id", ""],
         paint: { "line-color": "#FF0000", "line-width": 3 },
       });
+      // Same highlight for an Item that is not in the PMTiles yet.
+      map.current!.addLayer({
+        id: "my-imagery-highlight",
+        type: "line",
+        source: "my-imagery",
+        filter: ["==", "_id", ""],
+        paint: { "line-color": "#FF0000", "line-width": 3 },
+      });
 
       applyFilters(filtersRef.current);
       applyDensityFilters(filtersRef.current);
+      applyOwnerColour(ownerIdRef.current);
 
       map.current!.on("mousemove", (e) => {
         if (!selectedFeatureRef.current) {
@@ -529,13 +596,18 @@ export default function OamMap({
         closePopup();
 
         const hits = map.current!.queryRenderedFeatures(e.point, {
-          layers: ["footprint-fill"],
+          layers: ["footprint-fill", "my-imagery-fill", "my-imagery-point"],
         });
         if (hits.length > 0) {
           const uniqueMap = new Map<string, ImageFeature>();
           for (const h of hits) {
             const id = h.properties?._id as string | undefined;
             if (!id || uniqueMap.has(id)) continue;
+            const mine = myFeaturesRef.current.get(id);
+            if (mine) {
+              uniqueMap.set(id, toImageFeature(mine.geometry, mine.properties));
+              continue;
+            }
             const feature = transformFeature(h);
             const full = getFullBbox(map.current!, id);
             if (full) {
@@ -599,7 +671,7 @@ export default function OamMap({
         onSelectRef.current?.(null);
       });
 
-      ["footprint-fill", "density-fill"].forEach((layer) => {
+      ["footprint-fill", "density-fill", "my-imagery-fill", "my-imagery-point"].forEach((layer) => {
         map.current!.on("mouseenter", layer, () => {
           map.current!.getCanvas().style.cursor = "pointer";
         });
@@ -742,12 +814,14 @@ export default function OamMap({
     const mapInstance = map.current;
     const selectedId = selectedFeature?.properties?.id;
 
-    mapInstance.setFilter(
-      "footprint-highlight",
-      selectedId
-        ? (["==", "_id", selectedId] as FilterSpecification)
-        : (["==", "_id", ""] as FilterSpecification),
-    );
+    ["footprint-highlight", "my-imagery-highlight"].forEach((layer) => {
+      mapInstance.setFilter(
+        layer,
+        selectedId
+          ? (["==", "_id", selectedId] as FilterSpecification)
+          : (["==", "_id", ""] as FilterSpecification),
+      );
+    });
 
     if (selectedFeature) {
       try {
@@ -794,6 +868,13 @@ export default function OamMap({
     }
     if (mapInstance.getLayer("footprint-line")) {
       mapInstance.setPaintProperty("footprint-line", "line-opacity", lineOpacity);
+    }
+    // My imagery fades the same way; the selected Item keeps its red outline.
+    if (mapInstance.getLayer("my-imagery-fill")) {
+      mapInstance.setPaintProperty("my-imagery-fill", "fill-opacity", selectedId ? 0 : 0.15);
+    }
+    if (mapInstance.getLayer("my-imagery-line")) {
+      mapInstance.setPaintProperty("my-imagery-line", "line-opacity", selectedId ? 0.15 : 1);
     }
   }, [selectedFeature, isLoaded]);
 
@@ -1095,6 +1176,34 @@ export default function OamMap({
         : (["==", "_id", ""] as FilterSpecification),
     );
   }, [hoveredFeatureId, selectedFeature, isLoaded]);
+
+  // 9. MY IMAGERY
+  useEffect(() => {
+    if (!map.current || !isLoaded) return;
+    applyOwnerColour(ownerId);
+  }, [ownerId, isLoaded]);
+
+  useEffect(() => {
+    if (!map.current || !isLoaded) return;
+    const features = myImagery ?? [];
+    myFeaturesRef.current = new Map(features.map((f) => [f.properties._id, f]));
+    const footprints = map.current.getSource("my-imagery") as maplibregl.GeoJSONSource | undefined;
+    const points = map.current.getSource("my-imagery-points") as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    footprints?.setData({ type: "FeatureCollection", features });
+    points?.setData({
+      type: "FeatureCollection",
+      features: features.map((f) => {
+        const [w, s, e, n] = bbox(f);
+        return {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [(w + e) / 2, (s + n) / 2] },
+          properties: { _id: f.properties._id },
+        };
+      }),
+    });
+  }, [myImagery, isLoaded]);
 
   return (
     <div className="relative w-full h-full">

@@ -81,6 +81,10 @@ export const BASEMAP_STYLE_URL = getRuntimeConfig(
 // Low-zoom footprint tiles are thinned, so use density tiles below this zoom.
 export const FOOTPRINT_MIN_ZOOM = 8;
 
+// Outlines the signed-in user's imagery. Distinct from the cyan footprints
+// and the red selection.
+export const MY_IMAGERY_COLOR = "#F59E0B";
+
 export const LARGE_IMAGE_THRESHOLD_SQ_KM = 50;
 export const TMS_LARGE_MIN_ZOOM = 12;
 export const TMS_ALL_MIN_ZOOM = 16;
