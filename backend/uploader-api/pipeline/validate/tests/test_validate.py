@@ -13,13 +13,15 @@ from rasterio.enums import ColorInterp
 class _FakeSrc:
     """A rasterio dataset stand-in, so a 4-terapixel grid costs no disk."""
 
-    def __init__(self, width, height, count=3, dtype="uint8", crs="EPSG:4326"):
+    def __init__(
+        self, width, height, count=3, dtype="uint8", crs="EPSG:4326", colorinterp=None
+    ):
         self.width = width
         self.height = height
         self.count = count
         self.dtypes = [dtype] * count
         self.crs = CRS.from_string(crs) if crs else None
-        self.colorinterp = [ColorInterp.gray] * count
+        self.colorinterp = colorinterp or [ColorInterp.gray] * count
 
     def __enter__(self):
         return self
@@ -76,6 +78,54 @@ def test_a_decompression_bomb_is_still_rejected(opens, reason):
     opens(_FakeSrc(2_000_000, 2_000_000, count=1))  # 4 TB decoded
     assert _rejects() == 6
     assert "4000.0 GB decoded" in reason()
+
+
+# #365: an 8 GB DEFLATE RGBA ortho decodes to 102 GB, above the 81 GB
+# lossless limit. Lossy conversion fits the workspace.
+_RGBA = [ColorInterp.red, ColorInterp.green, ColorInterp.blue, ColorInterp.alpha]
+
+
+def _ortho_365(**kwargs):
+    return _FakeSrc(270_768, 94_138, count=4, **kwargs)
+
+
+def test_a_large_visual_ortho_is_budgeted_for_its_lossy_cog(opens, monkeypatch):
+    monkeypatch.setattr(validate, "MAX_DECODED_GB", 81)
+    opens(_ortho_365(colorinterp=_RGBA))
+    assert validate.validate_raster("/data/input.tif") is True
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "md"),
+    [
+        # An untagged band 4 may be NIR, so convert keeps it lossless.
+        ({}, {}),
+        ({"colorinterp": _RGBA}, {"product_type": "elevation"}),
+        ({"colorinterp": _RGBA}, {"product_type": "unknown"}),
+    ],
+    ids=["4band-no-alpha", "declared-elevation", "declared-unknown"],
+)
+def test_a_lossless_cog_keeps_the_full_budget(
+    opens, reason, monkeypatch, tmp_path, kwargs, md
+):
+    monkeypatch.setattr(validate, "MAX_DECODED_GB", 81)
+    meta = tmp_path / "meta.json"
+    meta.write_text(json.dumps(md))
+    opens(_ortho_365(**kwargs))
+    assert _rejects(str(meta)) == 6
+    assert "over the 81 GB limit" in reason()
+
+
+def test_a_highly_compressed_visual_upload_is_still_rejected(
+    opens, reason, monkeypatch
+):
+    """Keep a disk limit for lossy output: GDAL's overview temp is lossless."""
+    monkeypatch.setattr(validate, "MAX_DECODED_GB", 81)  # 135 GB once lossy
+    opens(_FakeSrc(200_000, 200_000))  # 120 GB decoded
+    assert validate.validate_raster("/data/input.tif") is True
+    opens(_FakeSrc(220_000, 220_000))  # 145.2 GB decoded
+    assert _rejects() == 6
+    assert "over the 135 GB limit" in reason()
 
 
 def test_a_deployment_can_still_cap_pixels(opens, reason, monkeypatch):

@@ -1,4 +1,4 @@
-"""Create lossy WEBP COGs for visual RGB(A), lossless ZSTD COGs otherwise."""
+"""Create lossy YCbCr JPEG COGs for visual RGB(A), lossless ZSTD COGs otherwise."""
 
 import datetime as dt
 import json
@@ -36,13 +36,11 @@ GDAL_CACHEMAX = os.environ.get("COG_GDAL_CACHEMAX", "512")  # MB (values <100000
 VERIFY = os.environ.get("COG_VERIFY", "on").lower() != "off"
 VALIDATE = os.environ.get("COG_VALIDATE", "on").lower() != "off"
 TMPDIR = os.environ.get("CPL_TMPDIR", "/data/tmp")
-# "off" keeps visual imagery lossless.
-VISUAL_COMPRESS = os.environ.get("COG_VISUAL_COMPRESS", "WEBP").upper()
-if VISUAL_COMPRESS not in ("WEBP", "JPEG", "OFF"):
-    raise ValueError(
-        f"COG_VISUAL_COMPRESS must be WEBP, JPEG or off: {VISUAL_COMPRESS}"
-    )
-VISUAL_QUALITY = os.environ.get("COG_VISUAL_QUALITY", "90")
+# Fixed JPEG q90 keeps output within validate's measured disk budget.
+# JPEG matches the catalogue and avoids WEBP compatibility issues (#342).
+# GDAL writes YCbCr with alpha stored as a mask band.
+VISUAL_COMPRESS = "JPEG"
+VISUAL_QUALITY = "90"
 LOSSY_MAX_MAE = float(os.environ.get("COG_LOSSY_MAX_MAE", "10"))
 PIPELINE_VERSION = os.environ.get("OAM_PIPELINE_VERSION", "dev")
 
@@ -63,8 +61,6 @@ def _declared_product_type(meta_path: str) -> str:
 
 def _lossy_visual(src: rasterio.DatasetReader, declared: str) -> bool:
     """Return whether this source meets the lossy visual contract."""
-    if VISUAL_COMPRESS == "OFF":
-        return False
     if src.dtypes[0] != "uint8" or src.count not in (3, 4):
         return False
     # Even when declared visual: an untagged band 4 may be NIR, not alpha.
@@ -259,7 +255,7 @@ def convert_to_cog(src_path: str, dst_path: str, meta_path: str | None = None) -
             "quality": VISUAL_QUALITY,
             "lossy": True,
             # The COG driver turns alpha into a 1-bit mask band for JPEG.
-            "mask": "mask band" if VISUAL_COMPRESS == "JPEG" else "alpha",
+            "mask": "mask band",
         }
         creation.update(compress=opts["compress"], quality=VISUAL_QUALITY)
     else:

@@ -1,6 +1,8 @@
 """Tests for codec routing and the lossy visual path."""
 
 import json
+import os
+import threading
 
 import convert
 import numpy as np
@@ -63,23 +65,22 @@ def _tmpdir(tmp_path, monkeypatch):
     monkeypatch.setattr(convert, "TMPDIR", str(tmp_path / "tmp"))
 
 
-def test_rgb_nodata_becomes_webp_with_exact_alpha(tmp_path):
+def test_rgb_nodata_becomes_ycbcr_jpeg_with_a_mask_band(tmp_path):
     _meta(tmp_path)
     src = _write(tmp_path / "input.tif", _scene(), nodata=0)
     dst, prov = _convert(tmp_path, src)
     with rasterio.open(dst) as out, rasterio.open(src) as inp:
-        assert out.tags(ns="IMAGE_STRUCTURE")["COMPRESSION"] == "WEBP"
-        assert out.colorinterp[3] == ColorInterp.alpha
+        assert out.tags(ns="IMAGE_STRUCTURE")["COMPRESSION"] == "YCbCr JPEG"
+        assert out.count == 3
         assert out.nodata is None
-        assert np.array_equal(out.read(4), inp.dataset_mask())
-        assert (out.width, out.height, out.transform) == (
-            inp.width,
-            inp.height,
-            inp.transform,
-        )
+        assert np.array_equal(out.dataset_mask() > 0, inp.dataset_mask() > 0)
     opts = prov["cog_options"]
     assert opts["lossy"] is True
-    assert (opts["compress"], opts["quality"], opts["mask"]) == ("WEBP", "90", "alpha")
+    assert (opts["compress"], opts["quality"], opts["mask"]) == (
+        "JPEG",
+        "90",
+        "mask band",
+    )
     assert "predictor" not in opts
 
 
@@ -89,7 +90,7 @@ def test_rgb_without_nodata_is_fully_opaque(tmp_path):
     src = _write(tmp_path / "input.tif", _scene())
     dst, _ = _convert(tmp_path, src)
     with rasterio.open(dst) as out:
-        assert out.read(4).min() == 255
+        assert out.dataset_mask().min() == 255
 
 
 def test_rgba_keeps_its_alpha(tmp_path):
@@ -100,18 +101,7 @@ def test_rgba_keeps_its_alpha(tmp_path):
     dst, prov = _convert(tmp_path, src)
     assert prov["cog_options"]["lossy"] is True
     with rasterio.open(dst) as out:
-        assert np.array_equal(out.read(4) > 0, data[3] > 0)
-
-
-def test_jpeg_fallback_uses_a_mask_band(tmp_path, monkeypatch):
-    monkeypatch.setattr(convert, "VISUAL_COMPRESS", "JPEG")
-    _meta(tmp_path)
-    src = _write(tmp_path / "input.tif", _scene(), nodata=0)
-    dst, prov = _convert(tmp_path, src)
-    assert prov["cog_options"]["mask"] == "mask band"
-    with rasterio.open(dst) as out, rasterio.open(src) as inp:
-        assert out.count == 3
-        assert np.array_equal(out.dataset_mask() > 0, inp.dataset_mask() > 0)
+        assert np.array_equal(out.dataset_mask() > 0, data[3] > 0)
 
 
 @pytest.mark.parametrize(
@@ -145,14 +135,6 @@ def test_declared_visual_untagged_band_4_stays_lossless(tmp_path):
     assert prov["cog_options"]["lossy"] is False
 
 
-def test_off_switch_keeps_visual_lossless(tmp_path, monkeypatch):
-    monkeypatch.setattr(convert, "VISUAL_COMPRESS", "OFF")
-    _meta(tmp_path)
-    src = _write(tmp_path / "input.tif", _scene(), nodata=0)
-    _, prov = _convert(tmp_path, src)
-    assert prov["cog_options"]["compress"] == "ZSTD"
-
-
 def test_missing_meta_json_is_treated_as_undeclared(tmp_path):
     src = _write(tmp_path / "input.tif", _scene(), nodata=0)
     _, prov = _convert(tmp_path, src)
@@ -177,7 +159,7 @@ def test_pixel_zero_in_one_band_stays_opaque(tmp_path):
     src = _write(tmp_path / "input.tif", data, nodata=0)
     dst, _ = _convert(tmp_path, src)
     with rasterio.open(dst) as out:
-        assert out.read(4)[300, 300] == 255
+        assert out.dataset_mask()[300, 300] == 255
 
 
 def test_rgba_internal_mask_wins_over_alpha(tmp_path):
@@ -190,8 +172,8 @@ def test_rgba_internal_mask_wins_over_alpha(tmp_path):
     _meta(tmp_path)
     dst, _ = _convert(tmp_path, src)
     with rasterio.open(dst) as out, rasterio.open(src) as inp:
-        assert np.array_equal(out.read(4) > 0, inp.dataset_mask() > 0)
-        assert np.count_nonzero(out.read(4)) == 100 * 100
+        assert np.array_equal(out.dataset_mask() > 0, inp.dataset_mask() > 0)
+        assert np.count_nonzero(out.dataset_mask()) == 100 * 100
 
 
 def _bad_output(tmp_path, rgb, alpha):
@@ -216,3 +198,63 @@ def test_lossy_verify_rejects_corrupted_pixels_in_a_small_footprint(tmp_path):
     bad = _bad_output(tmp_path, np.where(data > 0, data + 60, 0).astype("uint8"), alpha)
     with pytest.raises(ValueError, match="lossy error too high"):
         convert._verify_lossy(src, bad)
+
+
+def _peak_bytes(directory, run) -> int:
+    """Sample directory size during run() and return the peak."""
+    peak, done = [0], threading.Event()
+
+    def watch():
+        while not done.is_set():
+            total = 0
+            for root, _, names in os.walk(directory):
+                for name in names:
+                    try:
+                        total += os.path.getsize(os.path.join(root, name))
+                    except OSError:
+                        pass  # GDAL removed it mid-walk
+            peak[0] = max(peak[0], total)
+            done.wait(0.01)
+
+    thread = threading.Thread(target=watch)
+    thread.start()
+    try:
+        run()
+    finally:
+        done.set()
+        thread.join()
+    return peak[0]
+
+
+def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
+    """Check the 0.9x decoded-size budget with JPEG q30 noise input.
+
+    GDAL's lossless overview temp dominates disk use. Sampling may miss peaks.
+    """
+    n = 2048
+    noise = np.random.default_rng(0).integers(0, 256, (3, n, n), dtype="uint8")
+    src = str(tmp_path / "input.tif")
+    with rasterio.open(
+        src,
+        "w",
+        driver="GTiff",
+        width=n,
+        height=n,
+        count=3,
+        dtype="uint8",
+        crs="EPSG:32633",
+        transform=from_origin(500000, 5000000, 0.1, 0.1),
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        compress="JPEG",
+        photometric="YCBCR",
+        jpeg_quality=30,
+    ) as dst:
+        dst.write(noise)
+    _meta(tmp_path)
+    input_bytes = os.path.getsize(src)
+    peak = _peak_bytes(
+        str(tmp_path), lambda: convert.convert_to_cog(src, str(tmp_path / "out.tif"))
+    )
+    assert peak - input_bytes <= 0.9 * noise.nbytes, (peak - input_bytes) / noise.nbytes
