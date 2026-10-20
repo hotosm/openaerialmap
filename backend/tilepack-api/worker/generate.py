@@ -24,8 +24,8 @@ Environment variables:
     COG_URL             Source COG URL (already resolved from STAC).
     OUTPUT_KEY          S3 key to write the final archive to.
     LOCK_KEY            S3 lock key; failures use "<LOCK_KEY>.error".
-    MIN_ZOOM            Integer; 0 is "use default".
-    MAX_ZOOM            Integer; 0 is "derive from GSD".
+    MIN_ZOOM            Integer; 0 is valid for both canonical and custom runs.
+    MAX_ZOOM            Integer; 0 derives from GSD only for canonical runs.
     CANONICAL           "true" if this run should patch STAC.
     GSD                 Source ground sample distance, metres/pixel.
                         Used to derive MAX_ZOOM when not provided.
@@ -157,6 +157,14 @@ def derive_max_zoom_from_gsd(gsd_m: float) -> int:
         return 18
     z = round(math.log2(156543.03 / gsd_m))
     return max(0, min(22, z))
+
+
+def resolve_zoom_range(
+    min_zoom: int, max_zoom: int, canonical: bool, gsd: float
+) -> tuple[int, int]:
+    if canonical and min_zoom == 0 and max_zoom == 0:
+        max_zoom = derive_max_zoom_from_gsd(gsd)
+    return min_zoom, max_zoom
 
 
 def lonlat_to_tile(lon: float, lat: float, z: int) -> tuple[int, int]:
@@ -710,10 +718,9 @@ def main() -> int:
             flush=True,
         )
 
-        if min_zoom == 0 and max_zoom == 0:
-            # Derive the canonical range from the source GSD.
-            max_zoom = derive_max_zoom_from_gsd(gsd)
-            min_zoom = 0
+        original_range = min_zoom, max_zoom
+        min_zoom, max_zoom = resolve_zoom_range(min_zoom, max_zoom, canonical, gsd)
+        if (min_zoom, max_zoom) != original_range:
             print(f"derived zoom range from gsd={gsd}: {min_zoom}..{max_zoom}")
 
         workdir = Path(tempfile.mkdtemp(prefix="tilepack-"))
