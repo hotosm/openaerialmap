@@ -19,7 +19,7 @@ back to `uploader-api` via the per-upload callback token.
   S3 or downloads a remote `source_url`, then reports the original checksum.
 - **`validate`** (`uploader-validate`): product-type-aware checks for CRS, size,
   content, and GeoTIFF format (exit 5/6/7/8).
-- **`convert`** (`uploader-convert`): visual RGB(A) to lossy WEBP COG;
+- **`convert`** (`uploader-convert`): visual RGB(A) to lossy YCbCr JPEG COG;
   everything else to native-dtype lossless ZSTD COG. Verifies content and COG
   layout.
 - **`metadata`** (`uploader-metadata`): builds the OAM STAC item with
@@ -44,7 +44,7 @@ upload, the item carries up to three tracks:
 - **`original`** - the unmodified upload, kept as-is for archival / recovery. A
   STAC asset is only a pointer, so cataloging it does not alter the bytes.
 - **`visual`** (the COG) - a byte-range serving copy. Visual RGB(A) uses lossy
-  WEBP q90; other products remain native-dtype lossless ZSTD. See
+  YCbCr JPEG q90; other products remain native-dtype lossless ZSTD. See
   [decision 0008](../../../docs/decisions/0008-lossy-visual-cogs.md).
 - **2D display** - rendered on demand by titiler from the COG using the
   `renders` params written per `oam:product_type` (`visual` shown as-is;
@@ -84,6 +84,10 @@ holds the input, its COG and GDAL's overview temp on one disk, and a lossless
 COG of incompressible pixels is the size of the decoded raster. `COG_TEMP_FACTOR`
 budgets half the output for temp against GDAL's estimated third, and
 `WORKSPACE_USABLE` keeps 5% back for ext4 metadata and the small sidecar files.
+
+Lossy visual output budgets 0.9x decoded size (`LOSSY_DISK_FACTOR=0.6`),
+including GDAL's lossless overview temp. A conversion test checks this budget
+with incompressible JPEG input.
 
 | Parameter | Default | Env in the step |
 | --- | --- | --- |

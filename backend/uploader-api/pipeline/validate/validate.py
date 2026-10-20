@@ -17,6 +17,7 @@ from typing import NoReturn
 import numpy as np
 import rasterio
 import rasterio.errors
+from rasterio.enums import ColorInterp
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -39,6 +40,9 @@ EXIT_INPUT_MISSING = 75
 # COG. Derived from the PVC in workflow-template.yaml. 0 disables either check.
 MAX_DECODED_GB = float(os.environ.get("OAM_VALIDATE_MAX_DECODED_GB", "130"))
 MAX_GIGAPIXELS = float(os.environ.get("OAM_VALIDATE_MAX_GIGAPIXELS", "0"))
+# JPEG q90 needs 0.9x decoded size: 0.6 of the 1.5x lossless budget.
+# Measured peak: 0.72-0.83x. GDAL's overview temp stays lossless ZSTD.
+LOSSY_DISK_FACTOR = 0.6
 
 # Cleanup reports this verbatim; without it the uploader only gets the exit
 # code mapped to a fixed sentence. The API truncates at 300.
@@ -60,15 +64,23 @@ def _reject(code: int, reason: str) -> NoReturn:
 
 
 def _declared_product_type(meta_path: str | None) -> str:
-    """Read the user-declared product_type from meta.json, "" if absent/invalid."""
+    """Read product_type from meta.json; return an empty string on failure."""
     if not meta_path or not os.path.exists(meta_path):
         return ""
     try:
         with open(meta_path) as f:
-            declared = str(json.load(f).get("product_type", "")).strip().lower()
-    except (OSError, ValueError):
+            return str(json.load(f).get("product_type", "")).strip().lower()
+    except (OSError, ValueError, AttributeError):
         return ""
-    return declared if declared in PRODUCT_TYPES else ""
+
+
+def _converts_lossy(src: rasterio.DatasetReader, declared: str) -> bool:
+    """Match convert._lossy_visual to budget for the output codec."""
+    if src.dtypes[0] != "uint8":
+        return False
+    if src.count == 4 and src.colorinterp[3] != ColorInterp.alpha:
+        return False
+    return src.count in (3, 4) and declared in ("", "visual")
 
 
 def validate_raster(path: str, meta_path: str | None = None) -> bool:
@@ -100,6 +112,10 @@ def validate_raster(path: str, meta_path: str | None = None) -> bool:
         if src.crs is None:
             _reject(5, "Not georeferenced: the GeoTIFF declares no CRS.")
 
+        # Unknown product types use lossless conversion.
+        raw_declared = _declared_product_type(meta_path)
+        declared = raw_declared if raw_declared in PRODUCT_TYPES else ""
+
         gigapixels = (src.width * src.height) / 1e9
         if MAX_GIGAPIXELS and gigapixels > MAX_GIGAPIXELS:
             _reject(
@@ -111,19 +127,21 @@ def validate_raster(path: str, meta_path: str | None = None) -> bool:
 
         bytes_per_sample = np.dtype(dtype).itemsize
         decoded_gb = (src.width * src.height * src.count * bytes_per_sample) / 1e9
-        if MAX_DECODED_GB and decoded_gb > MAX_DECODED_GB:
+        max_decoded_gb = MAX_DECODED_GB
+        if _converts_lossy(src, raw_declared):
+            max_decoded_gb = round(MAX_DECODED_GB / LOSSY_DISK_FACTOR, 1)
+        if max_decoded_gb and decoded_gb > max_decoded_gb:
             _reject(
                 6,
                 f"Image too large: {decoded_gb:.1f} GB decoded "
                 f"({src.width} x {src.height}, {src.count} band(s), {dtype}) is "
-                f"over the {MAX_DECODED_GB:g} GB limit.",
+                f"over the {max_decoded_gb:g} GB limit.",
             )
         log.info(
             "Size accepted: %.2f gigapixels, %.1f GB decoded", gigapixels, decoded_gb
         )
 
         # Only visual data has a uint8 RGB(A) contract; other types stay native.
-        declared = _declared_product_type(meta_path)
         is_uint8_rgb = dtype == "uint8" and src.count in (3, 4)
         if declared == "visual" and not is_uint8_rgb:
             _reject(
