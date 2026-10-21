@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { ANNOUNCEMENT_URL, API_URL, UPLOADER_URL } from "./browse/utils/constants";
 import { appUrl } from "./appUrl";
+import { HANKO_URL } from "./auth";
 
 // Keep these tabs aligned with backend/uploader-api/app/templates/layout.html.
 
@@ -83,6 +84,9 @@ export default function SiteHeader() {
             </div>
           </wa-dropdown>
           <hotosm-tool-menu></hotosm-tool-menu>
+          {HANKO_URL && (
+            <hotosm-auth hanko-url={HANKO_URL} button-variant="filled" button-color="primary" />
+          )}
         </div>
       </hot-header>
     </>
