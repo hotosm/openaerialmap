@@ -34,7 +34,7 @@ data:
             "fill-color": [
               "interpolate",
               ["linear"],
-              ["get", "count"],
+              ["coalesce", ["get", "count_col_openaerialmap"], 0],
               1, "#a8d8ff",
               10, "#66b3ff",
               50, "#0066cc",
@@ -52,11 +52,11 @@ data:
           "minzoom": 2,
           "maxzoom": 14,
           "filter": ["all",
-            [">", ["get", "count"], 0],
+            [">", ["coalesce", ["get", "count_col_openaerialmap"], 0], 0],
             ["==", ["geometry-type"], "Point"]
           ],
           "layout": {
-            "text-field": ["to-string", ["get", "count"]],
+            "text-field": ["to-string", ["coalesce", ["get", "count_col_openaerialmap"], 0]],
             "text-font": [{{ .Values.glyphs.fontstack | quote }}],
             "text-size": [
               "interpolate", ["linear"], ["zoom"],
