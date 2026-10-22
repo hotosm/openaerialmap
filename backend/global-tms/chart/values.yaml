@@ -12,6 +12,13 @@ pmtiles:
   url: "https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles"
   maxzoom: 13
 
+# z14+ redirects to a titiler-pgstac mosaic of these collections.
+# Keep in step with FOOTPRINT_COLLECTIONS on the global-mosaic CronJob.
+titiler:
+  url: "https://api.imagery.hotosm.org/raster"
+collections:
+  - openaerialmap
+
 # Font PBFs for density labels. Self-host later if demotiles uptime matters.
 glyphs:
   url: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf"
