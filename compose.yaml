@@ -2,6 +2,7 @@ volumes:
   pgstac_data:
   rustfs_data:
   pmtiles:
+  mosaic:
   chiitiler_cache:
   tms_nginx_cache:
   uploader_db_data:
@@ -308,6 +309,12 @@ services:
     extends:
       file: backend/global-tms/compose.yaml
       service: chiitiler
+    profiles: [tms]
+
+  register-mosaic:
+    extends:
+      file: backend/global-tms/compose.yaml
+      service: register-mosaic
     profiles: [tms]
 
   tms-nginx:

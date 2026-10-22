@@ -1,5 +1,6 @@
 volumes:
   pmtiles:
+  mosaic:
   chiitiler_cache:
   tms_nginx_cache:
 
@@ -19,6 +20,29 @@ services:
         fi
       "
 
+  # Register the z14+ mosaic search, as the init container does in the chart.
+  register-mosaic:
+    image: docker.io/curlimages/curl:8.21.0
+    environment:
+      TITILER_URL: ${TITILER_URL:-https://api.imagery.hotosm.org/raster}
+      # JSON array; the first entry is the fallback if registration fails.
+      COLLECTIONS: ${COLLECTIONS:-["openaerialmap"]}
+    volumes:
+      - mosaic:/mosaic
+    command: |
+      /bin/sh -c '
+        set -o pipefail
+        first=$$(echo "$$COLLECTIONS" | sed "s/^\[\"\([^\"]*\)\".*/\1/")
+        base="$$TITILER_URL/collections/$$first"
+        id=$$(curl -sSf --connect-timeout 5 --max-time 15 --retry 5 --retry-connrefused \
+          -X POST "$$TITILER_URL/searches/register" \
+          -H "content-type: application/json" \
+          -d "{\"collections\":$$COLLECTIONS,\"metadata\":{\"type\":\"mosaic\"}}" \
+          | sed "s/.*\"id\":\"\([0-9a-f]*\)\".*/\1/")
+        if [ $${#id} -eq 32 ]; then base="$$TITILER_URL/searches/$$id"; else echo "mosaic registration failed, serving $$base" >&2; fi
+        echo "return 302 $$base/tiles/WebMercatorQuad/\$$zoom_level/\$$x/\$$y.png?assets=visual;" > /mosaic/redirect.conf
+      '
+
   # Route between martin / chiitiler / TiTiler. Mirrors the k8s pod topology
   # in chart/templates/deployment.yaml: nginx sidecar with a proxy cache in
   # front of chiitiler, chiitiler shares the pod's network namespace so it
@@ -30,10 +54,13 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./style.json:/styles/style.json:ro
+      - mosaic:/etc/nginx/mosaic:ro
       - pmtiles:/pmtiles:ro
       - tms_nginx_cache:/var/cache/nginx/tms
     depends_on:
       get-tiles:
+        condition: service_completed_successfully
+      register-mosaic:
         condition: service_completed_successfully
       martin:
         condition: service_healthy

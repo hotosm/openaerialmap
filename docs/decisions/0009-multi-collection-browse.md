@@ -32,8 +32,9 @@ list and filter collections at both footprint and density zoom levels.
   frontend code.
 - The default remains single-collection and backward compatible.
 - Widening the allowlist changes `count` to include every selected collection.
-  `global-tms` reads the same value, so it must use
-  `count_col_openaerialmap` before a deployment widens the allowlist.
+  `global-tms` renders the same `count` and, from zoom 14, redirects to a
+  titiler-pgstac mosaic of the same collections, so its `collections` value
+  must match the allowlist.
 - Item IDs are unique only within a collection. The frontend must namespace
   IDs before enabling collections that may contain duplicate item IDs.
 - Combined density filters remain approximate because they intersect bucket
