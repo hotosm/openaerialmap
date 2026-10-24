@@ -415,6 +415,23 @@ func TestProcessDiscoveryRoutes(t *testing.T) {
 	if proc["title"] == "" {
 		t.Fatal("process title is empty")
 	}
+	inputs, ok := proc["inputs"].(map[string]any)
+	if !ok {
+		t.Fatalf("process inputs = %T, want object keyed by input id", proc["inputs"])
+	}
+	if _, ok := inputs["id"]; !ok {
+		t.Fatal("process inputs missing id description")
+	}
+	if _, ok := inputs["properties"]; ok {
+		t.Fatal("process inputs must not be a JSON Schema wrapper")
+	}
+	outputs, ok := proc["outputs"].(map[string]any)
+	if !ok {
+		t.Fatalf("process outputs = %T, want object keyed by output id", proc["outputs"])
+	}
+	if _, ok := outputs["status"]; !ok {
+		t.Fatal("process outputs missing status description")
+	}
 
 	rr = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/processes/unknown", nil)
@@ -449,6 +466,25 @@ func TestParseProcessExecutionInputs_RejectsMalformedJSON(t *testing.T) {
 	}
 	if got, want := err.Error(), "invalid JSON body"; got != want {
 		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
+func TestProcessExecutionRejectsMalformedJSON(t *testing.T) {
+	h := &Handler{}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/processes/tilepack/execution?format=pmtiles", strings.NewReader(`{"inputs":`))
+
+	h.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	var resp response
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Message != "invalid JSON body" {
+		t.Fatalf("message = %q, want %q", resp.Message, "invalid JSON body")
 	}
 }
 

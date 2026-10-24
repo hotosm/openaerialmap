@@ -53,13 +53,25 @@ output format.
 ```http
 GET /processes
 GET /processes/tilepack
-POST /processes/tilepack/execution?id=67ac...&format=pmtiles
+POST /processes/tilepack/execution
 ```
 
 The process description advertises the current supported tilepack inputs and
-outputs based on the real API behavior. Execution reuses the same validation,
-idempotent S3 lock/output checks, Kubernetes Job creation, and pgSTAC update
-sequence as the legacy `/tilepacks/{id}` endpoint.
+outputs based on the real API behavior. The canonical execution request places
+inputs under the OGC `inputs` object:
+
+```json
+{
+  "inputs": {
+    "id": "67ac...",
+    "format": "pmtiles"
+  }
+}
+```
+
+Execution reuses the same validation, idempotent S3 lock/output checks,
+Kubernetes Job creation, and pgSTAC update sequence as the legacy
+`/tilepacks/{id}` endpoint.
 
 Zoom behavior has two modes:
 

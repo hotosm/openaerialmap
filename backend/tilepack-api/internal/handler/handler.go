@@ -156,16 +156,16 @@ type response struct {
 }
 
 type processDescription struct {
-	ID               string         `json:"id"`
-	Title            string         `json:"title"`
-	Description      string         `json:"description"`
-	Version          string         `json:"version,omitempty"`
-	JobControlOptions []string      `json:"jobControlOptions,omitempty"`
-	OutputTransmission []string     `json:"outputTransmission,omitempty"`
-	Keywords         []string       `json:"keywords,omitempty"`
-	Inputs           map[string]any `json:"inputs,omitempty"`
-	Outputs          map[string]any `json:"outputs,omitempty"`
-	Links            []map[string]any `json:"links,omitempty"`
+	ID                 string           `json:"id"`
+	Title              string           `json:"title"`
+	Description        string           `json:"description"`
+	Version            string           `json:"version,omitempty"`
+	JobControlOptions  []string         `json:"jobControlOptions,omitempty"`
+	OutputTransmission []string         `json:"outputTransmission,omitempty"`
+	Keywords           []string         `json:"keywords,omitempty"`
+	Inputs             map[string]any   `json:"inputs,omitempty"`
+	Outputs            map[string]any   `json:"outputs,omitempty"`
+	Links              []map[string]any `json:"links,omitempty"`
 }
 
 type processListResponse struct {
@@ -260,37 +260,53 @@ func parseProcessExecutionInputs(r *http.Request) (string, string, string, strin
 
 func tilepackProcessDescription() processDescription {
 	return processDescription{
-		ID:          tilepackProcessID,
-		Title:       "Tilepack archive generation",
-		Description: "Generate a canonical or custom PMTiles or MBTiles archive for a single OAM STAC item using the existing tilepack worker, S3 output path, and pgSTAC publication flow.",
-		Version:     "1.0.0",
-		JobControlOptions: []string{"async-execute"},
+		ID:                 tilepackProcessID,
+		Title:              "Tilepack archive generation",
+		Description:        "Generate a canonical or custom PMTiles or MBTiles archive for a single OAM STAC item using the existing tilepack worker, S3 output path, and pgSTAC publication flow.",
+		Version:            "1.0.0",
+		JobControlOptions:  []string{"async-execute"},
 		OutputTransmission: []string{"reference"},
-		Keywords:    []string{"tilepack", "pmtiles", "mbtiles", "stac", "openaerialmap"},
+		Keywords:           []string{"tilepack", "pmtiles", "mbtiles", "stac", "openaerialmap"},
 		Inputs: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"id": map[string]any{"type": "string", "description": "STAC item id in the openaerialmap collection"},
-				"format": map[string]any{"type": "string", "enum": []string{"pmtiles", "mbtiles"}},
-				"min_zoom": map[string]any{"type": "integer", "minimum": 0, "maximum": 24},
-				"max_zoom": map[string]any{"type": "integer", "minimum": 0, "maximum": 24},
+			"id": map[string]any{
+				"title":       "STAC item ID",
+				"description": "STAC item id in the openaerialmap collection",
+				"schema":      map[string]any{"type": "string"},
 			},
-			"required": []string{"id", "format"},
+			"format": map[string]any{
+				"title":  "Archive format",
+				"schema": map[string]any{"type": "string", "enum": []string{"pmtiles", "mbtiles"}},
+			},
+			"min_zoom": map[string]any{
+				"title":  "Minimum zoom",
+				"schema": map[string]any{"type": "integer", "minimum": 0, "maximum": 24},
+			},
+			"max_zoom": map[string]any{
+				"title":  "Maximum zoom",
+				"schema": map[string]any{"type": "integer", "minimum": 0, "maximum": 24},
+			},
 		},
 		Outputs: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"status": map[string]any{"type": "string", "description": "accepted, in_progress, ready, or error"},
-				"url": map[string]any{"type": "string", "description": "Public S3 URL for a ready archive"},
-				"message": map[string]any{"type": "string"},
+			"status": map[string]any{
+				"title":  "Execution status",
+				"schema": map[string]any{"type": "string"},
+			},
+			"url": map[string]any{
+				"title":       "Archive URL",
+				"description": "Public S3 URL for a ready archive",
+				"schema":      map[string]any{"type": "string", "format": "uri"},
+			},
+			"message": map[string]any{
+				"title":  "Execution message",
+				"schema": map[string]any{"type": "string"},
 			},
 		},
 		Links: []map[string]any{{
-			"rel": "self",
+			"rel":  "self",
 			"type": "application/json",
 			"href": "/processes/tilepack",
 		}, {
-			"rel": "execution",
+			"rel":  "execution",
 			"type": "application/json",
 			"href": "/processes/tilepack/execution",
 		}},
