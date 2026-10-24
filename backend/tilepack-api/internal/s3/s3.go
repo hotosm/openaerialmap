@@ -62,7 +62,7 @@ func New(ctx context.Context, bucket, publicBaseURL string) (*Client, error) {
 //
 // Returns an error if the COG URL doesn't reference the configured
 // bucket - we refuse to write into a bucket we weren't given.
-func (c *Client) KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int) (string, error) {
+func (c *Client) KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int, canonical bool) (string, error) {
 	u, err := url.Parse(cogURL)
 	if err != nil {
 		return "", fmt.Errorf("parse cog url: %w", err)
@@ -87,7 +87,7 @@ func (c *Client) KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int) (str
 	default:
 		return "", fmt.Errorf("cog url is not a .tif/.tiff: %s", cogURL)
 	}
-	if minZoom == 0 && maxZoom == 0 {
+	if canonical {
 		return fmt.Sprintf("%s.%s", key, format), nil
 	}
 	return fmt.Sprintf("%s_z%d-%d.%s", key, minZoom, maxZoom, format), nil

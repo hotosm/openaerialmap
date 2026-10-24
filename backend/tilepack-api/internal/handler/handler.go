@@ -42,7 +42,7 @@ type jobClient interface {
 }
 
 type objectStore interface {
-	KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int) (string, error)
+	KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int, canonical bool) (string, error)
 	LockKey(outputKey string) string
 	ErrorKey(lockKey string) string
 	PublicURL(key string) string
@@ -247,7 +247,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	// Non-canonical means a caller explicitly requested min/max zoom.
 	// Those are generated and served from S3, but intentionally not
 	// written to STAC so one request cannot overwrite catalogue metadata.
-	canonical := minZoom == 0 && maxZoom == 0
+	canonical := minZoomQ == "" && maxZoomQ == ""
 
 	// Per-IP rate limit happens before any expensive work so abusive
 	// clients are cheap to reject.
@@ -283,7 +283,7 @@ func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	gsd, _ := stac.GSD(item)
 	autoMaxZoom := deriveAutoMaxZoom(gsd)
 
-	outputKey, err := h.s3.KeyFromCOGURL(cogURL, format, minZoom, maxZoom)
+	outputKey, err := h.s3.KeyFromCOGURL(cogURL, format, minZoom, maxZoom, canonical)
 	if err != nil {
 		log.Printf("output key derivation failed: stac_id=%s format=%s err=%v", id, format, err)
 		respond(http.StatusUnprocessableEntity, response{Status: "error", Message: err.Error()}, "invalid_cog_url")
