@@ -109,11 +109,11 @@ tilepack-api: _install-uv
 
   cd worker
   echo "🔍 Worker lint..."
-  uv run --group test ruff check .
-  uv run --group test ruff format --check .
+  UV_PYTHON=3.13 uv run --group test ruff check .
+  UV_PYTHON=3.13 uv run --group test ruff format --check .
 
   echo "🐍 Worker tests..."
-  uv run --group test pytest tests/ -q
+  UV_PYTHON=3.13 uv run --group test pytest tests/ -q
 
 # Validates the OAM extension schema and its examples. Needs npm.
 [no-cd]
@@ -423,14 +423,18 @@ _render-local-template:
   set -euo pipefail
   cd {{justfile_directory()}}
   TPL=backend/uploader-api/pipeline/workflow-template.yaml
-  # Keep pods for a day rather than 10m; there is no log archive locally.
-  PODGC_SED='s/deleteDelayDuration: 10m/deleteDelayDuration: 24h/'
+  # Always pull because reused clusters may cache stale :latest images.
+  PULL_SED='s#(image: ghcr.io/hotosm/openaerialmap/uploader/[a-z]+:[^ ]+)#\1\n        imagePullPolicy: Always#'
+  # Retain failed pods for inspection; clean them after successful workflows.
+  PODGC_SED='s/strategy: OnPodCompletion/strategy: OnWorkflowSuccess/'
+  # Keep failed workflows for 24 hours so they remain inspectable.
+  TTL_SED='s/secondsAfterCompletion: [0-9]+/secondsAfterCompletion: 86400/'
   # Talos-in-Docker misreports free space, so disable GDAL's guard locally.
   DISK_SED='s/(CHECK_DISK_FREE_SPACE, value: )"TRUE"/\1"FALSE"/'
   # Use faster lossless compression locally; OAM_LOCAL_COG_LEVEL overrides it.
-  LEVEL_SED='s#(- \{ ?name: GDAL_CACHEMAX, value: "512" ?\})#\1\n          - { name: COG_LEVEL, value: "'"${OAM_LOCAL_COG_LEVEL:-6}"'" }#'
+  LEVEL_SED='s#(- \{name: GDAL_CACHEMAX, value: "512"\})#\1\n          - {name: COG_LEVEL, value: "'"${OAM_LOCAL_COG_LEVEL:-6}"'"}#'
   if [ "${OAM_LOCAL_RESOURCES:-on}" = "off" ]; then
-      sed -E -e "$PODGC_SED" -e "$DISK_SED" -e "$LEVEL_SED" "$TPL"; exit 0
+      sed -E -e "$PULL_SED" -e "$PODGC_SED" -e "$TTL_SED" -e "$DISK_SED" -e "$LEVEL_SED" "$TPL"; exit 0
   fi
   REQ_MEM="${OAM_LOCAL_REQ_MEM:-2Gi}"; REQ_CPU="${OAM_LOCAL_REQ_CPU:-500m}"
   LIM_MEM="${OAM_LOCAL_LIM_MEM:-3Gi}"; LIM_CPU="${OAM_LOCAL_LIM_CPU:-2}"
@@ -438,7 +442,9 @@ _render-local-template:
   sed -E \
       -e "s/requests: \{memory: \"[^\"]*\", cpu: \"[^\"]*\"\}/requests: {memory: \"${REQ_MEM}\", cpu: \"${REQ_CPU}\"}/" \
       -e "s/limits: \{memory: \"[^\"]*\", cpu: \"[^\"]*\"\}/limits: {memory: \"${LIM_MEM}\", cpu: \"${LIM_CPU}\"}/" \
+      -e "$PULL_SED" \
       -e "$PODGC_SED" \
+      -e "$TTL_SED" \
       -e "$DISK_SED" \
       -e "$LEVEL_SED" \
       "$TPL"

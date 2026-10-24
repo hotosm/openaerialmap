@@ -36,6 +36,13 @@ spec:
                 name: {{ include "chart.fullname" . }}
                 port:
                   number: {{ .Values.service.port }}
+          - path: /processes
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "chart.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
           - path: /healthz
             pathType: Exact
             backend:
