@@ -4,6 +4,7 @@ import os
 from enum import Enum
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import urlsplit
 
 from psycopg.conninfo import make_conninfo
 from pydantic import (
@@ -128,6 +129,11 @@ class Settings(BaseSettings):
     OAM_UPLOAD_DOMAIN: str = "upload.imagery.hotosm.org"
     OAM_UPLOAD_DEV_PORT: str | None = None
     OAM_FRONTEND_URL: str = "https://imagery.hotosm.org"
+    OAM_API_URL: str = "https://api.imagery.hotosm.org"
+    # Offered wherever an upload fails. The form needs no Slack account, so a
+    # contributor outside the HOT community can still reach us (issue #307).
+    SUPPORT_URL: str = "https://roadmap.hotosm.org/#tech-request"
+    SUPPORT_SLACK_URL: str = "https://slack.hotosm.org"
     DEBUG: bool = False
     ENVIRONMENT: Environment = Environment.DEVELOPMENT
     LOG_LEVEL: str = "INFO"
@@ -188,6 +194,8 @@ class Settings(BaseSettings):
     PUBLIC_ASSET_BASE_URL: str | None = None
     S3_BUCKET: str = "oam"
     S3_REGION: str = "us-east-1"
+    # Empty for public buckets; "public-read" for ACL-based buckets.
+    S3_OBJECT_ACL: str = ""
     AWS_ACCESS_KEY_ID: str | None = None
     AWS_SECRET_ACCESS_KEY: SecretStr | None = None
 
@@ -203,8 +211,7 @@ class Settings(BaseSettings):
     # asks Argo directly about uploads that have gone quiet.
     RECONCILE_ENABLED: bool = True
     RECONCILE_INTERVAL_SECONDS: int = 60
-    # Must stay well under the template's ttlStrategy.secondsAfterCompletion
-    # (600), or every lost outcome is a deleted workflow by the time we look.
+    # Reconcile before Argo's 24-hour failure TTL loses the failure detail.
     RECONCILE_QUIET_MINUTES: int = 5
     # Backstop for an upload Argo can tell us nothing about, matching the window
     # `count_active` already stops counting a stuck upload against the quota.
@@ -212,11 +219,25 @@ class Settings(BaseSettings):
 
     STAC_URL: str = "http://stac-api:8082"
     STAC_COLLECTION: str = "openaerialmap"
-    # Strict checks fetch remote extension schemas.
+    STAC_BROWSER_URL: str = ""
+    STAC_PUBLIC_URL: str = ""
+    # Strict checks fetch remote extension schemas. Mainly used in staging env.
     STAC_STRICT_EXTENSIONS: bool = False
 
     MAX_UPLOAD_BYTES: int = 100 * 1024**3  # 100 GiB
     MAX_ACTIVE_UPLOADS_PER_USER: int = 5
+
+    # The workspace volume holds the upload, its COG and GDAL's overview temp,
+    # so it scales with the upload instead of being provisioned for the largest
+    # one allowed. Mirrors ScaleODM's workflow.workspace.dynamicSize.
+    # Sized so the decode ratio may reach 10:1, which JPEG-in-TIFF orthos do;
+    # overhead eats the rest. The cap holds that up to a 60 GiB upload.
+    WORKSPACE_MULTIPLIER: float = 17.0
+    WORKSPACE_MIN_GIB: int = 64
+    WORKSPACE_MAX_GIB: int = 1024
+    # Empty uses the cluster default. It must reclaim on delete, or every run
+    # leaves its volume behind - HOTOSM's default `gp3` is Retain.
+    WORKSPACE_STORAGE_CLASS: str = ""
 
     # Only for setups whose object store is in-network (local compose, Talos
     # e2e). Anywhere else this makes remote-source ingest an SSRF primitive.
@@ -239,6 +260,29 @@ class Settings(BaseSettings):
         if self.MONITORING == MonitoringTypes.OPENOBSERVE:
             return OpenObserveSettings()
         return None
+
+    @computed_field
+    @property
+    def stac_public_url(self) -> str:
+        """Public catalogue root used in browser links."""
+        return (self.STAC_PUBLIC_URL or f"{self.OAM_API_URL.rstrip('/')}/stac").rstrip(
+            "/"
+        )
+
+    @computed_field
+    @property
+    def stac_item_url_base(self) -> str:
+        """Base for STAC Browser item links."""
+        browser = (
+            self.STAC_BROWSER_URL or f"{self.OAM_API_URL.rstrip('/')}/browser"
+        ).rstrip("/")
+        catalogue = urlsplit(self.stac_public_url)
+        # External browsers need a route back to this catalogue.
+        if browser.startswith(f"{catalogue.scheme}://{catalogue.netloc}"):
+            root = f"{browser}/stac"
+        else:
+            root = f"{browser}/external/{catalogue.netloc}{catalogue.path}"
+        return f"{root}/collections/{self.STAC_COLLECTION}/items"
 
     @computed_field
     @property

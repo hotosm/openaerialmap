@@ -4,6 +4,9 @@ import type { Feature, Polygon, MultiPolygon } from "geojson";
 // all read from these keys.
 export interface ImageProperties {
   id: string;
+  // pgSTAC collection the item belongs to; drives every per-item STAC and
+  // TiTiler URL. STAC ids are unique only within a collection.
+  collection: string;
   uuid: string | null;
   title: string;
   provider: string;
@@ -27,6 +30,8 @@ export type ImageFeature = Feature<Polygon | MultiPolygon, ImageProperties>;
 // by backend/global-mosaic/scripts/gen_coverage_vector.py; keep in sync.
 export interface RawTileProperties {
   _id: string;
+  // Absent on legacy tiles; callers fall back to COLLECTION_ID.
+  collection?: string;
   uuid?: string;
   title?: string;
   provider?: string;
@@ -51,6 +56,8 @@ export type DatePreset = "" | "week" | "month" | "year";
 export type ResolutionPreset = "" | "lt05" | "05to2" | "2to10" | "gt10";
 
 export interface Filters {
+  // pgSTAC collection id, or "" for all. Exact match.
+  collection: string;
   // Date is a preset picker rather than a free-form range so the
   // density grid can look up a matching pre-baked count bucket at
   // world zoom (see backend/global-mosaic/scripts/gen_coverage_vector.py
@@ -62,6 +69,7 @@ export interface Filters {
 }
 
 export const EMPTY_FILTERS: Filters = {
+  collection: "",
   date: "",
   platform: "",
   resolution: "",
@@ -71,5 +79,5 @@ export const EMPTY_FILTERS: Filters = {
 // True when any filter field is set. Used to swap the density layer
 // paint/layout to a filtered-count expression (see Map.tsx section 4).
 export function hasActiveFilters(f: Filters): boolean {
-  return !!(f.date || f.platform || f.resolution || f.license);
+  return !!(f.date || f.platform || f.resolution || f.license || f.collection);
 }

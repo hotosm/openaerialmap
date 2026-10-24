@@ -1,5 +1,7 @@
 import { getRuntimeConfig } from "../../runtimeConfig";
 
+export const API_URL = getRuntimeConfig("VITE_API_URL", "https://api.imagery.hotosm.org");
+
 // global-data.pmtiles has footprints; global-coverage.pmtiles is density-only.
 export const PMTILES_URL = getRuntimeConfig(
   "VITE_PMTILES_URL",
@@ -21,6 +23,11 @@ export const DENSITY_SOURCE_URL = `pmtiles://${DENSITY_PMTILES_URL}`;
 
 export const DENSITY_SOURCE_LAYER = "density";
 
+// Per-source counts on a density cell, e.g. `count_col_vantor-opendata`.
+// Written by _image_buckets() in backend/global-mosaic/scripts/gen_coverage_vector.py;
+// a change here needs a matching change there.
+export const COLLECTION_COUNT_PREFIX = "count_col_";
+
 // TiTiler endpoint for per-item bounds, previews, and raster tiles.
 export const STAC_TITILER_URL = getRuntimeConfig(
   "VITE_STAC_TITILER_URL",
@@ -35,11 +42,17 @@ export const UPLOADER_URL = getRuntimeConfig(
   "https://upload.imagery.hotosm.org",
 );
 
-// STAC Browser root for item metadata pages.
-export const STAC_BROWSER_URL = getRuntimeConfig(
-  "VITE_STAC_BROWSER_URL",
-  "https://api.imagery.hotosm.org/browser",
-);
+// eoAPI serves both viewers, so they sit under the API - unless a deployment
+// runs no copy of its own and borrows another's, as staging borrows prod's.
+export const STAC_BROWSER_URL = getRuntimeConfig("VITE_STAC_BROWSER_URL", `${API_URL}/browser`);
+export const STAC_MAP_URL = getRuntimeConfig("VITE_STAC_MAP_URL", `${API_URL}/map`);
+
+// A borrowed viewer opens the catalog it was built against, so steer it at ours.
+export const STAC_BROWSER_CATALOG_URL = STAC_BROWSER_URL.startsWith(new URL(STAC_URL).origin)
+  ? `${STAC_BROWSER_URL}/`
+  : `${STAC_BROWSER_URL}/external/${STAC_URL.replace(/^https?:\/\//, "")}`;
+
+export const STAC_MAP_CATALOG_URL = `${STAC_MAP_URL}/?href=${encodeURIComponent(STAC_URL)}`;
 
 // On-demand per-item PMTiles and MBTiles service.
 export const PACKAGER_URL = getRuntimeConfig(
@@ -78,3 +91,17 @@ export const SIDEBAR_PAGE_SIZE = 10;
 
 export const DEFAULT_CENTER: [number, number] = [0, 20];
 export const DEFAULT_ZOOM = 2;
+
+// Display names for collections; unknown ids fall back to the raw id.
+export const COLLECTION_LABELS: Record<string, string> = {
+  openaerialmap: "OpenAerialMap",
+  "vantor-opendata": "Vantor Open Data",
+  "maxar-opendata": "Maxar Open Data",
+  "noaa-emergency-response": "NOAA Emergency Response",
+  "cop-dem-glo-30": "Copernicus DEM GLO-30",
+};
+
+export function collectionLabel(id: string | undefined | null): string {
+  if (!id) return COLLECTION_LABELS[COLLECTION_ID] ?? COLLECTION_ID;
+  return COLLECTION_LABELS[id] ?? id;
+}

@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,12 +34,38 @@ import (
 // before it can reach those systems.
 var stacIDPattern = regexp.MustCompile(`^[A-Za-z0-9_\-]{1,128}$`)
 
+type jobClient interface {
+	GetJobState(ctx context.Context, name string) (k8s.JobState, error)
+	CountActiveJobs(ctx context.Context) (int, error)
+	CreateJob(ctx context.Context, spec k8s.JobSpec) error
+	TTLRemaining(state k8s.JobState, now time.Time) time.Duration
+}
+
+type objectStore interface {
+	KeyFromCOGURL(cogURL, format string, minZoom, maxZoom int) (string, error)
+	LockKey(outputKey string) string
+	ErrorKey(lockKey string) string
+	PublicURL(key string) string
+	HeadObject(ctx context.Context, key string) (bool, time.Time, int64, error)
+	ReadText(ctx context.Context, key string) (string, error)
+	PutLock(ctx context.Context, key string) error
+	DeleteObject(ctx context.Context, key string) error
+}
+
+type catalogue interface {
+	GetItem(ctx context.Context, id string) (*stac.Item, error)
+}
+
+type assetWriter interface {
+	AddAsset(ctx context.Context, itemID, collection, assetKey string, asset stac.ItemAsset) error
+}
+
 type Handler struct {
 	cfg     *config.Config
-	stac    *stac.Client
-	s3      *tps3.Client
-	k8s     *k8s.Client
-	pgstac  *pgstac.Client
+	stac    catalogue
+	s3      objectStore
+	k8s     jobClient
+	pgstac  assetWriter
 	limiter *ratelimit.PerIP
 }
 
@@ -51,7 +78,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("Tilepack API\n\nUsage\n\nGenerate a PMTiles archive for a STAC item:\n\ncurl -X POST \"https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles\"\n\nPoll the same endpoint until it returns 200 with a download URL (returns 202 while the worker is still running).\n\nOnce complete, view the updated STAC record with the new asset:\n\nhttps://api.imagery.hotosm.org/stac/collections/openaerialmap/items/67ac270a43f18e3e3665bef7\n"))
+		_, _ = w.Write([]byte("Tilepack API\n\nUsage\n\nGenerate a PMTiles archive for a STAC item:\n\ncurl -X POST \"https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles\"\n\nPoll the same endpoint until it returns 200 with a download URL (returns 202 while the worker is still running, 409 if the last build failed - terminal, stop polling; 429 is retryable after retry_after).\n\nOnce complete, view the updated STAC record with the new asset:\n\nhttps://api.imagery.hotosm.org/stac/collections/openaerialmap/items/67ac270a43f18e3e3665bef7\n"))
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -91,8 +118,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 type internalAssetRequest struct {
-	Key   string       `json:"key"`
-	Asset pgstac.Asset `json:"asset"`
+	Key   string         `json:"key"`
+	Asset stac.ItemAsset `json:"asset"`
 }
 
 // postInternalAsset is the worker-facing write path. It is mounted on
@@ -333,6 +360,9 @@ func tilepackProcessDescription() processDescription {
 // Typical statuses:
 //   - 202 {"status":"started"} or {"status":"in_progress"}
 //   - 200 {"status":"ready","url":"https://..."}
+//   - 409 {"status":"failed","message":"...","retry_after":N}
+//
+// 409 is terminal for retry_after seconds; 429 is retryable.
 func (h *Handler) postTilepack(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	format := strings.ToLower(r.URL.Query().Get("format"))
@@ -482,9 +512,41 @@ func (h *Handler) handleTilepackRequest(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// In-progress detection via the lock object. Stale locks (older
-	// than the configured TTL) are ignored so a crashed worker
-	// doesn't permanently block regeneration.
+	jobSpec := k8s.JobSpec{
+		StacID:    id,
+		Format:    format,
+		COGURL:    cogURL,
+		OutputKey: outputKey,
+		LockKey:   lockKey,
+		MinZoom:   minZoom,
+		MaxZoom:   maxZoom,
+		Canonical: canonical,
+		GSD:       gsd,
+	}
+
+	jobName := k8s.JobName(jobSpec)
+	jobState, err := h.k8s.GetJobState(ctx, jobName)
+	if err != nil {
+		log.Printf("job state check failed: stac_id=%s format=%s job=%s err=%v", id, format, jobName, err)
+		respond(http.StatusBadGateway, response{Status: "error", Message: "could not check job state"}, "job_state_check_failed")
+		return
+	}
+	switch jobState.Phase {
+	case k8s.JobPhaseActive:
+		log.Printf("in-progress job: stac_id=%s format=%s job=%s", id, format, jobName)
+		respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
+		return
+	case k8s.JobPhaseFailed:
+		h.respondJobFailed(ctx, respond, id, format, jobName, lockKey, jobState)
+		return
+	case k8s.JobPhaseSucceeded:
+		// The ready paths above found nothing, so the upload or callback lost it.
+		log.Printf("job succeeded but output missing: stac_id=%s format=%s job=%s key=%s", id, format, jobName, outputKey)
+		h.respondJobFailed(ctx, respond, id, format, jobName, lockKey, jobState)
+		return
+	}
+
+	// Without a Job, the lock only covers the PutLock-to-CreateJob window.
 	if exists, modified, _, err := h.s3.HeadObject(ctx, lockKey); err == nil && exists {
 		lockAge := time.Since(modified)
 		if lockAge < time.Duration(h.cfg.LockTTLSeconds)*time.Second {
@@ -497,8 +559,6 @@ func (h *Handler) handleTilepackRequest(w http.ResponseWriter, r *http.Request, 
 		log.Printf("lock state check failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
 	}
 
-	// Global concurrency cap - counted live from the cluster so the
-	// API is stateless across restarts.
 	active, err := h.k8s.CountActiveJobs(ctx)
 	if err != nil {
 		log.Printf("active job count failed: stac_id=%s format=%s err=%v", id, format, err)
@@ -518,32 +578,16 @@ func (h *Handler) handleTilepackRequest(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	err = h.k8s.CreateJob(ctx, k8s.JobSpec{
-		StacID:    id,
-		Format:    format,
-		COGURL:    cogURL,
-		OutputKey: outputKey,
-		LockKey:   lockKey,
-		MinZoom:   minZoom,
-		MaxZoom:   maxZoom,
-		Canonical: canonical,
-		GSD:       gsd,
-	})
+	err = h.k8s.CreateJob(ctx, jobSpec)
 	if err != nil {
-		// AlreadyExists means another concurrent request beat us to
-		// it; that's success from the caller's point of view. Leave
-		// the lock in place - the other worker will clean it up.
+		// The prior lookup and this create can race another request.
 		if k8serrors.IsAlreadyExists(err) {
-			log.Printf("job already exists: stac_id=%s format=%s key=%s", id, format, outputKey)
+			log.Printf("job already exists (race): stac_id=%s format=%s job=%s", id, format, jobName)
 			respond(http.StatusAccepted, response{Status: "in_progress"}, "in_progress")
 			return
 		}
 		log.Printf("job create failed: stac_id=%s format=%s key=%s err=%v", id, format, outputKey, err)
-		// Any other error means no worker will ever run, so the
-		// lock we just wrote would block retries for LOCK_TTL_SECONDS.
-		if delErr := h.s3.DeleteObject(ctx, lockKey); delErr != nil {
-			log.Printf("lock cleanup failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, delErr)
-		}
+		h.releaseLock(ctx, id, format, lockKey)
 		respond(http.StatusBadGateway, response{Status: "error", Message: "could not create job"}, "job_create_failed")
 		return
 	}
@@ -555,10 +599,63 @@ func (h *Handler) handleTilepackRequest(w http.ResponseWriter, r *http.Request, 
 	respond(http.StatusAccepted, response{Status: "started"}, "started")
 }
 
-func canonicalTilepackAsset(format, href string, fileSize int64, maxZoom int) pgstac.Asset {
-	asset := pgstac.Asset{
+// respondJobFailed reports a terminal Job and includes any worker-written reason.
+func (h *Handler) respondJobFailed(
+	ctx context.Context,
+	respond func(int, response, string),
+	id, format, jobName, lockKey string,
+	state k8s.JobState,
+) {
+	h.releaseLock(ctx, id, format, lockKey)
+
+	retryAfter := int(h.k8s.TTLRemaining(state, time.Now()).Seconds())
+	message := "tilepack generation failed"
+	outcome := "job_failed"
+	switch {
+	case state.Phase == k8s.JobPhaseSucceeded:
+		outcome = "job_output_missing"
+	case state.Reason == k8s.DeadlineExceededReason:
+		message = "tilepack generation exceeded its time limit; retry with a lower max_zoom"
+		outcome = "job_deadline_exceeded"
+	}
+
+	workerReason, err := h.s3.ReadText(ctx, h.s3.ErrorKey(lockKey))
+	if err != nil {
+		log.Printf("worker reason unreadable: stac_id=%s format=%s err=%v", id, format, err)
+	}
+	if workerReason != "" && outcome == "job_failed" {
+		// Use the worker reason only when the Job has no specific diagnosis.
+		message = fmt.Sprintf("tilepack generation failed: %s", workerReason)
+	}
+
+	log.Printf("job failed: stac_id=%s format=%s job=%s phase=%s reason=%s retry_after_s=%d msg=%q worker_reason=%q",
+		id, format, jobName, state.Phase, state.Reason, retryAfter, state.Message, workerReason)
+
+	if retryAfter > 0 {
+		respond(http.StatusConflict, response{Status: "failed", Message: message, RetryAfter: retryAfter}, outcome)
+		return
+	}
+	respond(http.StatusConflict, response{Status: "failed", Message: message}, outcome)
+}
+
+var tilepackMediaTypes = map[string]string{
+	"mbtiles": "application/vnd.mbtiles",
+	"pmtiles": "application/vnd.pmtiles",
+}
+
+// releaseLock uses a detached timeout so client cancellation cannot leak a lock.
+func (h *Handler) releaseLock(ctx context.Context, id, format, lockKey string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := h.s3.DeleteObject(ctx, lockKey); err != nil {
+		log.Printf("lock cleanup failed: stac_id=%s format=%s lock_key=%s err=%v", id, format, lockKey, err)
+	}
+}
+
+func canonicalTilepackAsset(format, href string, fileSize int64, maxZoom int) stac.ItemAsset {
+	asset := stac.ItemAsset{
 		Href:     href,
-		Type:     map[string]string{"mbtiles": "application/vnd.mbtiles", "pmtiles": "application/vnd.pmtiles"}[format],
+		Type:     tilepackMediaTypes[format],
 		Roles:    []string{"tiles"},
 		Title:    strings.ToUpper(format) + " archive",
 		ProjCode: 3857,
@@ -572,32 +669,9 @@ func canonicalTilepackAsset(format, href string, fileSize int64, maxZoom int) pg
 	return asset
 }
 
-func tilepackAssetMatchesCanonical(existing stac.ItemAsset, canonical pgstac.Asset) bool {
-	if existing.Href != canonical.Href ||
-		existing.Type != canonical.Type ||
-		existing.Title != canonical.Title ||
-		existing.FileSize != canonical.FileSize ||
-		existing.ProjCode != canonical.ProjCode ||
-		!intPtrEqual(existing.MinZoom, canonical.MinZoom) ||
-		!intPtrEqual(existing.MaxZoom, canonical.MaxZoom) {
-		return false
-	}
-	if len(existing.Roles) != len(canonical.Roles) {
-		return false
-	}
-	for i := range existing.Roles {
-		if existing.Roles[i] != canonical.Roles[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func intPtrEqual(a, b *int) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
+// DeepEqual, not ==, because the zoom fields are pointers and Roles a slice.
+func tilepackAssetMatchesCanonical(existing, canonical stac.ItemAsset) bool {
+	return reflect.DeepEqual(existing, canonical)
 }
 
 func deriveAutoMaxZoom(gsd float64) int {

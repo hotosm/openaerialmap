@@ -1,4 +1,4 @@
-package pgstac
+package stac
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 
 func TestAssetJSONIncludesExtensionFields(t *testing.T) {
 	maxZoom := 19
-	asset := Asset{
+	asset := ItemAsset{
 		Href:     "https://example.test/item.pmtiles",
 		Type:     "application/vnd.pmtiles",
 		Roles:    []string{"tiles"},
@@ -43,7 +43,7 @@ func TestAssetJSONIncludesExtensionFields(t *testing.T) {
 }
 
 func TestAssetJSONOmitsZeroValueExtensionFields(t *testing.T) {
-	asset := Asset{Href: "https://example.test/item.pmtiles"}
+	asset := ItemAsset{Href: "https://example.test/item.pmtiles"}
 
 	b, err := json.Marshal(asset)
 	if err != nil {
@@ -68,5 +68,3 @@ func TestAssetJSONOmitsZeroValueExtensionFields(t *testing.T) {
 		t.Fatalf("JSON unexpectedly included maxzoom: %s", string(b))
 	}
 }
-
-func intPtr(v int) *int { return &v }

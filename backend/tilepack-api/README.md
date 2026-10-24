@@ -25,7 +25,10 @@ pgstac.
 
 Callers poll the same endpoint to check progress. The API returns
 **202** while generation is in progress and **200** with a download URL
-once complete.
+once complete. A failed build returns **409** with
+`{"status": "failed"}`, which is terminal for `retry_after` seconds -
+stop polling. **429** (busy or rate limited) is retryable: back off for
+`retry_after` and try again.
 
 ## API Surface
 
@@ -90,6 +93,7 @@ Zoom behavior has two modes:
 | 202    | Worker is now generating it        |
 | 400    | Bad input                          |
 | 404    | Item not in OAM collection         |
+| 409    | Last build failed; `retry_after`   |
 | 422    | Item has no COG asset              |
 | 429    | Per-IP limit or global cap reached |
 
@@ -120,6 +124,23 @@ POST /tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles
 
 Canonical outputs are patched into STAC assets (`pmtiles` / `mbtiles`).
 
+If the worker died instead, polling returns `409` until the failed Job
+is garbage-collected, and `retry_after` counts down to that moment:
+
+```json
+{
+  "status": "failed",
+  "message": "tilepack generation exceeded its time limit; retry with a lower max_zoom",
+  "retry_after": 2874
+}
+```
+
+The API deliberately does not retry on the caller's behalf. A build
+that exceeded its deadline will exceed it again, so an automatic retry
+would loop; the cooldown gives a caller time to ask for a lower
+`max_zoom` instead. An operator can shorten it by deleting the failed
+Job.
+
 #### Non-canonical example (custom zoom)
 
 ```http
@@ -148,10 +169,19 @@ with rate limiting to reduce DDoS risk.
 
 - **Stateless API** -- S3 and STAC/pgstac are the sources of truth. No
   separate job database.
-- **K8s Jobs as a task queue** -- duplicates are prevented via S3 lock
-  objects to track in-progress state. Locks expire after
-  `LOCK_TTL_SECONDS` so a crashed worker cannot block regeneration
-  permanently.
+- **K8s Jobs as a task queue** -- Job state is the source of truth for
+  whether a build is running, failed or done. Job names are
+  deterministic, so the API looks one up before doing anything else.
+- **S3 lock as a backstop** -- covers the gap between writing the lock and
+  creating the Job. Its TTL must not exceed the finished Job TTL.
+- **WebP q70 tiles** -- ~10x smaller than PNG, and unlike JPEG it keeps
+  the alpha band, so the padding around a rotated footprint stays
+  transparent instead of rendering as a black collar.
+  Read by GDAL, QGIS, QField (1.6+), MapLibre and Android's decoder.
+  Archives predating this are PNG and stay readable -- each archive
+  declares its own encoding, so no regeneration is needed. A PMTiles
+  build reuses an existing sibling MBTiles, so it inherits PNG if that
+  sibling predates the switch.
 - **Rate limiting** -- per-IP rate limit to protect the cluster.
 - **Direct DB writes** -- the transactions API is not enabled for
   eoAPI, so the worker uses pgstac PL/pgSQL functions to update STAC
@@ -163,8 +193,14 @@ with rate limiting to reduce DDoS risk.
 
 ## Limits
 
-- Per-IP: 1 request / 10s, burst 2 (configurable).
-- Global concurrent jobs: 5 (configurable).
+All configurable via the chart's `config` values.
+
+- Per-IP: 1 request / 10s, burst 2.
+- Global concurrent jobs: 2.
+- Worker deadline: 3h, after which the Job fails and the API returns 409
+  for the following hour (`workerJobTTLSeconds`).
+- Worker aborts before uploading if a run exceeds 150,000 tiles or
+  4 GiB of encoded tiles. Retry with a lower `max_zoom`.
 - Only the `openaerialmap` STAC collection is queryable.
 
 ## Tech Stack
@@ -197,14 +233,14 @@ worker side requires a real Kubernetes cluster.
 ## Performance
 
 The workload is ~85% network I/O (HTTP range reads to S3 COGs). GDAL
-decoding and PNG encoding are C libraries - Python is a thin
+decoding and WebP encoding are C libraries - Python is a thin
 orchestrator adding ~1ms of overhead per tile.
 
 Per-tile cost breakdown:
 
 1. **HTTP range read(s) to S3 COG** (~50–70ms)
 2. **GDAL decode + warp/reproject** (~5–15ms)
-3. **PNG encode with alpha mask** (~2–5ms)
+3. **WebP encode with alpha mask** (~2–5ms)
 4. **SQLite insert + Python overhead** (~<1ms)
 
 Baseline benchmarks (8 threads, before optimisations):
@@ -248,7 +284,8 @@ curl -X POST "https://packager.imagery.hotosm.org/tilepacks/67ac270a43f18e3e3665
 ```
 
 Poll the same endpoint until it returns `200` with a download URL
-(returns `202` while the worker is still running).
+(`202` while the worker is still running, `409` if the last build
+failed - terminal, stop polling).
 
 Once complete, view the updated STAC record with the new asset:
 

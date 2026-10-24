@@ -30,15 +30,15 @@ BASELINE = (
 
 @pytest.fixture
 def phase(monkeypatch):
-    """Answer the reconciler's Argo lookup with a phase, or an exception."""
+    """Install an Argo phase and optional failure detail."""
 
-    def _install(answer):
+    def _install(answer, detail=None):
         def _get(name):
             if isinstance(answer, Exception):
                 raise answer
-            return answer
+            return answer, detail
 
-        monkeypatch.setattr(argo, "get_workflow_phase", _get)
+        monkeypatch.setattr(argo, "get_workflow_outcome", _get)
         monkeypatch.setattr(settings, "ARGO_ENABLED", True)
 
     return _install
@@ -87,8 +87,14 @@ def test_a_finished_workflow_ends_the_upload():
     assert reconcile._outcome("Error")[0] == UploadStatus.ERROR
 
 
+def test_argos_own_reason_beats_the_generic_one():
+    assert reconcile._outcome("Failed", "convert: OOMKilled") == (
+        UploadStatus.FAILED,
+        "convert: OOMKilled",
+    )
+
+
 def test_a_workflow_argo_no_longer_has_ends_the_upload():
-    """ttlStrategy deletes a workflow 10 minutes after it completes."""
     status, message = reconcile._outcome(None)
     assert status == UploadStatus.ERROR
     assert "again" in message
@@ -110,6 +116,17 @@ async def test_a_lost_failure_callback_is_reconciled(db, stalled_upload, phase):
     assert row.status == UploadStatus.FAILED
     # Terminal, so the workflow cannot come back and register the item.
     assert row.callback_token is None
+
+
+@pytest.mark.asyncio
+async def test_the_reason_argo_gives_is_what_the_owner_sees(db, stalled_upload, phase):
+    phase("Failed", "convert: OOMKilled")
+    upload = await stalled_upload()
+
+    assert await reconcile._reconcile_one(_pool(db), upload) is True
+
+    row = await DbUpload.get_owned(db, upload.id, upload.user_sub)
+    assert row.message == "convert: OOMKilled"
 
 
 @pytest.mark.asyncio

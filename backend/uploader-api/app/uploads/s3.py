@@ -14,6 +14,7 @@ import boto3
 from botocore.config import Config
 
 from app.config import settings
+from app.db.models import ANONYMOUS_SUB
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +47,11 @@ def _client(endpoint: str | None):
     )
 
 
+def acl_kwargs() -> dict[str, str]:
+    """Return the configured canned ACL, omitting an empty value."""
+    return {"ACL": settings.S3_OBJECT_ACL} if settings.S3_OBJECT_ACL else {}
+
+
 @lru_cache
 def internal_client():
     """S3 client for in-network/server-side calls."""
@@ -71,6 +77,10 @@ def safe_filename(filename: str) -> str:
 
 def key_owner_prefix(user_sub: str) -> str:
     """Hash the user identity so different subjects cannot share a prefix."""
+    # A hash would not do: this appears in public asset URLs and subjects are
+    # guessable, so it would be reversible.
+    if user_sub == ANONYMOUS_SUB:
+        return "anonymous"
     return "u-" + hashlib.sha256((user_sub or "").encode()).hexdigest()[:16]
 
 

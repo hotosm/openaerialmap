@@ -6,8 +6,9 @@ import type { RawTileProperties } from "./types";
 export function getTmsUrl(p: RawTileProperties): string | null {
   if (!p._id) return null;
   const asset = p.asset_name || "visual";
+  const collection = p.collection || COLLECTION_ID;
   const base =
-    `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${p._id}` +
+    `${STAC_TITILER_URL}/collections/${collection}/items/${p._id}` +
     `/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=${asset}`;
   // Preserve STAC render hints for non-RGB data. Legacy items use nodata=0.
   return p.render_params ? `${base}&${p.render_params}` : `${base}&nodata=0`;
@@ -77,6 +78,7 @@ export class ItemBoundsCache {
 export function fetchItemBounds(
   cache: ItemBoundsCache,
   itemId: string,
+  collection: string | undefined,
   assetName: string | undefined,
   onLoad: () => void,
   isUnmounted: () => boolean,
@@ -88,7 +90,7 @@ export function fetchItemBounds(
   // titiler-pgstac 3.0 dropped the item `/bounds` route; tilejson.json carries
   // the same WGS84 [minx, miny, maxx, maxy] under `bounds`.
   const url =
-    `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${itemId}` +
+    `${STAC_TITILER_URL}/collections/${collection || COLLECTION_ID}/items/${itemId}` +
     `/WebMercatorQuad/tilejson.json?assets=${asset}`;
   fetch(url)
     .then((r) => (r.ok ? r.json() : null))

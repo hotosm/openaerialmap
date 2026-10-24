@@ -172,6 +172,16 @@ class OpenDataCatalog:
         default_factory=_default_item_assets
     )
 
+    # Collection-wide licence, used when the provider states it on their
+    # Collection rather than on each Item. STAC deliberately has no
+    # collection-to-item inheritance (the Commons extension was removed in
+    # 2020), so a harvester has to copy it down or Item consumers see nothing.
+    license: str | None = None
+    # Fetch each browse asset's Content-Length at ingest. Off by default: it
+    # costs one HEAD per new Item, so only enable it for providers who publish
+    # no size of their own.
+    fetch_file_size: bool = False
+
     def read_catalog(self, stac_io: pystac.StacIO | None = None) -> Catalog:
         """Read the provider's root STAC Catalog."""
         catalog = pystac.read_file(self.catalog_url, stac_io=stac_io)
@@ -261,6 +271,31 @@ def create_collection(
     return collection
 
 
+def _set_file_size(oam_item: Item) -> None:
+    """Record the browse asset's size from its Content-Length.
+
+    Some providers publish no size at all. The card shows "N/A" and a user
+    cannot tell a 6 MB tile from a 100 MB strip before clicking Download, so
+    it is worth one HEAD per new Item to fill in. Best-effort: a provider that
+    refuses HEAD, or answers without Content-Length, simply keeps no size.
+    """
+    asset = oam_item.assets.get("visual")
+    if asset is None or asset.href is None:
+        return
+    if "file:size" in asset.extra_fields:
+        return
+    try:
+        response = requests.head(asset.href, timeout=30, allow_redirects=True)
+        response.raise_for_status()
+    except requests.RequestException:
+        return
+    if length := response.headers.get("Content-Length"):
+        try:
+            asset.extra_fields["file:size"] = int(length)
+        except ValueError:
+            return
+
+
 def create_item(catalog: OpenDataCatalog, item: Item) -> Item:
     """Rewrite a provider STAC Item as an OAM STAC Item."""
     oam_item = item.clone()
@@ -280,6 +315,27 @@ def create_item(catalog: OpenDataCatalog, item: Item) -> Item:
     # Item.clone drops root-level fields such as license.
     if license_ := item.extra_fields.get("license"):
         oam_item.properties.setdefault("license", license_)
+    # Providers that declare the licence once, on their Collection, land here.
+    # Without this the Item carries no licence at all, it falls into no bucket,
+    # and the browse licence filter silently drops it - which is what happens
+    # to every maxar-opendata Item today.
+    if catalog.license:
+        oam_item.properties.setdefault("license", catalog.license)
+
+    # The card shows a sensor; STAC spreads that idea over three fields and
+    # providers pick different ones. Prefer the most specific.
+    if "sensor" not in oam_item.properties:
+        instruments = oam_item.properties.get("instruments") or []
+        sensor = (
+            (instruments[0] if instruments else None)
+            or oam_item.properties.get("platform")
+            or oam_item.properties.get("constellation")
+        )
+        if sensor:
+            oam_item.properties["sensor"] = sensor
+
+    if catalog.fetch_file_size:
+        _set_file_size(oam_item)
 
     oam_item.clear_links()
     if item_href := item.get_self_href():

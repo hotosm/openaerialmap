@@ -19,8 +19,9 @@ back to `uploader-api` via the per-upload callback token.
   S3 or downloads a remote `source_url`, then reports the original checksum.
 - **`validate`** (`uploader-validate`): product-type-aware checks for CRS, size,
   content, and GeoTIFF format (exit 5/6/7/8).
-- **`convert`** (`uploader-convert`): raster to native-dtype lossless COG using
-  the GDAL COG driver; verifies losslessness and COG layout.
+- **`convert`** (`uploader-convert`): visual RGB(A) to lossy YCbCr JPEG COG;
+  everything else to native-dtype lossless ZSTD COG. Verifies content and COG
+  layout.
 - **`metadata`** (`uploader-metadata`): builds the OAM STAC item with
   **`stactools-hotosm`**, including original and COG assets, checksums,
   per-type render parameters, and a thumbnail.
@@ -42,9 +43,9 @@ upload, the item carries up to three tracks:
 
 - **`original`** - the unmodified upload, kept as-is for archival / recovery. A
   STAC asset is only a pointer, so cataloging it does not alter the bytes.
-- **`visual`** (the COG) - a lossless, single-pass COG in the source's **native**
-  dtype and band count (never downcast). This is the analysis-ready, byte-range
-  asset; losslessness is verified against the source per band.
+- **`visual`** (the COG) - a byte-range serving copy. Visual RGB(A) uses lossy
+  YCbCr JPEG q90; other products remain native-dtype lossless ZSTD. See
+  [decision 0008](../../../docs/decisions/0008-lossy-visual-cogs.md).
 - **2D display** - rendered on demand by titiler from the COG using the
   `renders` params written per `oam:product_type` (`visual` shown as-is;
   `multispectral`/`sar`/`elevation`/`pseudocolor` get band selection, rescale and
@@ -55,13 +56,56 @@ The user declares `product_type` on upload; `metadata.py` auto-detects if omitte
 terrain-RGB PMTiles + MapLibre, matching the existing browse-map stack - and is
 not part of ingestion.
 
+## Size limits
+
+The API caps an upload at `MAX_UPLOAD_BYTES` (100 GiB), enforced again on the
+way in as the `max-fetch-bytes` workflow parameter. Nothing after that is bound
+by pixel count - GDAL reads in blocks, `metadata` reads decimated windows - so
+`validate`'s remaining job is to reject, before six hours of conversion, an
+upload that cannot fit its workspace volume.
+
+That volume is sized per upload. `uploader-api` reads the object's real size,
+scales it by `WORKSPACE_MULTIPLIER` between `WORKSPACE_MIN_GIB` and
+`WORKSPACE_MAX_GIB`, and submits the claim with the Workflow - Argo takes no
+parameter in a PVC size, so it replaces the whole `volumeClaimTemplates` entry.
+A remote source has no size until it has been fetched and gets the ceiling.
+`WORKSPACE_STORAGE_CLASS` must reclaim on delete: HOTOSM's default `gp3` is
+`Retain`, so leaving it unset leaves one EBS volume behind per run.
+
+`WORKSPACE_MULTIPLIER` buys the decode ratio the volume will tolerate, because
+compressed bytes do not predict decoded ones - a JPEG-in-TIFF ortho reaches
+10:1. Overhead takes the rest of it, so 17x delivers 10:1 and not 17:1. That
+holds up to a 60 GiB upload, past which `WORKSPACE_MAX_GIB` binds first and the
+ratio degrades to 5.8:1 at the 100 GiB ceiling; raise the cap to extend it. Too
+tight a ratio here rejects real imagery, which is the bug this replaced.
+
+`max-decoded-gb` follows from that volume rather than being chosen: the run
+holds the input, its COG and GDAL's overview temp on one disk, and a lossless
+COG of incompressible pixels is the size of the decoded raster. `COG_TEMP_FACTOR`
+budgets half the output for temp against GDAL's estimated third, and
+`WORKSPACE_USABLE` keeps 5% back for ext4 metadata and the small sidecar files.
+
+Lossy visual output budgets 0.9x decoded size (`LOSSY_DISK_FACTOR=0.6`),
+including GDAL's lossless overview temp. A conversion test checks this budget
+with incompressible JPEG input.
+
+| Parameter | Default | Env in the step |
+| --- | --- | --- |
+| `max-decoded-gb` | computed (`150` fallback) | `OAM_VALIDATE_MAX_DECODED_GB` |
+| `max-gigapixels` | `0` (off) | `OAM_VALIDATE_MAX_GIGAPIXELS` |
+
+The template's own values are the fallback for a submission that does not come
+from the API, and are fixed at the largest upload allowed.
+
+A rejection writes its reason to `/data/validation-error.txt` and `cleanup`
+reports that verbatim; the exit-code map there is only a fallback.
+
 ## Convergence with the bulk ingester
 
 The `metadata` step builds the item with `stactools.hotosm.create_item` from
 `backend/stactools-hotosm`, the **same source tree** as `backend/stac-ingester`,
 so user-uploaded and bulk-ingested items carry an identical OAM extension. Both
-take it as a path dependency, so there is no revision to keep in step - see
-[ADR 0008](../../../docs/decisions/0008-stactools-into-monorepo.md).
+take it as a path dependency, so there is no revision to keep in step.
 
 That path dependency has to live inside the build context, so the raster steps
 build from `backend/` rather than from this directory:

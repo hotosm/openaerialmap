@@ -23,12 +23,14 @@ Environment variables:
     FORMAT              "mbtiles" or "pmtiles".
     COG_URL             Source COG URL (already resolved from STAC).
     OUTPUT_KEY          S3 key to write the final archive to.
-    LOCK_KEY            S3 key of the lock object to delete on exit.
+    LOCK_KEY            S3 lock key; failures use "<LOCK_KEY>.error".
     MIN_ZOOM            Integer; 0 is "use default".
     MAX_ZOOM            Integer; 0 is "derive from GSD".
     CANONICAL           "true" if this run should patch STAC.
     GSD                 Source ground sample distance, metres/pixel.
                         Used to derive MAX_ZOOM when not provided.
+    SOFT_DEADLINE_SECONDS
+                        Worker time budget in seconds; 0 disables.
     S3_BUCKET           Destination bucket.
     S3_PUBLIC_BASE_URL  Public URL prefix for the STAC asset href.
     INTERNAL_BASE_URL   ClusterIP URL of the tilepack-api pod.
@@ -39,7 +41,9 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import shutil
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -47,26 +51,85 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import islice
 from pathlib import Path
 
 import boto3
 import botocore.config
 import botocore.exceptions
 import httpx
+import numpy as np
 import rasterio.crs
+import rasterio.enums
+import rasterio.transform
+import rasterio.warp
+from rasterio.windows import Window
 from rio_tiler.errors import TileOutsideBounds
 from rio_tiler.io import Reader
 
-# Hard ceiling on the total number of tiles any single run may
-# generate. With 256x256 PNGs this bounds worst-case runtime and
-# output file size. If exceeded the worker exits before touching S3
-# and tells the caller (via logs) to pass a lower max_zoom.
-MAX_TILE_COUNT = 500_000
+MEDIA_TYPES = {
+    "mbtiles": "application/vnd.mbtiles",
+    "pmtiles": "application/vnd.pmtiles",
+}
+
+# ~10x smaller than PNG and, unlike JPEG, keeps alpha. MBTILES_FORMAT must
+# track TILE_FORMAT: `pmtiles convert` reads that row to set the tile type.
+TILE_FORMAT = "WEBP"
+MBTILES_FORMAT = "webp"
+WEBP_QUALITY = 70  # 34.15 dB, above the JPEG q75 the catalogue accepts
+
+# Two ceilings, both aborting before anything reaches S3: bytes-per-tile
+# spans 15-78 KiB, so tile count is a poor proxy for disk.
+MAX_TILE_COUNT = int(os.environ.get("MAX_TILE_COUNT") or 150_000)
+# Peak disk is ~2x this: pmtiles holds the converted copy too.
+MAX_ENCODED_BYTES = int(os.environ.get("MAX_ENCODED_BYTES") or 4 * 1024**3)
 
 # Number of concurrent tile-read threads.  The work is ~85% I/O-bound
 # (HTTP range reads to S3), so higher concurrency scales near-linearly
 # until network bandwidth saturates.
 TILE_WORKERS = 24
+
+# Full-resolution mask pixels pooled into each coverage cell.
+COVERAGE_SOURCE_FACTOR = 64
+COVERAGE_STRIP_CELLS = 16
+
+SKIP_EMPTY_TILES = os.environ.get("SKIP_EMPTY_TILES", "true").lower() not in (
+    "false",
+    "0",
+    "no",
+    "off",
+)
+
+# Bounds encoded tile data retained by futures.
+TILE_BATCH = 2000
+
+# Set on a signal or a tripped cap, so queued tiles retire cheaply.
+_stop_rendering = threading.Event()
+
+TERMINATED_EXIT_CODE = 143  # 128 + SIGTERM
+
+BUDGET_EXIT_CODE = 75
+
+
+class Terminated(Exception):
+    """Termination signal handled like other cleanup-triggering exceptions."""
+
+
+class BudgetExhausted(Exception):
+    """The worker exhausted its time budget."""
+
+
+def _install_signal_handlers() -> None:
+    """Trap termination signals so cleanup releases the S3 lock."""
+
+    def handle(signum, _frame):
+        # Stop queued tiles before unwinding cleanup.
+        _stop_rendering.set()
+        raise Terminated(f"received signal {signal.Signals(signum).name}")
+
+    signal.signal(signal.SIGTERM, handle)
+    signal.signal(signal.SIGINT, handle)
+
 
 # Thread-local storage for reusing GDAL dataset handles.  rio-tiler's
 # Reader is not thread-safe, but each thread can safely keep its own
@@ -106,6 +169,14 @@ def lonlat_to_tile(lon: float, lat: float, z: int) -> tuple[int, int]:
     return max(0, min(n - 1, x)), max(0, min(n - 1, y))
 
 
+def tile_to_lonlat(x: int, y: int, z: int) -> tuple[float, float]:
+    """North-west corner of an XYZ tile, the inverse of lonlat_to_tile."""
+    n = 1 << z
+    lon = x / n * 360.0 - 180.0
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1.0 - 2.0 * y / n))))
+    return lon, lat
+
+
 def tile_ranges(bounds: tuple[float, float, float, float], min_z: int, max_z: int):
     """Yield (z, x_min, x_max, y_min, y_max) per zoom."""
     w, s, e, n = bounds
@@ -115,11 +186,116 @@ def tile_ranges(bounds: tuple[float, float, float, float], min_z: int, max_z: in
         yield z, x_min, x_max, y_min, y_max
 
 
+class Coverage:
+    """Low-resolution source footprint used to skip tile reads."""
+
+    def __init__(self, mask, bounds: tuple[float, float, float, float]) -> None:
+        self._mask = mask
+        self._w, self._s, self._e, self._n = bounds
+        self._rows, self._cols = mask.shape
+
+    @property
+    def cells(self) -> str:
+        return f"{self._rows}x{self._cols}"
+
+    @property
+    def valid_share(self) -> float:
+        return float(self._mask.mean())
+
+    def intersects(self, x: int, y: int, z: int) -> bool:
+        """True if any part of the tile may hold source pixels."""
+        w, n = tile_to_lonlat(x, y, z)
+        e, s = tile_to_lonlat(x + 1, y + 1, z)
+        lon_span = self._e - self._w
+        lat_span = self._n - self._s
+        c0 = max(int((w - self._w) / lon_span * self._cols), 0)
+        c1 = min(math.ceil((e - self._w) / lon_span * self._cols), self._cols)
+        r0 = max(int((self._n - n) / lat_span * self._rows), 0)
+        r1 = min(math.ceil((self._n - s) / lat_span * self._rows), self._rows)
+        if c1 <= c0 or r1 <= r0:
+            return False
+        return bool(self._mask[r0:r1, c0:c1].any())
+
+
+def reduce_mask(dataset, factor: int):
+    """Max-pool the full-resolution mask without sampling out valid pixels."""
+    rows = -(-dataset.height // factor)
+    cols = -(-dataset.width // factor)
+    out = np.zeros((rows, cols), dtype=bool)
+    # Whole-width strips avoid refetching mask blocks.
+    strip = factor * COVERAGE_STRIP_CELLS
+    for top in range(0, dataset.height, strip):
+        height = min(strip, dataset.height - top)
+        raw = dataset.read_masks(1, window=Window(0, top, dataset.width, height))
+        padded_h = -(-height // factor) * factor
+        padded = np.zeros((padded_h, cols * factor), dtype=bool)
+        padded[:height, : dataset.width] = raw > 0
+        block = padded.reshape(padded_h // factor, factor, cols, factor).any(
+            axis=(1, 3)
+        )
+        out[top // factor : top // factor + block.shape[0]] = block
+    return out
+
+
+def build_coverage(cog: Reader, bounds) -> Coverage | None:
+    """Build a conservative tile prefilter, or return None to disable it."""
+    if not SKIP_EMPTY_TILES:
+        return None
+    w, s, e, n = bounds
+    if e <= w or n <= s:
+        return None
+    try:
+        dataset = cog.dataset
+        source = reduce_mask(dataset, COVERAGE_SOURCE_FACTOR)
+        # Preserve any valid source cell during reprojection.
+        mask = np.zeros(source.shape, dtype=np.uint8)
+        rasterio.warp.reproject(
+            source.astype(np.uint8),
+            mask,
+            src_transform=dataset.transform
+            * rasterio.Affine.scale(COVERAGE_SOURCE_FACTOR, COVERAGE_SOURCE_FACTOR),
+            src_crs=dataset.crs,
+            dst_transform=rasterio.transform.from_bounds(
+                w, s, e, n, source.shape[1], source.shape[0]
+            ),
+            dst_crs=rasterio.crs.CRS.from_epsg(4326),
+            resampling=rasterio.enums.Resampling.max,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: no coverage prefilter: {exc}", file=sys.stderr, flush=True)
+        return None
+
+    mask = mask > 0
+    if mask.all():
+        return None
+    if not mask.any():
+        print("warning: source mask is empty, not prefiltering", file=sys.stderr)
+        return None
+
+    # Expand by one cell to cover reprojection edges.
+    vertical = mask.copy()
+    vertical[1:, :] |= mask[:-1, :]
+    vertical[:-1, :] |= mask[1:, :]
+    grown = vertical.copy()
+    grown[:, 1:] |= vertical[:, :-1]
+    grown[:, :-1] |= vertical[:, 1:]
+    return Coverage(grown, bounds)
+
+
 def estimate_tile_count(bounds, min_z, max_z) -> int:
+    """Return the bbox tile count without per-tile allocation."""
     total = 0
     for _, xmin, xmax, ymin, ymax in tile_ranges(bounds, min_z, max_z):
         total += (xmax - xmin + 1) * (ymax - ymin + 1)
     return total
+
+
+def iter_tiles(z: int, xmin: int, xmax: int, ymin: int, ymax: int, coverage):
+    """Yield the (x, y) at this zoom worth reading, without materialising."""
+    for x in range(xmin, xmax + 1):
+        for y in range(ymin, ymax + 1):
+            if coverage is None or coverage.intersects(x, y, z):
+                yield x, y
 
 
 def patch_item_asset(
@@ -173,11 +349,13 @@ def _close_thread_readers(pool: ThreadPoolExecutor, cog_url: str) -> None:
 
 
 def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | None]:
-    """Fetch a single XYZ tile and return status + PNG bytes.
+    """Fetch a single XYZ tile and return status + encoded bytes.
 
     Uses a thread-local Reader so each thread reuses its GDAL dataset
     handle across tiles, avoiding repeated open/close overhead.
     """
+    if _stop_rendering.is_set():
+        return "cancelled", None
     try:
         cog = _get_thread_reader(cog_url)
         img = cog.tile(x, y, z)
@@ -185,9 +363,10 @@ def _render_tile(cog_url: str, x: int, y: int, z: int) -> tuple[str, bytes | Non
         return "outside", None
     except Exception:  # noqa: BLE001
         return "failed", None
-    # OAM imagery is 3-band RGB. Render as RGBA PNG so transparent
-    # pixels (padding around the actual footprint) come through.
-    return "ok", img.render(img_format="PNG", add_mask=True)
+    if not img.mask.any():
+        return "empty", None
+    # add_mask keeps alpha, so footprint padding stays transparent.
+    return "ok", img.render(img_format=TILE_FORMAT, add_mask=True, quality=WEBP_QUALITY)
 
 
 def generate_mbtiles(
@@ -195,6 +374,7 @@ def generate_mbtiles(
     out_path: Path,
     min_zoom: int,
     max_zoom: int,
+    deadline: float | None = None,
 ) -> None:
     """Render the COG into an MBTiles archive over its native bbox."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -206,17 +386,24 @@ def generate_mbtiles(
             rasterio.crs.CRS.from_epsg(4326)
         )  # (w, s, e, n)
 
-    total = estimate_tile_count(bounds, min_zoom, max_zoom)
-    print(
-        f"tile plan: z{min_zoom}..z{max_zoom}, ~{total} tiles, bounds={bounds}",
-        flush=True,
-    )
-    if total > MAX_TILE_COUNT:
-        raise SystemExit(
-            f"tile count {total} exceeds MAX_TILE_COUNT={MAX_TILE_COUNT}; "
-            f"rerun with a lower max_zoom"
+        total = estimate_tile_count(bounds, min_zoom, max_zoom)
+        print(
+            f"tile plan: z{min_zoom}..z{max_zoom}, <={total} tiles, bounds={bounds}",
+            flush=True,
         )
+        if total > MAX_TILE_COUNT:
+            raise SystemExit(
+                f"tile count {total} exceeds MAX_TILE_COUNT={MAX_TILE_COUNT}; "
+                f"rerun with a lower max_zoom"
+            )
 
+        coverage = build_coverage(cog, bounds)
+    if coverage is not None:
+        print(
+            f"footprint prefilter: {coverage.cells}-cell grid, "
+            f"{coverage.valid_share * 100:.1f}% of the bbox holds pixels",
+            flush=True,
+        )
     conn = sqlite3.connect(out_path)
     should_cleanup = False
     try:
@@ -235,7 +422,7 @@ def generate_mbtiles(
             """
         )
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("name", out_path.stem))
-        cur.execute("INSERT INTO metadata VALUES (?, ?)", ("format", "png"))
+        cur.execute("INSERT INTO metadata VALUES (?, ?)", ("format", MBTILES_FORMAT))
         cur.execute(
             "INSERT INTO metadata VALUES (?, ?)",
             ("bounds", ",".join(str(b) for b in bounds)),
@@ -243,51 +430,90 @@ def generate_mbtiles(
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("minzoom", str(min_zoom)))
         cur.execute("INSERT INTO metadata VALUES (?, ?)", ("maxzoom", str(max_zoom)))
 
+        encoded_bytes = 0
+        processed = 0
         pool = ThreadPoolExecutor(max_workers=TILE_WORKERS)
+        # Cleared only on full success, so every abnormal exit cancels.
+        aborting = True
         try:
             for z, xmin, xmax, ymin, ymax in tile_ranges(bounds, min_zoom, max_zoom):
                 start = time.monotonic()
-                futures = {}
-                for x in range(xmin, xmax + 1):
-                    for y in range(ymin, ymax + 1):
-                        fut = pool.submit(_render_tile, cog_url, x, y, z)
-                        futures[fut] = (x, y)
+                at_zoom = (xmax - xmin + 1) * (ymax - ymin + 1)
+                pending = iter_tiles(z, xmin, xmax, ymin, ymax, coverage)
                 written = 0
                 outside = 0
-                for fut in as_completed(futures):
-                    x, y = futures[fut]
-                    status, png = fut.result()
-                    if status == "outside":
-                        outside += 1
-                        continue
-                    if status == "failed":
-                        status, png = _render_tile(cog_url, x, y, z)
+                empty = 0
+                submitted = 0
+                while batch := list(islice(pending, TILE_BATCH)):
+                    futures = {
+                        pool.submit(_render_tile, cog_url, x, y, z): (x, y)
+                        for x, y in batch
+                    }
+                    submitted += len(batch)
+                    for fut in as_completed(futures):
+                        # Check before status-specific continues.
+                        if deadline is not None and time.monotonic() > deadline:
+                            should_cleanup = True
+                            raise BudgetExhausted(
+                                f"ran out of time at z{z} of z{min_zoom}..z{max_zoom} "
+                                f"after {processed} tiles; rerun with a lower max_zoom"
+                            )
+                        processed += 1
+                        x, y = futures[fut]
+                        status, tile = fut.result()
+                        if status == "failed":
+                            status, tile = _render_tile(cog_url, x, y, z)
                         if status == "outside":
                             outside += 1
                             continue
+                        if status == "empty":
+                            empty += 1
+                            continue
+                        if status == "cancelled":
+                            # Stop draining rather than insert a NULL blob.
+                            raise Terminated("tile generation cancelled")
                         if status == "failed":
                             should_cleanup = True
                             raise RuntimeError(
                                 f"unexpected tile render failure for z={z}, "
                                 f"x={x}, y={y}"
                             )
-                    tms_y = (1 << z) - 1 - y
-                    cur.execute(
-                        "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
-                        (z, x, tms_y, png),
-                    )
-                    written += 1
-                conn.commit()
+                        encoded_bytes += len(tile)
+                        if encoded_bytes > MAX_ENCODED_BYTES:
+                            should_cleanup = True
+                            raise SystemExit(
+                                f"encoded tile bytes {encoded_bytes} exceed "
+                                f"MAX_ENCODED_BYTES={MAX_ENCODED_BYTES} at z{z}; "
+                                f"rerun with a lower max_zoom"
+                            )
+                        tms_y = (1 << z) - 1 - y
+                        cur.execute(
+                            "INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
+                            (z, x, tms_y, tile),
+                        )
+                        written += 1
+                    conn.commit()
                 msg = (
-                    f"z{z}: {written}/{len(futures)} tiles in "
-                    f"{time.monotonic() - start:.1f}s"
+                    f"z{z}: {written}/{submitted} tiles in "
+                    f"{time.monotonic() - start:.1f}s, "
+                    f"{encoded_bytes / 1024**2:.1f} MiB total"
                 )
                 if outside > 0:
                     msg += f", outside={outside}"
+                if empty > 0:
+                    msg += f", empty={empty}"
+                if at_zoom > submitted:
+                    msg += f", off-footprint={at_zoom - submitted}"
                 print(msg, flush=True)
             _close_thread_readers(pool, cog_url)
+            aborting = False
         finally:
-            pool.shutdown(wait=True)
+            if aborting:
+                # Do not wait for the rest of a failed batch.
+                _stop_rendering.set()
+                pool.shutdown(wait=False, cancel_futures=True)
+            else:
+                pool.shutdown(wait=True)
     except Exception:
         should_cleanup = True
         raise
@@ -318,14 +544,10 @@ def _patch_asset(
     file_size: int = 0,
 ) -> None:
     """Register a tilepack asset on the STAC item."""
-    content_types = {
-        "mbtiles": "application/vnd.mbtiles",
-        "pmtiles": "application/vnd.pmtiles",
-    }
     href = f"{public_base.rstrip('/')}/{key}"
     asset = {
         "href": href,
-        "type": content_types[fmt],
+        "type": MEDIA_TYPES[fmt],
         "roles": ["tiles"],
         "title": f"{fmt.upper()} archive",
         "proj:code": 3857,
@@ -355,21 +577,26 @@ def _s3_client():
     return boto3.client("s3", **kwargs)
 
 
-def s3_exists(bucket: str, key: str) -> bool:
-    """Return True if the key exists in S3."""
+def s3_object_size(bucket: str, key: str) -> int | None:
+    """Size of the key in bytes, or None if it does not exist.
+
+    Only a 404 means absent. Treating AccessDenied or a throttle as absent
+    would silently re-render the whole pyramid.
+    """
     try:
-        _s3_client().head_object(Bucket=bucket, Key=key)
-        return True
-    except botocore.exceptions.ClientError:
-        return False
+        return _s3_client().head_object(Bucket=bucket, Key=key)["ContentLength"]
+    except botocore.exceptions.ClientError as exc:
+        if exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") == 404:
+            return None
+        raise
 
 
 def download(bucket: str, key: str, path: Path) -> None:
     _s3_client().download_file(Bucket=bucket, Key=key, Filename=str(path))
 
 
-def upload(bucket: str, key: str, path: Path, content_type: str) -> None:
-    extra = {"ContentType": content_type}
+def upload(bucket: str, key: str, path: Path, fmt: str) -> None:
+    extra = {"ContentType": MEDIA_TYPES[fmt]}
     # S3-compatible stores need not implement ACL authorization, and RustFS
     # rejects a canned ACL with InvalidArgument rather than ignoring it. Those
     # buckets are made anonymously readable by bucket policy instead, so the ACL
@@ -391,37 +618,100 @@ def delete_lock(bucket: str, lock_key: str) -> None:
         print(f"warning: could not delete lock {lock_key}: {exc}", file=sys.stderr)
 
 
+def error_key(lock_key: str) -> str:
+    """Where this run leaves its failure reason, beside its lock."""
+    return f"{lock_key}.error"
+
+
+# Keep failure notes short enough for API responses.
+MAX_ERROR_BYTES = 300
+
+# Remove infrastructure details before exposing a failure note.
+_REDACTIONS = (
+    (re.compile(r"\b[a-z][a-z0-9+.-]*://\S+", re.IGNORECASE), "<url>"),
+    (re.compile(r"(?<![\w.])/(?:[\w.-]+/)+[\w.-]*"), "<path>"),
+    (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b"), "<address>"),
+)
+
+
+def redact(reason: str) -> str:
+    """Strip addresses and paths from text that will be shown to a caller."""
+    for pattern, replacement in _REDACTIONS:
+        reason = pattern.sub(replacement, reason)
+    return " ".join(reason.split())[:MAX_ERROR_BYTES]
+
+
+def put_error(bucket: str, lock_key: str, reason: str) -> None:
+    """Persist a short failure reason for the API."""
+    reason = redact(reason)
+    if not reason:
+        return
+    try:
+        _s3_client().put_object(
+            Bucket=bucket,
+            Key=error_key(lock_key),
+            Body=reason.encode(),
+            ContentType="text/plain; charset=utf-8",
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"warning: could not record failure at {error_key(lock_key)}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def clear_error(bucket: str, lock_key: str) -> None:
+    """Drop a previous run's reason, so a retry is not reported by its ancestor."""
+    try:
+        _s3_client().delete_object(Bucket=bucket, Key=error_key(lock_key))
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"warning: could not clear {error_key(lock_key)}: {exc}",
+            file=sys.stderr,
+        )
+
+
 def main() -> int:
-    item_id = env("STAC_ITEM_ID")
-    fmt = env("FORMAT")
-    cog_url = env("COG_URL")
-    output_key = env("OUTPUT_KEY")
-    lock_key = env("LOCK_KEY")
-    min_zoom = int(env("MIN_ZOOM", "0"))
-    max_zoom = int(env("MAX_ZOOM", "0"))
-    canonical = env("CANONICAL", "false").lower() == "true"
-    gsd = float(env("GSD", "0") or "0")
+    _install_signal_handlers()
 
+    # Read before anything that can fail, so the lock is always released.
     bucket = env("S3_BUCKET", "oin-hotosm-temp")
-    public_base = env(
-        "S3_PUBLIC_BASE_URL",
-        "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com",
-    )
-    internal_base = env("INTERNAL_BASE_URL")
-    internal_token = env("INTERNAL_TOKEN")
+    lock_key = env("LOCK_KEY")
 
+    item_id = fmt = "unknown"  # for the summary line in the finally
     start = time.monotonic()
-    print(
-        f"worker run start: item_id={item_id} format={fmt} canonical={canonical} "
-        f"min_zoom={min_zoom} max_zoom={max_zoom} output_key={output_key}",
-        flush=True,
-    )
+
+    # Clear the previous attempt's reason before retrying.
+    clear_error(bucket, lock_key)
 
     exit_code = 1
     try:
+        item_id = env("STAC_ITEM_ID")
+        fmt = env("FORMAT")
+        cog_url = env("COG_URL")
+        output_key = env("OUTPUT_KEY")
+        min_zoom = int(env("MIN_ZOOM", "0"))
+        max_zoom = int(env("MAX_ZOOM", "0"))
+        canonical = env("CANONICAL", "false").lower() == "true"
+        gsd = float(env("GSD", "0") or "0")
+        budget = int(env("SOFT_DEADLINE_SECONDS", "0") or "0")
+        deadline = start + budget if budget > 0 else None
+
+        public_base = env(
+            "S3_PUBLIC_BASE_URL",
+            "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com",
+        )
+        internal_base = env("INTERNAL_BASE_URL")
+        internal_token = env("INTERNAL_TOKEN")
+
+        print(
+            f"worker run start: item_id={item_id} format={fmt} canonical={canonical} "
+            f"min_zoom={min_zoom} max_zoom={max_zoom} output_key={output_key}",
+            flush=True,
+        )
+
         if min_zoom == 0 and max_zoom == 0:
-            # Default range: from z0 up to whatever the source GSD
-            # supports (bounded by derive_max_zoom_from_gsd).
+            # Derive the canonical range from the source GSD.
             max_zoom = derive_max_zoom_from_gsd(gsd)
             min_zoom = 0
             print(f"derived zoom range from gsd={gsd}: {min_zoom}..{max_zoom}")
@@ -430,87 +720,104 @@ def main() -> int:
         try:
             mbtiles_path = workdir / f"{item_id}.mbtiles"
 
-            if fmt == "mbtiles":
-                generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
-                upload(bucket, output_key, mbtiles_path, "application/vnd.mbtiles")
-                print(f"uploaded s3://{bucket}/{output_key}")
-
-                if canonical:
-                    try:
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            output_key,
-                            "mbtiles",
-                            min_zoom,
-                            max_zoom,
-                            mbtiles_path.stat().st_size,
-                        )
-                    except Exception as exc:
-                        print(
-                            f"callback patch failed: item_id={item_id} asset=mbtiles err={exc}",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                        raise
-            elif fmt == "pmtiles":
-                # If an mbtiles already exists in S3, skip the expensive
-                # COG tile rendering and just download + convert it.
-                mbtiles_key = output_key.replace(".pmtiles", ".mbtiles")
-                if s3_exists(bucket, mbtiles_key):
+            def register(key: str, fmt_name: str, path: Path) -> None:
+                """Record an archive already in S3 as a STAC asset."""
+                if not canonical:
+                    return
+                try:
+                    _patch_asset(
+                        internal_base,
+                        internal_token,
+                        public_base,
+                        item_id,
+                        key,
+                        fmt_name,
+                        min_zoom,
+                        max_zoom,
+                        path.stat().st_size,
+                    )
+                except Exception as exc:
                     print(
-                        f"found existing s3://{bucket}/{mbtiles_key}, skipping tile generation"
+                        f"callback patch failed: item_id={item_id} "
+                        f"asset={fmt_name} key={key} err={exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    raise
+
+            def store(key: str, fmt_name: str, path: Path) -> None:
+                upload(bucket, key, path, fmt_name)
+                print(f"uploaded s3://{bucket}/{key}", flush=True)
+
+            # Upload before callbacks so callback failure cannot lose the archive.
+            if fmt == "mbtiles":
+                generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom, deadline)
+                store(output_key, "mbtiles", mbtiles_path)
+                register(output_key, "mbtiles", mbtiles_path)
+            elif fmt == "pmtiles":
+                # Reuse an existing mbtiles rather than re-rendering the COG.
+                mbtiles_key = output_key.replace(".pmtiles", ".mbtiles")
+                existing = s3_object_size(bucket, mbtiles_key)
+                if existing is not None:
+                    # PMTiles conversion needs room for a second encoded copy.
+                    if existing > MAX_ENCODED_BYTES:
+                        raise SystemExit(
+                            f"existing s3://{bucket}/{mbtiles_key} is {existing} bytes, "
+                            f"over MAX_ENCODED_BYTES={MAX_ENCODED_BYTES}; "
+                            f"rebuild the mbtiles first"
+                        )
+                    print(
+                        f"found existing s3://{bucket}/{mbtiles_key} "
+                        f"({existing / 1024**2:.1f} MiB), skipping tile generation"
                     )
                     download(bucket, mbtiles_key, mbtiles_path)
                 else:
-                    generate_mbtiles(cog_url, mbtiles_path, min_zoom, max_zoom)
-                    upload(bucket, mbtiles_key, mbtiles_path, "application/vnd.mbtiles")
-                    print(f"uploaded s3://{bucket}/{mbtiles_key}")
+                    generate_mbtiles(
+                        cog_url, mbtiles_path, min_zoom, max_zoom, deadline
+                    )
+                    store(mbtiles_key, "mbtiles", mbtiles_path)
 
                 pmtiles_path = workdir / f"{item_id}.pmtiles"
                 convert_to_pmtiles(mbtiles_path, pmtiles_path)
-                upload(bucket, output_key, pmtiles_path, "application/vnd.pmtiles")
-                print(f"uploaded s3://{bucket}/{output_key}")
-
-                if canonical:
-                    try:
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            output_key,
-                            "pmtiles",
-                            min_zoom,
-                            max_zoom,
-                            pmtiles_path.stat().st_size,
-                        )
-                        _patch_asset(
-                            internal_base,
-                            internal_token,
-                            public_base,
-                            item_id,
-                            mbtiles_key,
-                            "mbtiles",
-                            min_zoom,
-                            max_zoom,
-                            mbtiles_path.stat().st_size,
-                        )
-                    except Exception as exc:
-                        print(
-                            f"callback patch failed: item_id={item_id} asset=pmtiles_or_mbtiles err={exc}",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                        raise
+                store(output_key, "pmtiles", pmtiles_path)
+                register(output_key, "pmtiles", pmtiles_path)
+                register(mbtiles_key, "mbtiles", mbtiles_path)
             else:
                 raise SystemExit(f"unknown format: {fmt}")
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
-    except Exception:
+        exit_code = 0
+    except BudgetExhausted as exc:
+        exit_code = BUDGET_EXIT_CODE
+        print(
+            f"worker budget exhausted: item_id={item_id} format={fmt} reason={exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        put_error(bucket, lock_key, str(exc))
+    except Terminated as exc:
+        # Return 143 after cleanup releases the lock.
+        exit_code = TERMINATED_EXIT_CODE
+        print(
+            f"worker terminated: item_id={item_id} format={fmt} reason={exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        put_error(bucket, lock_key, f"generation was stopped early ({exc})")
+    except SystemExit as exc:
+        # Preserve deliberate exit codes after cleanup.
+        exit_code = exc.code if isinstance(exc.code, int) else 1
+        if exit_code != 0:
+            put_error(bucket, lock_key, str(exc.code or "generation stopped"))
+        raise
+    except Exception as exc:
         exit_code = 1
+        # Store a short summary; the pod log keeps the traceback.
+        put_error(
+            bucket,
+            lock_key,
+            f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__,
+        )
         raise
     finally:
         delete_lock(bucket, lock_key)
@@ -520,8 +827,14 @@ def main() -> int:
             flush=True,
         )
 
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    code = main()
+    if code in (TERMINATED_EXIT_CODE, BUDGET_EXIT_CODE):
+        # Avoid atexit waiting on in-flight GDAL threads after lock release.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+    raise SystemExit(code)

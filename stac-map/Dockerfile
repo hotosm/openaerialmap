@@ -28,7 +28,7 @@ RUN apk add --no-cache git
 ARG STAC_MAP_REF=v2.1.0
 ARG VITE_BASE_PATH=/map/
 ARG VITE_DEFAULT_HREF=https://api.imagery.hotosm.org/stac
-ARG VITE_STAC_BROWSER_URL=https://api.imagery.hotosm.org/browser/#/external/
+ARG VITE_STAC_BROWSER_URL=https://api.imagery.hotosm.org/browser/external/
 ENV VITE_BASE_PATH=${VITE_BASE_PATH} \
     VITE_DEFAULT_HREF=${VITE_DEFAULT_HREF} \
     VITE_STAC_BROWSER_URL=${VITE_STAC_BROWSER_URL}

@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import type { ImageFeature } from "../utils/types";
-import { COLLECTION_ID, STAC_BROWSER_URL, STAC_TITILER_URL, STAC_URL } from "../utils/constants";
-import { formatDate, formatPlatform, toSentenceCase } from "../utils/format";
+import {
+  COLLECTION_ID,
+  STAC_BROWSER_URL,
+  STAC_TITILER_URL,
+  STAC_URL,
+  collectionLabel,
+} from "../utils/constants";
+import { formatDate, formatPlatform, formatSensor } from "../utils/format";
 import { triggerTilepack, type TilepackFormat } from "../utils/tilepack";
 
 interface Props {
@@ -24,7 +30,7 @@ interface Props {
 function tmsTemplate(p: ImageFeature["properties"]): string {
   if (!p.id) return "";
   const base =
-    `${STAC_TITILER_URL}/collections/${COLLECTION_ID}/items/${p.id}` +
+    `${STAC_TITILER_URL}/collections/${p.collection || COLLECTION_ID}/items/${p.id}` +
     `/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=${p.assetName}`;
   return p.renderParams ? `${base}&${p.renderParams}` : `${base}&nodata=0`;
 }
@@ -35,9 +41,9 @@ function tmsTemplate(p: ImageFeature["properties"]): string {
 // compact grid the sidebar can show. The OAM deployment uses history-
 // mode routing (path segment, no `#/`), so the ingress rewrite handles
 // the SPA route.
-function stacBrowserItemUrl(itemId: string): string {
+function stacBrowserItemUrl(itemId: string, collection: string): string {
   const stacHostPath = STAC_URL.replace(/^https?:\/\//, "");
-  return `${STAC_BROWSER_URL}/external/${stacHostPath}/collections/${COLLECTION_ID}/items/${itemId}`;
+  return `${STAC_BROWSER_URL}/external/${stacHostPath}/collections/${collection || COLLECTION_ID}/items/${itemId}`;
 }
 
 // One state machine per format. The button always presents as
@@ -51,6 +57,15 @@ function stacBrowserItemUrl(itemId: string): string {
 //   ready      -> URL known from a previous "ready" packager response;
 //                 click just downloads without re-POSTing
 //   error      -> last request failed; button offers a retry
+function formatWait(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest} min` : `${hours}h`;
+}
+
 type TilepackState =
   | { kind: "idle" }
   | { kind: "working" }
@@ -117,15 +132,24 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
         window.open(res.url, "_blank", "noopener,noreferrer");
       } else if (res.status === "started" || res.status === "in_progress") {
         setState({ kind: "pending" });
-      } else if (res.status === "rate_limited") {
+      } else if (res.status === "rate_limited" || res.status === "busy") {
+        // Both are 429 and retryable; neither carries a message.
+        const wait = res.retry_after ?? 30;
         setState({
           kind: "error",
-          message: `Rate limited. Try again in ${res.retry_after ?? 30}s.`,
+          message:
+            res.status === "busy"
+              ? `Packager is busy. Try again in ${wait}s.`
+              : `Rate limited. Try again in ${wait}s.`,
         });
       } else {
+        // Failed Jobs cannot be retried until their TTL expires.
+        const failure = res.message || `Request failed (${res.httpStatus}).`;
         setState({
           kind: "error",
-          message: res.message || `Request failed (${res.httpStatus}).`,
+          message: res.retry_after
+            ? `${failure} Retry available in ${formatWait(res.retry_after)}.`
+            : failure,
         });
       }
     } catch (err) {
@@ -138,11 +162,27 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-  const handleCopy = (e: React.MouseEvent, text: string, feedbackId: string) => {
+  const handleCopy = async (e: React.MouseEvent, text: string, feedbackId: string) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(text);
-    setCopyFeedback(feedbackId);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFeedback(feedbackId);
+    } catch {
+      setCopyFeedback(`${feedbackId}-failed`);
+    }
     setTimeout(() => setCopyFeedback(null), 2000);
+  };
+
+  const copyLabel = (feedbackId: string, defaultLabel: string) => {
+    if (copyFeedback === feedbackId) return "Copied!";
+    if (copyFeedback === `${feedbackId}-failed`) return "Copy failed";
+    return defaultLabel;
+  };
+
+  const shareUrl = () => {
+    const url = new URL(window.location.href);
+    if (p.id) url.searchParams.set("selected_id", p.id);
+    return url.toString();
   };
 
   const handleOpenJosm = async (e: React.MouseEvent) => {
@@ -186,6 +226,13 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           : "border-gray-100 bg-white hover:bg-gray-50 border-l-4 border-l-transparent"
       }`}
     >
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {copyFeedback
+          ? copyFeedback.endsWith("-failed")
+            ? `Could not copy the ${copyFeedback.startsWith("link") ? "link" : "TMS URL"}. Try again.`
+            : `${copyFeedback === "link" ? "Link" : "TMS URL"} copied to clipboard.`
+          : ""}
+      </span>
       {isSelected && (
         // Prominent deselect affordance. When an image is selected the
         // map fades non-selected footprints, so the user needs an
@@ -233,11 +280,17 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           </h3>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2 flex-wrap">
           <span className="font-medium text-gray-700">{formatDate(p.date)}</span>
           <span className="text-gray-300">•</span>
-          <span className="truncate max-w-[150px]" title={p.provider}>
+          <span className="truncate max-w-[130px]" title={p.provider}>
             {p.provider}
+          </span>
+          <span
+            className="ml-auto shrink-0 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-[10px] font-medium tracking-wide text-gray-600 uppercase"
+            title={`STAC source: ${p.collection}`}
+          >
+            {collectionLabel(p.collection)}
           </span>
         </div>
 
@@ -277,7 +330,26 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
 
       {isExpanded && (
         <div className="bg-gray-50 px-4 py-4 text-xs border-t border-gray-100 text-gray-600">
-          <div className="mb-4 pb-3 border-b border-gray-200 space-y-2">
+          <div className="mb-4 pb-3 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                Image actions
+              </span>
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-sm text-xs font-semibold text-cyan-600 transition-colors cursor-pointer hover:text-cyan-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600"
+                onClick={(e) => handleCopy(e, shareUrl(), "link")}
+              >
+                <wa-icon
+                  name="link"
+                  variant="solid"
+                  auto-width
+                  class="text-[11px]"
+                  aria-hidden="true"
+                />
+                {copyLabel("link", "Copy link")}
+              </button>
+            </div>
             <div className="flex gap-2">
               <wa-button
                 size="s"
@@ -285,7 +357,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 class="flex-1"
                 onClick={(e) => handleCopy(e, tmsTemplate(p), "tms")}
               >
-                {copyFeedback === "tms" ? "Copied!" : "Copy TMS"}
+                {copyLabel("tms", "Copy TMS")}
               </wa-button>
               <wa-button size="s" appearance="outlined" class="flex-1" onClick={handleOpenId}>
                 Open iD
@@ -294,7 +366,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 Open JOSM
               </wa-button>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mt-2">
               <TilepackButton
                 format="pmtiles"
                 state={pmtilesState}
@@ -332,7 +404,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
             </div>
             <div>
               <span className="block text-[10px] uppercase text-gray-400 font-bold">Sensor</span>
-              {toSentenceCase(p.sensor)}
+              {formatSensor(p.sensor)}
             </div>
             <div>
               <span className="block text-[10px] uppercase text-gray-400 font-bold">
@@ -369,7 +441,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           {p.id && (
             <div className="mt-4 pt-3 border-t border-gray-200 text-right">
               <a
-                href={stacBrowserItemUrl(p.id)}
+                href={stacBrowserItemUrl(p.id, p.collection)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={stop}

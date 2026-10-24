@@ -73,6 +73,10 @@ CATALOG = opendata.OpenDataCatalog(
     catalog_url=VANTOR_CATALOG,
     producer_name="Vantor",
     platform_type="satellite",
+    # Vantor states the licence on the Collection, not per Item.
+    license="CC-BY-NC-4.0",
+    # Vantor publishes no file:size on its assets.
+    fetch_file_size=True,
     providers=[
         Provider(
             name="Vantor",

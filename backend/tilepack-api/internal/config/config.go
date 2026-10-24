@@ -28,9 +28,16 @@ type Config struct {
 	// in STAC, e.g. https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
 	S3PublicBaseURL string
 
-	// LockTTLSeconds - locks older than this are treated as stale and
-	// the request will re-trigger generation.
+	// LockTTLSeconds bounds how long a lock without a Job reads as active.
 	LockTTLSeconds int64
+
+	// WorkerActiveDeadlineSeconds caps worker Job runtime.
+	WorkerActiveDeadlineSeconds int64
+	// WorkerJobTTLSeconds is TTLSecondsAfterFinished, and so also the retry
+	// cooldown: a failed Job cannot be recreated while it lingers.
+	WorkerJobTTLSeconds int32
+	// WorkerTerminationGraceSeconds - SIGTERM to SIGKILL, for lock release.
+	WorkerTerminationGraceSeconds int64
 
 	// MaxConcurrentJobs caps cluster-wide in-flight worker Jobs.
 	MaxConcurrentJobs int
@@ -81,17 +88,32 @@ type Config struct {
 	WorkerMemoryRequest string
 	WorkerCPULimit      string
 	WorkerMemoryLimit   string
+	// A pmtiles run holds mbtiles and pmtiles at once, so peak disk is ~2x.
+	WorkerEphemeralRequest string
+	WorkerEphemeralLimit   string
+
+	// Worker run caps. Tile count bounds runtime, bytes bound disk.
+	WorkerMaxTileCount    int
+	WorkerMaxEncodedBytes int64
+
+	// WorkerSkipEmptyTiles enables the worker footprint prefilter.
+	WorkerSkipEmptyTiles bool
 }
 
 func Load() (*Config, error) {
 	c := &Config{
-		ListenAddr:           getenv("LISTEN_ADDR", ":8080"),
-		STACBaseURL:          os.Getenv("STAC_BASE_URL"),
-		STACCollection:       getenv("STAC_COLLECTION", "openaerialmap"),
-		S3Bucket:             getenv("S3_BUCKET", "oin-hotosm-temp"),
-		S3PublicBaseURL:      getenv("S3_PUBLIC_BASE_URL", "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com"),
-		LockTTLSeconds:       getenvInt64("LOCK_TTL_SECONDS", 1800),
-		MaxConcurrentJobs:    getenvInt("MAX_CONCURRENT_JOBS", 5),
+		ListenAddr:      getenv("LISTEN_ADDR", ":8080"),
+		STACBaseURL:     os.Getenv("STAC_BASE_URL"),
+		STACCollection:  getenv("STAC_COLLECTION", "openaerialmap"),
+		S3Bucket:        getenv("S3_BUCKET", "oin-hotosm-temp"),
+		S3PublicBaseURL: getenv("S3_PUBLIC_BASE_URL", "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com"),
+		LockTTLSeconds:  getenvInt64("LOCK_TTL_SECONDS", 300),
+
+		WorkerActiveDeadlineSeconds:   getenvInt64("WORKER_ACTIVE_DEADLINE_SECONDS", 10800),
+		WorkerJobTTLSeconds:           int32(getenvInt("WORKER_JOB_TTL_SECONDS", 3600)),
+		WorkerTerminationGraceSeconds: getenvInt64("WORKER_TERMINATION_GRACE_SECONDS", 60),
+
+		MaxConcurrentJobs:    getenvInt("MAX_CONCURRENT_JOBS", 2),
 		PerIPRatePerSecond:   getenvFloat("PER_IP_RATE_PER_SECOND", 0.1),
 		PerIPBurst:           getenvInt("PER_IP_BURST", 2),
 		WorkerImage:          os.Getenv("WORKER_IMAGE"),
@@ -107,13 +129,22 @@ func Load() (*Config, error) {
 		S3CredsSecretKey:     getenv("S3_CREDS_SECRET_KEY_KEY", "S3_SECRET_KEY"),
 		AWSRegion:            getenv("AWS_REGION", "us-east-1"),
 		AWSEndpointURL:       getenv("AWS_ENDPOINT_URL", ""),
-		WorkerCPURequest:     getenv("WORKER_CPU_REQUEST", "500m"),
-		WorkerMemoryRequest:  getenv("WORKER_MEMORY_REQUEST", "768Mi"),
-		WorkerCPULimit:       getenv("WORKER_CPU_LIMIT", "2"),
-		WorkerMemoryLimit:    getenv("WORKER_MEMORY_LIMIT", "2Gi"),
+		WorkerCPURequest:     getenv("WORKER_CPU_REQUEST", "2"),
+		WorkerMemoryRequest:  getenv("WORKER_MEMORY_REQUEST", "2Gi"),
+		WorkerCPULimit:       getenv("WORKER_CPU_LIMIT", "4"),
+		WorkerMemoryLimit:    getenv("WORKER_MEMORY_LIMIT", "4Gi"),
+
+		WorkerEphemeralRequest: getenv("WORKER_EPHEMERAL_REQUEST", "10Gi"),
+		WorkerEphemeralLimit:   getenv("WORKER_EPHEMERAL_LIMIT", "14Gi"),
+		WorkerMaxTileCount:     getenvInt("WORKER_MAX_TILE_COUNT", 150_000),
+		WorkerMaxEncodedBytes:  getenvInt64("WORKER_MAX_ENCODED_BYTES", 4*1024*1024*1024),
+		WorkerSkipEmptyTiles:   getenvBool("WORKER_SKIP_EMPTY_TILES", true),
 	}
 	if c.PGStacDSN == "" {
 		return nil, fmt.Errorf("PGSTAC_DSN is required")
+	}
+	if err := c.validateTimeouts(); err != nil {
+		return nil, err
 	}
 	if c.InternalToken == "" && strings.TrimSpace(c.InternalTokenFile) == "" {
 		return nil, fmt.Errorf("either INTERNAL_TOKEN or INTERNAL_TOKEN_FILE is required")
@@ -155,6 +186,15 @@ func getenvInt64(k string, def int64) int64 {
 	return def
 }
 
+func getenvBool(k string, def bool) bool {
+	if v := os.Getenv(k); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
+	}
+	return def
+}
+
 func getenvFloat(k string, def float64) float64 {
 	if v := os.Getenv(k); v != "" {
 		if n, err := strconv.ParseFloat(v, 64); err == nil {
@@ -162,4 +202,31 @@ func getenvFloat(k string, def float64) float64 {
 		}
 	}
 	return def
+}
+
+// validateTimeouts ensures a leaked lock cannot outlive its Job.
+func (c *Config) validateTimeouts() error {
+	if c.WorkerActiveDeadlineSeconds <= 0 {
+		return fmt.Errorf("WORKER_ACTIVE_DEADLINE_SECONDS must be > 0, got %d", c.WorkerActiveDeadlineSeconds)
+	}
+	// Grace 0 is an immediate SIGKILL (leaked lock); TTL 0 collects the
+	// failed Job instantly (no cooldown, so a poller restarts it forever).
+	if c.WorkerTerminationGraceSeconds <= 0 {
+		return fmt.Errorf("WORKER_TERMINATION_GRACE_SECONDS must be > 0, got %d", c.WorkerTerminationGraceSeconds)
+	}
+	if c.WorkerJobTTLSeconds <= 0 {
+		return fmt.Errorf("WORKER_JOB_TTL_SECONDS must be > 0, got %d", c.WorkerJobTTLSeconds)
+	}
+	if c.LockTTLSeconds <= 0 {
+		return fmt.Errorf("LOCK_TTL_SECONDS must be > 0, got %d", c.LockTTLSeconds)
+	}
+	// A Job must remain authoritative for the full lifetime of its lock.
+	if c.LockTTLSeconds > int64(c.WorkerJobTTLSeconds) {
+		return fmt.Errorf(
+			"LOCK_TTL_SECONDS (%d) must not exceed WORKER_JOB_TTL_SECONDS (%d), "+
+				"otherwise a leaked lock outlives the Job that would explain it "+
+				"and reports a dead worker as in-progress",
+			c.LockTTLSeconds, c.WorkerJobTTLSeconds)
+	}
+	return nil
 }

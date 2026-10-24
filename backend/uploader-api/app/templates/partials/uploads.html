@@ -1,5 +1,5 @@
 {% if not uploads %}
-<p class="oam-muted">No uploads yet.</p>
+<p class="oam-muted">{{ empty_message | default("No uploads yet.") }}</p>
 {% else %}
 <!-- app.css stacks these rows on phones, which drops the implicit table roles. -->
 <table class="oam-table" role="table">
@@ -22,7 +22,12 @@
   <tbody role="rowgroup">
     {% for u in uploads %}
     <tr role="row">
-      <td role="cell" data-label="Title">{{ u.title }}</td>
+      <td role="cell" data-label="Title">
+        {{ u.title }}
+        {% if anonymous %}
+        <p class="oam-muted oam-reference">Reference {{ u.id }}</p>
+        {% endif %}
+      </td>
       <td role="cell" data-label="File">{{ u.filename }}</td>
       <td role="cell" data-label="Status">
         {% if u.status in ("Failed", "Error") %}
@@ -34,12 +39,19 @@
         {% endif %}
       </td>
       <td role="cell" data-label="Message" class="oam-muted">
-        {{ u.message }}
+        {% if u.status == "Succeeded" %}
+        <a href="{{ item_url_base }}/{{ u.id }}" target="_blank" rel="noreferrer">
+          View the image</a
+        >
+        {% else %}{{ u.message }}{% endif %}
         <!-- A duplicate is a warning, not a rejection: re-publishing the same
              bytes is sometimes deliberate. -->
         {% if u.warning %}
         <p><wa-tag variant="warning" size="s">Warning</wa-tag> {{ u.warning }}</p>
         {% endif %}
+        <!-- A processing failure happens long after the form closed, so the way
+             to reach us has to travel with the row. -->
+        {% if u.status in ("Failed", "Error") %}{{ support_html() | safe }}{% endif %}
       </td>
       <td role="cell" data-label="Started" class="oam-muted">
         {{ u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "" }}

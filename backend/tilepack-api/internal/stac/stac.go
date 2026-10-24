@@ -35,8 +35,6 @@ type Item struct {
 	BBox       []float64            `json:"bbox"`
 	Properties map[string]any       `json:"properties"`
 	Assets     map[string]ItemAsset `json:"assets"`
-	Links      []map[string]any     `json:"links"`
-	Extra      map[string]any       `json:"-"`
 }
 
 type ItemAsset struct {
@@ -80,9 +78,7 @@ func (a *ItemAsset) UnmarshalJSON(data []byte) error {
 
 func coerceInt(raw json.RawMessage) int {
 	v := coerceInt64(raw)
-	maxInt := int64(^uint(0) >> 1)
-	minInt := -maxInt - 1
-	if v < minInt || v > maxInt {
+	if v < math.MinInt || v > math.MaxInt {
 		return 0
 	}
 	return int(v)
@@ -229,13 +225,8 @@ func GSD(item *Item) (float64, bool) {
 // asset for the given format. Used by the handler to short-circuit
 // duplicate work.
 func HasTilepackAsset(item *Item, format string) (string, bool) {
-	key := assetKeyForFormat(format)
-	if a, ok := item.Assets[key]; ok && a.Href != "" {
+	if a, ok := item.Assets[format]; ok && a.Href != "" {
 		return a.Href, true
 	}
 	return "", false
-}
-
-func assetKeyForFormat(format string) string {
-	return format
 }

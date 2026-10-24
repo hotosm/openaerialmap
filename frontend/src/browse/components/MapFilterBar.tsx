@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
+import { collectionLabel } from "../utils/constants";
 import type { DatePreset, Filters, ResolutionPreset } from "../utils/types";
 
 interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
+  // Collection IDs seen in the tiles, not hardcoded.
+  availableCollections?: string[];
 }
 
 type WaSelectEvent = CustomEvent<{ item: HTMLElement & { value: string } }>;
@@ -109,8 +112,17 @@ function FilterDropdown<V extends string>({
   );
 }
 
-export default function MapFilterBar({ filters, onChange }: Props) {
+export default function MapFilterBar({ filters, onChange, availableCollections = [] }: Props) {
   const applyChange = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+
+  // Keep the active selection listed even when out of view.
+  const collectionIds = Array.from(
+    new Set([...availableCollections, ...(filters.collection ? [filters.collection] : [])]),
+  ).sort();
+  const SOURCES: Option<string>[] = [
+    { label: "All Sources", value: "" },
+    ...collectionIds.map((id) => ({ label: collectionLabel(id), value: id })),
+  ];
 
   const platformLabel =
     PLATFORMS.find((o) => o.value === filters.platform)?.label ?? "All Platforms";
@@ -122,11 +134,29 @@ export default function MapFilterBar({ filters, onChange }: Props) {
     return LICENSES.find((o) => o.value === filters.license)?.label ?? "License";
   })();
 
-  const anyActive = !!(filters.platform || filters.date || filters.resolution || filters.license);
+  const sourceLabel = filters.collection ? collectionLabel(filters.collection) : "All Sources";
+
+  const anyActive = !!(
+    filters.platform ||
+    filters.date ||
+    filters.resolution ||
+    filters.license ||
+    filters.collection
+  );
 
   return (
     <div className="font-sans">
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="inline-flex flex-wrap gap-2 items-center rounded-2xl bg-white/75 backdrop-blur-md px-2.5 py-2 shadow-md ring-1 ring-black/5">
+        {/* Only show the filter when more than one collection is available. */}
+        {collectionIds.length > 1 && (
+          <FilterDropdown
+            label={sourceLabel}
+            active={!!filters.collection}
+            value={filters.collection}
+            options={SOURCES}
+            onChange={(v) => applyChange({ collection: v })}
+          />
+        )}
         <FilterDropdown
           label={platformLabel}
           active={!!filters.platform}
@@ -174,6 +204,7 @@ export default function MapFilterBar({ filters, onChange }: Props) {
                 platform: "",
                 resolution: "",
                 license: "",
+                collection: "",
               })
             }
           >

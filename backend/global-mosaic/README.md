@@ -1,6 +1,6 @@
 # OpenAerialMap Global Mosaic
 
-On a 12hr schedule:
+On a 1hr schedule:
 
 - Generates global mosaic in PMTiles format, serving via S3.
 - Also server TMS via a lightweight Martin server, for clients that

@@ -5,7 +5,7 @@ import json
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Iterator, Literal, Protocol, TypeVar
+from typing import Any, Callable, Iterable, Iterator, Literal, Protocol, TypeVar
 
 import click
 import pystac
@@ -13,7 +13,7 @@ import requests
 from pypgstac.db import PgstacDB
 from pypgstac.load import Loader, Methods
 
-from stactools.hotosm import opendata
+from stactools.hotosm import glo30, opendata
 from stactools.hotosm.catalogs import CATALOGS
 from stactools.hotosm.constants import COLLECTION_ID as OAM_COLLECTION_ID
 from stactools.hotosm.oam_metadata import OamMetadata
@@ -25,6 +25,7 @@ from stactools.hotosm.stac import (
 )
 
 OAM_CATALOG_KEY = "OAM"
+GLO30_CATALOG_KEY = "GLO30"
 
 uploaded_since_sec = click.option(
     "--uploaded-since",
@@ -117,6 +118,14 @@ pgstac_database = click.option(
     callback=create_pgstac_from_ctx,
 )
 
+glo30_bbox = click.option(
+    "--bbox",
+    nargs=4,
+    type=float,
+    default=None,
+    help="Limit the harvest to MINX MINY MAXX MAXY.",
+)
+
 dump_to_path = click.option(
     "--file",
     type=click.Path(
@@ -130,7 +139,7 @@ dump_to_path = click.option(
 
 catalog_option = click.option(
     "--catalog",
-    type=click.Choice([OAM_CATALOG_KEY, *CATALOGS]),
+    type=click.Choice([OAM_CATALOG_KEY, GLO30_CATALOG_KEY, *CATALOGS]),
     required=True,
     help="Sync STAC Collection definition for this dataset catalog.",
 )
@@ -232,7 +241,13 @@ def sync_oam(
     handle_exceptions: HandleExceptionsType,
     **_pgstac_options: Any,
 ):
-    """Sync new STAC Items from OAM metadata API to PgSTAC."""
+    """Sync new STAC Items from OAM metadata API to PgSTAC.
+
+    Items already in PgSTAC are skipped. Do not lift that filter to backfill a
+    new extension field: the load is a whole-Item upsert, and a rebuilt Item
+    drops the assets other services patch in afterwards - tilepack's `mbtiles`
+    and `pmtiles`. See docs/dev/ingest/backfill.md.
+    """
     uploaded_after = parse_uploaded_since(uploaded_since, uploaded_after)
     loader = Loader(ctx.obj["pgstac"])
     client = OamMetadataClient.new()
@@ -249,6 +264,64 @@ def sync_oam(
     loader.load_items(iter(items), insert_mode=Methods.upsert)
     click.echo(f"Completed ingesting {len(items)} STAC Items")
     report_errors(errors)
+
+
+@main.command()
+@dump_to_path
+@glo30_bbox
+def dump_glo30(
+    file: Path,
+    bbox: tuple[float, float, float, float] | None,
+    **_pgstac_options: Any,
+) -> None:
+    """Dump Copernicus GLO-30 Items to NDJSON."""
+    with requests.Session() as session:
+        dump_to_ndjson(file, (item.to_dict() for item in glo30_items(session, bbox)))
+
+
+@main.command()
+@glo30_bbox
+@pgstac_username
+@pgstac_password
+@pgstac_host
+@pgstac_port
+@pgstac_database
+@click.pass_context
+def sync_glo30(
+    ctx: click.Context,
+    bbox: tuple[float, float, float, float] | None,
+    **_pgstac_options: Any,
+) -> None:
+    """Sync Copernicus GLO-30 Items to PgSTAC."""
+    loader = Loader(ctx.obj["pgstac"])
+    loaded = 0
+
+    def items(session: requests.Session) -> Iterator[dict]:
+        nonlocal loaded
+        for item in glo30_items(session, bbox):
+            loaded += 1
+            yield item.to_dict()
+
+    with requests.Session() as session:
+        loader.load_items(items(session), insert_mode=Methods.upsert)
+
+    click.echo(f"Completed ingesting {loaded} STAC Items")
+
+
+def glo30_items(
+    session: requests.Session,
+    bbox: tuple[float, float, float, float] | None,
+) -> Iterator[pystac.Item]:
+    """Yield rewritten GLO-30 Items."""
+    click.echo(
+        "Harvesting GLO-30 from Earth Search"
+        + (f" within bbox {bbox}" if bbox else " for the whole globe")
+    )
+    for item in glo30.walk_items(session, bbox=bbox):
+        dem_item = glo30.create_item(item)
+        # PgSTAC requires a Collection ID even when its link is unavailable.
+        dem_item.collection_id = glo30.COLLECTION_ID
+        yield dem_item
 
 
 def dump_catalog_command(catalog: OpenDataCatalog) -> click.Command:
@@ -301,6 +374,19 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
     @uploaded_since_sec
     @uploaded_after_dt
     @handle_exceptions
+    @click.option(
+        "--rebuild",
+        is_flag=True,
+        default=False,
+        help=(
+            "Re-derive Items already in PgSTAC instead of skipping them. Use "
+            "after changing a mapping: a normal sync only ever adds, so a "
+            "corrected field would otherwise never reach existing Items. "
+            "Bounded by --uploaded-since / --uploaded-after like any other "
+            "run, so it re-derives the Items after that cursor and not the "
+            "whole collection."
+        ),
+    )
     @pgstac_username
     @pgstac_password
     @pgstac_host
@@ -312,11 +398,17 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
         uploaded_since: float | None,
         uploaded_after: dt.datetime | None,
         handle_exceptions: HandleExceptionsType,
+        rebuild: bool,
         **_pgstac_options: Any,
     ) -> None:
         after = parse_uploaded_since(uploaded_since, uploaded_after)
         loader = Loader(ctx.obj["pgstac"])
 
+        if rebuild:
+            click.echo(
+                "Rebuild: re-deriving Items already in PgSTAC. The load is an "
+                "upsert, so existing records are replaced in place."
+            )
         click.echo(f"Looking for STAC Items added since {after}")
         items, errors = sync_handler(
             collection_id=catalog.collection_id,
@@ -324,7 +416,9 @@ def sync_catalog_command(catalog: OpenDataCatalog) -> click.Command:
             stac_item_creator=partial(opendata.create_item, catalog),
             uploaded_after=after,
             handle_exceptions=handle_exceptions,
-            existing_ids_finder=partial(get_existing_item_ids, ctx.obj["pgstac"]),
+            existing_ids_finder=(
+                None if rebuild else partial(get_existing_item_ids, ctx.obj["pgstac"])
+            ),
             target_item_id=catalog.target_item_id,
         )
         loader.load_items(iter(items), insert_mode=Methods.upsert)
@@ -343,6 +437,9 @@ def create_and_save_collection(catalog: str, destination: Path) -> None:
     """Create a STAC Collection and write to JSON."""
     if catalog == OAM_CATALOG_KEY:
         collection = create_oam_collection()
+    elif catalog == GLO30_CATALOG_KEY:
+        with requests.Session() as session:
+            collection = glo30.create_collection(session)
     elif open_data_catalog := CATALOGS.get(catalog):
         collection = opendata.create_collection(
             open_data_catalog,
@@ -473,12 +570,14 @@ def sync_handler(
     return items, errors
 
 
-def dump_to_ndjson(path: Path, items: list[dict]) -> None:
+def dump_to_ndjson(path: Path, items: Iterable[dict]) -> None:
     """Dump STAC Items to Newline Delimited JSON (NDJSON)."""
+    count = 0
     with path.open("w") as dst:
         for item in items:
             dst.write(json.dumps(item) + "\n")
-    click.echo(f"Completed dumping {len(items)} STAC Items to {path}")
+            count += 1
+    click.echo(f"Completed dumping {count} STAC Items to {path}")
 
 
 def report_errors(errors: list[str]) -> None:

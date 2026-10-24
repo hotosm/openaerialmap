@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import SiteHeader from "./SiteHeader";
-import { UPLOADER_URL } from "./browse/utils/constants";
+import { appUrl } from "./appUrl";
+import {
+  PACKAGER_URL,
+  STAC_BROWSER_CATALOG_URL,
+  STAC_MAP_CATALOG_URL,
+  STAC_TITILER_URL,
+  STAC_URL,
+  UPLOADER_URL,
+} from "./browse/utils/constants";
 import "./Landing.css";
 
 const COMPONENTS = [
@@ -9,7 +17,7 @@ const COMPONENTS = [
     tag: "Explore",
     description:
       "The map-first UI for browsing OAM's STAC catalog. Search by area, date, and provider, then preview and download imagery.",
-    href: "/browse",
+    href: appUrl("/browse"),
     icon: "map",
     primary: true,
   },
@@ -26,7 +34,7 @@ const COMPONENTS = [
     tag: "Raster tiles",
     description:
       "Serve dynamic tiles, statistics, and previews from any COG in the catalog. For developers building custom tools.",
-    href: "https://api.imagery.hotosm.org/raster/api.html",
+    href: `${STAC_TITILER_URL}/api.html`,
     icon: "code",
   },
   {
@@ -34,7 +42,7 @@ const COMPONENTS = [
     tag: "API",
     description:
       "The STAC-compliant API that powers everything. Query items programmatically with any STAC client.",
-    href: "https://api.imagery.hotosm.org/stac",
+    href: STAC_URL,
     icon: "database",
   },
   {
@@ -42,7 +50,7 @@ const COMPONENTS = [
     tag: "Catalog",
     description:
       "Walk the raw STAC catalog: collections, items, assets. Useful for inspecting metadata and asset URLs directly.",
-    href: "https://api.imagery.hotosm.org/browser/?.language=en",
+    href: `${STAC_BROWSER_CATALOG_URL}?.language=en`,
     icon: "folder-tree",
   },
   {
@@ -50,7 +58,7 @@ const COMPONENTS = [
     tag: "Map catalog",
     description:
       "STAC Browser, but on a map. Explore items spatially, filter by area and time, and preview COGs live from the catalog.",
-    href: "https://api.imagery.hotosm.org/map/",
+    href: STAC_MAP_CATALOG_URL,
     icon: "map-location-dot",
   },
   {
@@ -58,7 +66,7 @@ const COMPONENTS = [
     tag: "Offline",
     description:
       "Package OAM imagery into PMTiles or MBTiles archives for offline use in the field or in third-party tools.",
-    href: "https://packager.imagery.hotosm.org/",
+    href: `${PACKAGER_URL}/`,
     icon: "box-archive",
   },
 ];
@@ -183,7 +191,7 @@ export default function Landing() {
                 variant="brand"
                 size="l"
                 onClick={() => {
-                  window.location.href = "/browse";
+                  window.location.href = appUrl("/browse");
                 }}
               >
                 Browse imagery
@@ -200,7 +208,8 @@ export default function Landing() {
               </wa-button>
             </div>
             <p className="landing-hero-note">
-              Sign in on the uploader to add your own openly licensed imagery.
+              Have imagery to share? <a href={appUrl("/contribute")}>See the ways to contribute</a>,
+              from single files to a catalog.
             </p>
           </div>
         </section>

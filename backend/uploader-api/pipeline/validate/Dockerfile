@@ -8,9 +8,10 @@ ENV UV_MANAGED_PYTHON=false \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv
 
+# The test stage needs Rasterio's libexpat1 runtime.
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends build-essential && \
+    apt-get install -y --no-install-recommends build-essential libexpat1 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
@@ -24,6 +25,15 @@ COPY uploader-api/pipeline/convert/pyproject.toml convert/
 COPY uploader-api/pipeline/metadata/pyproject.toml metadata/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-editable --package oam-pipeline-validate
+
+# Test image (`just test validate`): builder venv + test group + step source.
+FROM builder AS test
+ENV PATH=/app/.venv/bin:$PATH
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-editable \
+        --package oam-pipeline-validate --group test
+COPY uploader-api/pipeline/validate/ ./validate/
+CMD ["pytest", "validate/tests"]
 
 FROM python:3.12-slim AS prod
 # Unbuffered + faulthandler so step logs flush immediately and tracebacks are

@@ -4,8 +4,7 @@ metadata:
   name: {{ include "chart.fullname" . }}
   labels: {{- include "chart.labels" . | nindent 4 }}
 rules:
-  # The API needs to create worker Jobs and list them to enforce the
-  # cluster-wide concurrency cap. Nothing else.
+  # Failed Jobs expire by TTL; the API never deletes them.
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["create", "get", "list"]

@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [v0.3.0]
+
+### Added
+
+- `oam:uploader_id`, `oam:uploader_name` and `oam:uploader_email`, identifying
+  the uploading account. IDs use `provider|id`, including `oam-legacy|<id>` and
+  `hotosm|<id>`.
+
+All new fields are optional.
+
 ## [v0.2.0]
 
 ### Added
@@ -39,5 +49,6 @@ All new fields are optional.
 - Move the schema URL to `https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json`.
 
 [Unreleased]: https://github.com/hotosm/openaerialmap/tree/main/backend/stactools-hotosm/stac-extension
+[v0.3.0]: https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json
 [v0.2.0]: https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json
 [v0.1.0]: https://docs.imagery.hotosm.org/oam/v0.1.0/schema.json

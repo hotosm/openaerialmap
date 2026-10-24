@@ -5,7 +5,16 @@ import { PACKAGER_URL } from "./constants";
 // backend/tilepack-api/internal/handler/handler.go.
 export type TilepackFormat = "pmtiles" | "mbtiles";
 
-export type TilepackStatus = "started" | "in_progress" | "ready" | "rate_limited" | "error";
+// "busy" is the concurrency cap and "rate_limited" the per-IP cap, both
+// 429 and both retryable. "failed" is a terminal worker failure (409).
+export type TilepackStatus =
+  | "started"
+  | "in_progress"
+  | "ready"
+  | "busy"
+  | "rate_limited"
+  | "failed"
+  | "error";
 
 export interface TilepackResponse {
   status: TilepackStatus;
@@ -19,7 +28,8 @@ export interface TilepackResponse {
 
 // Fire (or re-check) the canonical tilepack job for an item. The
 // packager endpoint is idempotent: repeat POSTs return 200 with a URL
-// once the archive is ready, 202 while the worker is still running.
+// once the archive is ready, 202 while the worker is still running, and
+// 409 "failed" if the last build died.
 // We deliberately do not poll here - callers re-invoke this on user
 // action (button re-click, page refresh) to check status.
 export async function triggerTilepack(

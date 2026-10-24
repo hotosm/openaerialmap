@@ -24,6 +24,13 @@ jobs:
       build_target: prod
       dockerfile: Dockerfile
 
+  stac-browser:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/stac-browser/
+      image_name: ghcr.io/${{ github.repository }}/stac-browser
+      dockerfile: Dockerfile
+
   frontend:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
     with:
@@ -31,6 +38,14 @@ jobs:
       image_name: ghcr.io/${{ github.repository }}/frontend
       build_target: serve
       dockerfile: Dockerfile
+
+  stac-ingester:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/
+      image_name: ghcr.io/${{ github.repository }}/stac-ingester
+      build_target: prod
+      dockerfile: stac-ingester/Dockerfile
 
   tilepack-api:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0

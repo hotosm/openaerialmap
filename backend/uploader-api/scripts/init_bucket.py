@@ -132,23 +132,36 @@ def ensure_public_read(s3) -> None:
 
 
 def ensure_cors(s3) -> None:
-    """Allow the upload form's origin to send presigned PUTs."""
-    s3.put_bucket_cors(
-        Bucket=BUCKET,
-        CORSConfiguration={
-            "CORSRules": [
-                {
-                    "AllowedOrigins": CORS_ORIGINS,
-                    "AllowedMethods": ["GET", "HEAD", "PUT", "POST", "DELETE"],
-                    "AllowedHeaders": ["*"],
-                    # Multipart uploads need to read the ETag off each part.
-                    "ExposeHeaders": ["ETag", "x-amz-request-id"],
-                    "MaxAgeSeconds": 3600,
-                }
-            ]
-        },
-    )
-    log.info("allowed cross-origin uploads from %s", ", ".join(CORS_ORIGINS))
+    """Allow presigned PUTs from the upload form, and COG reads from anywhere.
+
+    Requires both read and write rule.
+    """
+    rules = []
+    if PUBLIC_READ:
+        rules.append(
+            {
+                "AllowedOrigins": ["*"],
+                "AllowedMethods": ["GET", "HEAD"],
+                "AllowedHeaders": ["*"],
+                "ExposeHeaders": ["ETag", "Content-Range", "Accept-Ranges"],
+                "MaxAgeSeconds": 3600,
+            }
+        )
+    if CORS_ORIGINS:
+        rules.append(
+            {
+                "AllowedOrigins": CORS_ORIGINS,
+                "AllowedMethods": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+                "AllowedHeaders": ["*"],
+                "ExposeHeaders": ["ETag", "x-amz-request-id"],
+                "MaxAgeSeconds": 3600,
+            }
+        )
+    s3.put_bucket_cors(Bucket=BUCKET, CORSConfiguration={"CORSRules": rules})
+    if PUBLIC_READ:
+        log.info("allowed cross-origin reads from any origin")
+    if CORS_ORIGINS:
+        log.info("allowed cross-origin uploads from %s", ", ".join(CORS_ORIGINS))
 
 
 def main() -> int:
@@ -160,10 +173,10 @@ def main() -> int:
         ensure_public_read(s3)
     else:
         log.info("skipping public-read policy (INIT_PUBLIC_READ is off)")
-    if CORS_ORIGINS:
+    if CORS_ORIGINS or PUBLIC_READ:
         ensure_cors(s3)
     else:
-        log.info("no INIT_CORS_ORIGINS set; leaving bucket CORS alone")
+        log.info("private bucket and no INIT_CORS_ORIGINS; leaving bucket CORS alone")
     log.info("bucket %r ready", BUCKET)
     return 0
 

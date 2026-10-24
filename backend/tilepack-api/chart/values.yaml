@@ -13,11 +13,15 @@ worker:
   # Worker Jobs are created in the same namespace as the API release.
   resources:
     requests:
-      cpu: 500m
-      memory: 768Mi
-    limits:
+      # The scheduler only guarantees requests, so keep them near the limits.
       cpu: "2"
-      memory: 2Gi
+      memory: 2Gi  # benchmarked ~1.16 GB RSS on a dense urban scene
+      ephemeral-storage: 10Gi  # ~2x the 4 GiB byte budget, plus margin
+    limits:
+      # Tile generation is CPU-bound, so this sets how long a scene takes.
+      cpu: "4"
+      memory: 4Gi
+      ephemeral-storage: 14Gi
 
 nameOverride: ""
 fullnameOverride: ""
@@ -35,8 +39,22 @@ config:
   # there instead. The API passes it to each worker Job, and both halves switch
   # to path-style addressing, which a store without wildcard DNS needs.
   s3Endpoint: ""
-  lockTTLSeconds: 1800
-  maxConcurrentJobs: 5
+  # Must not exceed workerJobTTLSeconds, so a leaked lock cannot outlive its Job.
+  lockTTLSeconds: 300
+  workerActiveDeadlineSeconds: 10800
+  # How long a finished Job lingers; also the retry cooldown.
+  workerJobTTLSeconds: 3600
+  # SIGTERM to SIGKILL, for the worker to release its S3 lock.
+  workerTerminationGraceSeconds: 60
+  # Multiplies the worker resources above - re-derive if either changes.
+  # At 2: 4 CPU / 4Gi / 20Gi reserved, bursting to 8 / 8Gi / 28Gi.
+  maxConcurrentJobs: 2
+  # Tile count bounds runtime; bytes bound disk.
+  workerMaxTileCount: 150000
+  # Quoted: unquoted, Helm renders it as 4.294967296e+09.
+  workerMaxEncodedBytes: "4294967296"
+  # Set false to render the full scene bbox without footprint filtering.
+  workerSkipEmptyTiles: true
   perIpRatePerSecond: "0.1"
   perIpBurst: 2
   # The in-cluster URL the worker calls to patch STAC assets.

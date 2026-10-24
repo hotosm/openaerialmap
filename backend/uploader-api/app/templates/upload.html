@@ -37,7 +37,7 @@ content %}
     </fieldset>
 
     <div id="file-picker" class="oam-source__panel">
-      <input type="file" id="file-input" accept=".tif,.tiff" required />
+      <input type="file" id="file-input" accept=".tif,.tiff" />
     </div>
 
     <div id="url-picker" class="oam-source__panel" hidden>
@@ -164,7 +164,28 @@ content %}
       </wa-select>
     </wa-details>
 
+    <!-- Hint slot, not the attribute: it needs a link, which a tooltip would hide. -->
+    <wa-checkbox id="anonymous" name="anonymous">
+      Upload anonymously
+      <div slot="hint">
+        If you select this, your account is not recorded against the imagery and no contact
+        details are published with it.
+        It is tracked under “Anonymous uploads” below instead of “Your uploads”, and only
+        by this browser. {% if support_url %}Ask through a
+        <a href="{{ support_url }}" target="_blank" rel="noreferrer">
+          tech request</a
+        >
+        if you need it altered{% endif %}.
+      </div>
+    </wa-checkbox>
+
     <wa-button type="submit" variant="brand" id="submit-btn">Start upload</wa-button>
+
+    <div id="upload-another" hidden>
+      <wa-button type="button" variant="neutral" id="upload-another-btn">
+        Upload another
+      </wa-button>
+    </div>
 
     <!-- From the prefill link. Hidden: a presigned URL should not reach a screenshot. -->
     <input type="hidden" name="external_id" />
@@ -177,12 +198,30 @@ content %}
     <p id="progress-label"></p>
   </div>
   <div id="upload-error"></div>
+  <!-- Cloned into the error callout: the support URLs stay server-rendered. -->
+  <template id="support-line">{{ support_html() | safe }}</template>
   {% endif %}
+</section>
+
+<!-- Anonymous tracking remains visible after session expiry. -->
+<section id="anon-uploads" class="oam-card" hidden>
+  <h2>Anonymous uploads</h2>
+  <p class="oam-muted">
+    Your anonymous uploads are shown temporarily here.
+    They are not visible to others and will be cleared with your
+    browser session. Save the reference if you need to check anything
+    with the team later.
+  </p>
+  <div id="anon-uploads-list"><wa-spinner></wa-spinner></div>
 </section>
 
 {% if not auth_enabled or logged_in %}
 <section class="oam-card">
   <h2>Your uploads</h2>
+  <p class="oam-muted">
+    A published image is viewable straight away. The map and browser show it after the
+    global mosaic next rebuilds, which it does hourly.
+  </p>
   <div id="uploads-list" hx-get="/uploads" hx-trigger="load, every 5s" hx-swap="innerHTML">
     <wa-spinner></wa-spinner>
   </div>

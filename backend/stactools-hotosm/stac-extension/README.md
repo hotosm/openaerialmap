@@ -1,7 +1,7 @@
 # Humanitarian OpenStreetMap Team OpenAerialMap Extension Specification
 
 - **Title:** Humanitarian OpenStreetMap Team OpenAerialMap (OAM) Extension
-- **Identifier:** <https://docs.imagery.hotosm.org/oam/v0.2.0/schema.json>
+- **Identifier:** <https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json>
 - **Field Name Prefix:** oam
 - **Scope:** Item
 - **Extension [Maturity Classification](https://github.com/radiantearth/stac-spec/tree/master/extensions/README.md#extension-maturity):** Proposal
@@ -10,7 +10,7 @@
 Defines STAC metadata used by HOT's OpenAerialMap project.
 
 - [Item example](./examples/item.json)
-- [JSON Schema](./json-schema/v0.2.0/schema.json)
+- [JSON Schema](./json-schema/v0.3.0/schema.json)
 - [Changelog](./CHANGELOG.md)
 
 ## Fields

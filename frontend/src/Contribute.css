@@ -1,0 +1,365 @@
+/* Measure system, deliberately small and in pixels.
+ *
+ * Three tokens, matching the 620/720 already in Landing.css. Pixels, not `ch`:
+ * `ch` couples the measure to the font size, so two blocks declaring the same
+ * number resolve to different widths and every paragraph stops at a different
+ * place while the rules above them run full width. That is the bug this page
+ * shipped with. Headings never take a max-width at all - `text-wrap: balance`
+ * is the right tool - and no measure is set inside a grid cell that already
+ * constrains it.
+ */
+
+.contribute-root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.contribute-page {
+  /* ONE column. Everything on this page - headings, prose, rules, tables,
+     figures - shares this width, so there is a single right edge down the
+     whole page and nothing looks hard-wrapped against something wider.
+     Landing.css can run a 1150px shell because its narrower text blocks are
+     centered, which reads as deliberate; this page is left-aligned, where a
+     720px paragraph under a 1150px rule just reads as broken. */
+  --contribute-shell-width: min(760px, 92vw);
+
+  --contribute-text: var(--hot-color-blue-900);
+  --contribute-muted: var(--hot-color-blue-400);
+  --contribute-rule: var(--hot-color-neutral-200);
+  --contribute-brand: var(--hot-color-primary-600);
+
+  /* Figure palette, shared by the inline SVGs. */
+  --fig-surface: white;
+  --fig-line: var(--hot-color-blue-300);
+  --fig-muted: var(--hot-color-blue-400);
+  --fig-accent: var(--hot-color-primary-600);
+  --fig-accent-soft: var(--hot-color-primary-50);
+
+  color: var(--contribute-text);
+  background: var(--hot-color-neutral-50);
+  flex: 1;
+}
+
+.contribute-shell {
+  width: var(--contribute-shell-width);
+  margin: 0 auto;
+}
+
+/* Matches .landing-hero-upload. An outlined wa-button renders its label in
+   the default dark ink, which disappears against the hero gradient. */
+.contribute-hero-secondary::part(base) {
+  background-color: rgba(255, 255, 255, 0.95);
+  color: var(--hot-color-blue-900);
+  border-color: rgba(255, 255, 255, 0.95);
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+  transition:
+    background-color 170ms ease,
+    transform 170ms ease,
+    box-shadow 170ms ease;
+}
+
+.contribute-hero-secondary::part(base):hover {
+  background-color: #ffffff;
+  border-color: #ffffff;
+}
+
+.contribute-action {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Says who the button above is for, so someone taking the shortcut does not
+   have to read the routes table to know which one is theirs. */
+.contribute-action-for {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--hot-color-blue-200);
+}
+
+.contribute-block {
+  padding-block: 60px 0;
+}
+
+.contribute-h2 {
+  font-size: clamp(1.5rem, 2.8vw, 2.25rem);
+  line-height: 1.2;
+  margin: 0 0 10px;
+  text-wrap: balance;
+}
+
+.contribute-h3 {
+  margin: 34px 0 8px;
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.contribute-lead {
+  margin: 0 0 20px;
+  font-size: clamp(1rem, 1.8vw, 1.1rem);
+  line-height: 1.6;
+  color: var(--contribute-muted);
+}
+
+.contribute-note {
+  margin: 20px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--contribute-muted);
+}
+
+.contribute-note a,
+.contribute-cta-note a {
+  color: var(--contribute-brand);
+}
+
+/* ---------- Hero ---------- */
+
+.contribute-hero {
+  background: linear-gradient(135deg, var(--hot-color-blue-950) 0%, var(--hot-color-blue-800) 100%);
+  color: white;
+  padding-block: 76px;
+}
+
+.contribute-eyebrow {
+  margin: 0 0 14px;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  /* blue-200 rather than blue-300: the lighter gradient stop pushed the
+     smaller type close to the contrast floor. */
+  color: var(--hot-color-blue-200);
+}
+
+.contribute-title {
+  /* No max-width. A pixel cap here freezes once the clamp pins the font size,
+     and the headline then stays narrow while the window keeps growing. */
+  margin: 0 0 18px;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.contribute-lede {
+  margin: 0 0 30px;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.6;
+  color: var(--hot-color-blue-100);
+}
+
+.contribute-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  /* Top, not center: each button now carries a caption below it, and the two
+     captions are different lengths. */
+  align-items: flex-start;
+}
+
+/* ---------- Figures ---------- */
+
+.contribute-figure {
+  margin: 0;
+}
+
+/* Figures keep their label size on a phone by scrolling rather than scaling. */
+.contribute-figure-scroll {
+  overflow-x: auto;
+}
+
+.contribute-figure-scroll svg {
+  display: block;
+  width: 100%;
+  min-width: 560px;
+  height: auto;
+}
+
+.contribute-figure figcaption {
+  margin-top: 14px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--contribute-muted);
+}
+
+.fig-label {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--contribute-text);
+}
+
+.fig-sub {
+  font-size: 12px;
+  fill: var(--contribute-muted);
+}
+
+.fig-tag {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  fill: var(--contribute-muted);
+}
+
+.fig-mono {
+  font-size: 13px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  fill: var(--contribute-text);
+}
+
+/* ---------- Routes table ---------- */
+
+.contribute-tablewrap {
+  overflow-x: auto;
+  margin-top: 26px;
+}
+
+.contribute-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1rem;
+}
+
+.contribute-table th {
+  text-align: left;
+  padding: 0 20px 10px 0;
+  border-bottom: 1px solid var(--contribute-rule);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--contribute-muted);
+  white-space: nowrap;
+}
+
+.contribute-table td {
+  padding: 16px 20px 16px 0;
+  border-bottom: 1px solid var(--contribute-rule);
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.contribute-table td:first-child {
+  width: 40%;
+}
+
+.contribute-have {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: var(--contribute-muted);
+}
+
+.contribute-table td:nth-child(2) {
+  font-weight: 600;
+  color: var(--contribute-brand);
+}
+
+.contribute-table td:last-child {
+  color: var(--contribute-muted);
+}
+
+.contribute-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  border: 1px solid var(--contribute-muted);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--contribute-muted);
+  white-space: nowrap;
+}
+
+/* ---------- Six checks ---------- */
+
+.contribute-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 26px 40px;
+}
+
+.contribute-checks li {
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 2px solid var(--contribute-brand);
+}
+
+.contribute-check-q {
+  margin: 0 0 5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.contribute-check-why {
+  /* No measure here: the grid track already sets it. */
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--contribute-muted);
+}
+
+/* ---------- Closing ---------- */
+
+.contribute-cta {
+  margin-top: 72px;
+  padding-block: 60px;
+  background: var(--hot-color-blue-950);
+  color: white;
+}
+
+.contribute-cta-title {
+  margin: 0 0 12px;
+  font-size: clamp(1.5rem, 2.8vw, 2.25rem);
+  line-height: 1.2;
+}
+
+.contribute-cta-body {
+  margin: 0 0 24px;
+  font-size: clamp(1rem, 1.8vw, 1.1rem);
+  line-height: 1.6;
+  color: var(--hot-color-blue-100);
+}
+
+.contribute-cta-button {
+  display: inline-block;
+  padding: 13px 26px;
+  border-radius: 4px;
+  background: var(--hot-color-primary-600);
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.contribute-cta-button:hover {
+  background: var(--hot-color-primary-700);
+}
+
+.contribute-cta-button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 3px;
+}
+
+.contribute-cta-note {
+  margin: 26px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--hot-color-blue-100);
+}
+
+.contribute-cta-note a {
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .contribute-hero {
+    padding-block: 52px;
+  }
+
+  .contribute-block {
+    padding-block: 44px 0;
+  }
+}

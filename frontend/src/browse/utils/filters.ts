@@ -1,3 +1,4 @@
+import { COLLECTION_ID, COLLECTION_COUNT_PREFIX } from "./constants";
 import type { DatePreset, Filters, RawTileProperties, ResolutionPreset } from "./types";
 
 // Both client-side (matchesFilters) and MapLibre-side (buildFilter)
@@ -53,6 +54,8 @@ function matchesResolution(gsd: number | undefined, preset: ResolutionPreset): b
 }
 
 export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
+  // Legacy footprints predate the `collection` property; they can only be OAM.
+  if (f.collection && (p.collection || COLLECTION_ID) !== f.collection) return false;
   if (f.platform) {
     const plat = (p.platform || "").toLowerCase();
     if (f.platform === "uav") {
@@ -83,6 +86,9 @@ export function matchesFilters(p: RawTileProperties, f: Filters): boolean {
 // straight to `map.setFilter(...)`, which resets the layer filter.
 export function buildFilter(f: Filters): unknown[] | null {
   const conditions: unknown[] = ["all"];
+  if (f.collection) {
+    conditions.push(["==", ["coalesce", ["get", "collection"], COLLECTION_ID], f.collection]);
+  }
   if (f.platform) {
     if (f.platform === "uav") {
       conditions.push([
@@ -156,9 +162,12 @@ export function buildFilter(f: Filters): unknown[] | null {
 //
 // For multi-filter selections we don't have a pre-baked intersection
 // count, so we take the min across per-dimension buckets. That's an
-// upper bound on the true intersection: cells where any dimension has
-// 0 correctly disappear, and cells where all dimensions have >0 show
-// a count no larger than the truth. Documented as "up to N" in the UI.
+// upper bound on the true intersection, not the intersection itself:
+// cells where any dimension has 0 correctly disappear, but a cell can
+// still report a count higher than the true overlap between
+// dimensions, since each bucket is an independent per-dimension total.
+// See isDensityCountApproximate below, which flags this case so
+// callers can label the number as "up to N" instead of an exact count.
 
 function platformBucketKey(platform: string): string | null {
   if (platform === "uav") return "count_uav";
@@ -190,17 +199,16 @@ function resolutionBucketKey(preset: ResolutionPreset): string | null {
   return null;
 }
 
-// MapLibre expression that evaluates to the count each cell should
-// display given the active filters. Callers wire this into
-// `fill-color`, `text-field`, and layer `filter` on the density
-// layers - see Map.tsx section 4.
-//
-// Resolution is symmetric with the other buckets: images with an
-// unknown gsd are excluded from a resolution-filtered view on both
-// surfaces (see matchesResolution / buildFilter above), so the
-// world-zoom count and the zoomed-in sidebar count agree.
-export function densityCountExpr(f: Filters): unknown {
+// Bucket keys for each filter dimension currently active. Shared by
+// densityCountExpr (which reads the buckets) and
+// isDensityCountApproximate (which flags when more than one bucket is
+// combined, since a single bucket is always an exact per-dimension
+// count).
+function activeDensityBucketKeys(f: Filters): string[] {
   const keys: string[] = [];
+  if (f.collection) {
+    keys.push(`${COLLECTION_COUNT_PREFIX}${f.collection}`);
+  }
   if (f.platform) {
     const k = platformBucketKey(f.platform);
     if (k) keys.push(k);
@@ -217,6 +225,28 @@ export function densityCountExpr(f: Filters): unknown {
     const k = dateBucketKey(f.date);
     if (k) keys.push(k);
   }
+  return keys;
+}
+
+// True when the active filters combine two or more bucket dimensions,
+// so densityCountExpr falls back to a min() upper bound instead of an
+// exact pre-baked count. Callers use this to label the displayed
+// number as approximate.
+export function isDensityCountApproximate(f: Filters): boolean {
+  return activeDensityBucketKeys(f).length > 1;
+}
+
+// MapLibre expression that evaluates to the count each cell should
+// display given the active filters. Callers wire this into
+// `fill-color`, `text-field`, and layer `filter` on the density
+// layers - see Map.tsx section 4.
+//
+// Resolution is symmetric with the other buckets: images with an
+// unknown gsd are excluded from a resolution-filtered view on both
+// surfaces (see matchesResolution / buildFilter above), so the
+// world-zoom count and the zoomed-in sidebar count agree.
+export function densityCountExpr(f: Filters): unknown {
+  const keys = activeDensityBucketKeys(f);
   if (keys.length === 0) return ["get", "count"];
   if (keys.length === 1) return ["coalesce", ["get", keys[0]], 0];
   return ["min", ...keys.map((k) => ["coalesce", ["get", k], 0])];

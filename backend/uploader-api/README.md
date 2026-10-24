@@ -166,6 +166,30 @@ A platform that holds its own auth should use the prefill handoff below instead:
 it mints the presigned URL and fills in the metadata it already knows, so we
 never store its credentials.
 
+## Anonymous uploads
+
+Select "Upload anonymously" in the form, or send `anonymous: true` to
+`POST /api/v1/s3/createmultipart` or `POST /api/v1/uploads`. The upload is stored
+under the shared `custom|anonymous` account, uses an
+`anonymous/<upload-id>/…` object key, omits `contact`, and does not appear in
+"Your uploads". The uploader cannot manage it later.
+
+The page keeps the ids of the 20 most recent anonymous uploads in this browser
+and shows their status after reloads or login expiry. Multipart tracking starts
+before data transfer; remote-source tracking starts when its request returns.
+Clearing site data removes the list.
+
+`GET /uploads/anonymous?ids=…` is unauthenticated, uses `no-store`, and only
+returns rows owned by `custom|anonymous`. Each id is shown as a support reference
+and becomes public as the STAC item id after publication.
+
+Uploading still requires authentication and requests may be logged. Other
+published metadata, including `provider` and `external_url`, may identify the
+source, so this makes the published upload account-anonymous rather than hiding
+the submission itself.
+
+Anonymous uploads share the `MAX_ACTIVE_UPLOADS_PER_USER` limit as a pool.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the
@@ -224,6 +248,9 @@ Configure these bucket-wide settings outside the application:
 
 - CORS must allow the uploader origin and expose `ETag` for multipart uploads.
 - A lifecycle rule should abort incomplete multipart uploads after seven days.
+- Catalogue assets must be anonymously readable. For buckets without a public
+  read policy, including prod's cross-account `oin-hotosm-temp`, set
+  `S3_OBJECT_ACL=public-read` and grant writers `s3:PutObjectAcl`.
 
 When updating lifecycle configuration, preserve existing retention and tiering
 rules: `PutBucketLifecycleConfiguration` replaces the complete configuration.

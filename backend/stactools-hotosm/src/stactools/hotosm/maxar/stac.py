@@ -53,6 +53,9 @@ CATALOG = opendata.OpenDataCatalog(
     catalog_url=MAXAR_CATALOG,
     producer_name="Maxar",
     platform_type="satellite",
+    # Maxar states the licence on the Collection only; without this every
+    # Item lands with properties.license = null.
+    license="CC-BY-NC-4.0",
     providers=[
         Provider(
             name="Maxar",

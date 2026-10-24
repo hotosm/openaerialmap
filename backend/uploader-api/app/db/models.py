@@ -12,6 +12,9 @@ from psycopg.types.json import Jsonb
 
 log = logging.getLogger(__name__)
 
+# Owns anonymous uploads
+ANONYMOUS_SUB = "custom|anonymous"
+
 
 class UploadStatus(StrEnum):
     """Every state an upload can be in.
@@ -164,6 +167,15 @@ class DbUpload:
     checksum: str | None = None
     # Non-fatal notice shown with the status (e.g. duplicate bytes detected).
     warning: str | None = None
+
+    def __post_init__(self) -> None:
+        """Normalise the primary key to the `str` this class advertises.
+
+        The column is `uuid`, so `RETURNING *` hands the row factory a UUID.
+        The Kubernetes client type-inspects it and fails the workflow submit.
+        """
+        if self.id is not None and not isinstance(self.id, str):
+            self.id = str(self.id)
 
     @classmethod
     async def create(cls, db: AsyncConnection, upload_in: Self) -> Self:
@@ -360,6 +372,21 @@ class DbUpload:
             return await cur.fetchall()
 
     @classmethod
+    async def anonymous_by_ids(
+        cls, db: AsyncConnection, upload_ids: list[str], limit: int = 20
+    ) -> list[Self]:
+        """List anonymous uploads by ID, newest first."""
+        if not upload_ids:
+            return []
+        async with db.cursor(row_factory=class_row(cls)) as cur:
+            await cur.execute(
+                "SELECT * FROM uploads WHERE id = ANY(%(ids)s::uuid[]) "
+                "AND user_sub = %(anon)s ORDER BY created_at DESC LIMIT %(n)s;",
+                {"ids": upload_ids, "anon": ANONYMOUS_SUB, "n": limit},
+            )
+            return await cur.fetchall()
+
+    @classmethod
     async def set_workflow_name(
         cls, db: AsyncConnection, upload_id: str, workflow_name: str
     ) -> None:
@@ -388,6 +415,18 @@ class DbUpload:
                 {"id": upload_id, "token": callback_token},
             )
             return await cur.fetchone()
+
+    @classmethod
+    async def is_finished(cls, db: AsyncConnection, upload_id: str) -> bool:
+        """Return whether a terminal upload has spent its callback token."""
+        async with db.cursor() as cur:
+            await cur.execute(
+                "SELECT status FROM uploads "
+                "WHERE id = %(id)s AND callback_token IS NULL;",
+                {"id": upload_id},
+            )
+            row = await cur.fetchone()
+        return bool(row) and row[0] in TERMINAL_STATUSES
 
     @classmethod
     async def update_status(

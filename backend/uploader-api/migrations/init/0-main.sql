@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS users (
 );
 ALTER TABLE IF EXISTS users OWNER TO current_user;
 
+-- Owner for anonymous uploads, so `uploads.user_sub` can stay NOT NULL
+-- and we can filter by anonymous uploads
+INSERT INTO users (sub, username, name)
+VALUES ('custom|anonymous', 'anonymous', 'Anonymous')
+ON CONFLICT (sub) DO NOTHING;
+
 -- Per-upload job state. Replaces the prototype's in-memory dicts so state
 -- survives restarts and works across replicas.
 -- `callback_token` is a per-upload secret: the Argo workflow launched for this

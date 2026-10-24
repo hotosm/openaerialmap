@@ -12,7 +12,7 @@ from litestar.exceptions import HTTPException
 from psycopg import AsyncConnection
 
 from app.config import AuthProvider, settings
-from app.db.models import DbUser
+from app.db.models import ANONYMOUS_SUB, DbUser
 
 # hotosm-auth is optional when authentication is disabled.
 try:
@@ -44,6 +44,11 @@ def get_user_sub(user: object) -> str:
     sub = _pick(user, "sub", "user_sub")
     if sub:
         sub = str(sub)
+        if sub == ANONYMOUS_SUB:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authenticated user is missing a valid identifier.",
+            )
         if "|" in sub:
             existing, raw = sub.split("|", 1)
             if existing == AuthProvider.CUSTOM.value:
@@ -75,12 +80,7 @@ def get_user_display_name(user: object) -> str | None:
 
 
 def get_user_email(user: object) -> str | None:
-    """Return the user's email if the session carries one.
-
-    Only used to populate the local identity mirror. It is deliberately not used
-    as a default for the catalogue's public `contact` field: publishing someone's
-    address because they happened to be logged in is their decision, not ours.
-    """
+    """Return the user's email if present."""
     email = _pick(user, "email", "email_address")
     return str(email) if email else None
 

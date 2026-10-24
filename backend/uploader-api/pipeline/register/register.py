@@ -38,7 +38,7 @@ def register(item_path: str) -> None:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             log.info("Registered item %s (HTTP %s)", item_id, resp.status)
     except urllib.error.HTTPError as exc:
         log.error(

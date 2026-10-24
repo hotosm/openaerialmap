@@ -1,3 +1,4 @@
+import { COLLECTION_ID } from "./constants";
 import type { ImageFeature, RawTileProperties } from "./types";
 import type { GeoJSONFeature } from "maplibre-gl";
 
@@ -12,6 +13,19 @@ export function formatFileSize(bytes: number | undefined): string {
 export function toSentenceCase(str: string | null | undefined): string {
   if (!str) return "";
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+// Sensor names are a mix of prose ("dji phantom 4") and instrument
+// designators ("WV02", "GE01", "LG04"). Sentence-casing the latter turns
+// WorldView-2 into "Wv02", so leave any token that carries a digit or is
+// already all-caps alone and only tidy the prose.
+export function formatSensor(sensor: string | null | undefined): string {
+  if (!sensor) return "Unknown Sensor";
+  const isDesignator = (t: string) => /\d/.test(t) || (t.length <= 5 && t === t.toUpperCase());
+  return sensor
+    .split(/\s+/)
+    .map((t, i) => (isDesignator(t) ? t : i === 0 ? toSentenceCase(t) : t.toLowerCase()))
+    .join(" ");
 }
 
 export function formatPlatform(plat: string | null | undefined): string {
@@ -41,6 +55,7 @@ export function transformFeature(mvtFeature: GeoJSONFeature): ImageFeature {
     geometry: mvtFeature.geometry as ImageFeature["geometry"],
     properties: {
       id: p._id,
+      collection: p.collection || COLLECTION_ID,
       uuid: p.uuid || null,
       title: p.title || "Untitled Image",
       provider: p.provider || "Unknown",

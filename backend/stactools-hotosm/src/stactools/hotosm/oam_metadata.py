@@ -59,12 +59,19 @@ class OamMetadata:
     # Link to static metadata this was derived from
     metadata_url: str
 
+    # Uploading account as `provider|id`.
+    uploader_id: str | None = None
+    # Account display name or username.
+    uploader_name: str | None = None
+
     def sanitize(self) -> OamMetadata:
         """Return a sanitized version of this metadata item."""
         self._sanitize_acquisition_datetime()
         self._sanitize_license()
         self._sanitize_platform()
         self._sanitize_sensor()
+        self._sanitize_uploader()
+        self._sanitize_contact()
         return self
 
     def _sanitize_acquisition_datetime(self):
@@ -90,6 +97,16 @@ class OamMetadata:
     def _sanitize_platform(self):
         """Sanitize platform to a slug representation."""
         self.platform = self.platform.lower().replace("_", "-")
+
+    def _sanitize_uploader(self):
+        """Drop blank or invalid uploader fields."""
+        self.uploader_id = (self.uploader_id or "").strip() or None
+        self.uploader_name = (self.uploader_name or "").strip() or None
+
+    def _sanitize_contact(self):
+        """Drop email addresses, which must not be published on an Item."""
+        parts = [p.strip() for p in (self.contact or "").split(",")]
+        self.contact = ", ".join(p for p in parts if p and "@" not in p)
 
     def _sanitize_sensor(self):
         """Sanitize bad sensor values."""

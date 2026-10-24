@@ -48,7 +48,7 @@ map.addSource("oam-coverage", {
 });
 ```
 
-The archive is regenerated every 12 hours.
+The archive is regenerated every hour.
 
 ## Tiles for one image
 

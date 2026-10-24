@@ -1,6 +1,5 @@
 """OAM uploader API and HTMX UI."""
 
-import html
 import logging
 import re
 from pathlib import Path
@@ -28,6 +27,7 @@ from app.db.database import (
     db_conn,
     get_db_connection_pool,
 )
+from app.htmx.htmx_helpers import callout, support_html
 from app.htmx.page_routes import page_router
 from app.monitoring import (
     add_endpoint_profiler,
@@ -46,6 +46,9 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 _HEALTHCHECK_PATHS = ("/__lbheartbeat__", "/__heartbeat__")
 
+# Successful upload-list polls are routine noise.
+_POLLED_PATHS = ("/uploads", "/uploads/anonymous")
+
 # A prefill link can carry a presigned source_url, which has no business in a
 # log. The page prefers the URL fragment, which never reaches us at all.
 _SOURCE_URL_PARAM = re.compile(r"([?&]source_url=)[^&]*")
@@ -57,17 +60,17 @@ def redact_query_string(path: str) -> str:
 
 
 class _AccessLogFilter(logging.Filter):
-    """Drop successful health-check lines and redact credential-bearing URLs.
-
-    Uvicorn stores the request path at ``record.args[2]``. Health-check failures
-    remain visible.
-    """
+    """Drop routine successes and redact credential-bearing URLs."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
         if isinstance(args, tuple) and len(args) >= 5:
-            path, status_code = str(args[2]), args[4]
-            if path in _HEALTHCHECK_PATHS and str(status_code).startswith(("2", "3")):
+            method, path, status_code = str(args[1]), str(args[2]), args[4]
+            succeeded = str(status_code).startswith(("2", "3"))
+            if succeeded and path in _HEALTHCHECK_PATHS:
+                return False
+            polled = path.split("?", maxsplit=1)[0] in _POLLED_PATHS
+            if succeeded and method == "GET" and polled:
                 return False
             redacted = redact_query_string(path)
             if redacted != path:
@@ -75,7 +78,7 @@ class _AccessLogFilter(logging.Filter):
         return True
 
 
-def _silence_healthcheck_logs() -> None:
+def _silence_routine_access_logs() -> None:
     """Attach the access-log filter to uvicorn's access logger."""
     logging.getLogger("uvicorn.access").addFilter(_AccessLogFilter())
 
@@ -96,11 +99,9 @@ def _htmx_exception_handler(request: Request, exc: Exception) -> Response:
         log.exception(f"Server error: {exc}")
 
     if request.headers.get("HX-Request") == "true":
+        # callout() attaches the support line, so a failure is never a dead end.
         return Response(
-            content=(
-                f'<wa-callout variant="danger"><span>{html.escape(detail)}'
-                "</span></wa-callout>"
-            ),
+            content=callout("danger", detail),
             media_type="text/html",
             status_code=status_code,
             headers={"Vary": "HX-Request"},
@@ -123,6 +124,10 @@ def _configure_templates(engine: JinjaTemplateEngine) -> None:
         hanko_public_url=settings.HANKO_PUBLIC_URL or settings.HANKO_API_URL or "",
         frontend_url=settings.frontend_url,
         main_site_url=settings.OAM_FRONTEND_URL.rstrip("/"),
+        api_site_url=settings.OAM_API_URL.rstrip("/"),
+        support_url=settings.SUPPORT_URL,
+        item_url_base=settings.stac_item_url_base,
+        support_html=support_html,
     )
 
 
@@ -181,8 +186,10 @@ def _get_logging_config() -> LoggingConfig:
             for name in quiet_loggers
         },
         log_exceptions="always",
-        # Avoid stack traces for routine 404 and 405 responses.
+        # Access lines are enough for routine client errors.
         disable_stack_trace={
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
             status.HTTP_404_NOT_FOUND,
             status.HTTP_405_METHOD_NOT_ALLOWED,
         },
@@ -191,7 +198,7 @@ def _get_logging_config() -> LoggingConfig:
 
 def create_app() -> Litestar:
     """Build and configure the Litestar app."""
-    _silence_healthcheck_logs()
+    _silence_routine_access_logs()
 
     route_handlers: list = [
         _root_router(),

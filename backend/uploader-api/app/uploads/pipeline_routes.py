@@ -16,23 +16,56 @@ from psycopg import AsyncConnection
 
 from app.blocking import run_blocking
 from app.config import settings
-from app.db.models import DbUpload, UploadStatus
+from app.db.models import ANONYMOUS_SUB, DbUpload, DbUser, UploadStatus
+from app.uploads import argo
 from app.uploads.pgstac import find_item_by_checksum, upsert_item, validate_item
 from app.uploads.schemas import ChecksumBody, WorkflowStatusBody
 from app.uploads.service import authorized_upload
 
 log = logging.getLogger(__name__)
 
+_GENERIC_FAILURE = "Processing failed."
+_FAILURE_STATUSES = (UploadStatus.FAILED, UploadStatus.ERROR)
+
+
+async def _failure_message(upload_id: str) -> str:
+    """Ask Argo for a failure reason without blocking terminal status."""
+    if not settings.ARGO_ENABLED:
+        return _GENERIC_FAILURE
+    try:
+        _, detail = await run_blocking(
+            argo.get_workflow_outcome, argo.workflow_name_for(upload_id)
+        )
+    except Exception:  # noqa: BLE001
+        log.warning("Could not read why upload %s failed", upload_id, exc_info=True)
+        return _GENERIC_FAILURE
+    return detail or _GENERIC_FAILURE
+
+
+async def _uploader_meta(db: AsyncConnection, upload: DbUpload) -> dict[str, str]:
+    """Return public uploader metadata for a STAC Item."""
+    sub = upload.user_sub
+    if not sub:
+        return {}
+    meta = {"uploader_id": sub}
+    if sub == ANONYMOUS_SUB:
+        return meta
+    try:
+        user = await DbUser.one(db, sub)
+    except KeyError:
+        log.warning("Upload %s has no mirrored user row for %s", upload.id, sub)
+        return meta
+    name = user.username or user.name
+    if name:
+        meta["uploader_name"] = name
+    return meta
+
 
 @get("/uploads/{upload_id:str}/pipeline/meta", exclude_from_auth=True)
 async def pipeline_meta(
     upload_id: FromPath[str], request: Request, db: AsyncConnection
 ) -> dict[str, str]:
-    """Return the metadata the pipeline writes to its `meta.json`.
-
-    Read back here instead of passed as workflow parameters: these are free-text
-    fields and they have no business in argv.
-    """
+    """Return metadata for the pipeline's `meta.json`."""
     upload = await authorized_upload(db, upload_id, request)
     meta = dict(upload.dataset_meta or {})
     meta["title"] = upload.title or upload_id
@@ -40,6 +73,7 @@ async def pipeline_meta(
         meta["external_id"] = upload.external_id
     if upload.external_url:
         meta["external_url"] = upload.external_url
+    meta.update(await _uploader_meta(db, upload))
     return meta
 
 
@@ -100,13 +134,25 @@ async def report_checksum(
 async def workflow_status(
     data: WorkflowStatusBody, request: Request, db: AsyncConnection
 ) -> dict:
-    """Receive a token-authenticated workflow status update."""
+    """Accept a workflow status report and ignore late duplicates."""
     token = request.headers.get("X-Internal-Token", "")
-    updated = await DbUpload.update_status(
-        db, data.id, token, data.status, data.message
-    )
+    message = data.message
+    if not message and data.status in _FAILURE_STATUSES:
+        # Authenticate before an empty report can trigger a cluster lookup.
+        if await DbUpload.get_authorized(db, data.id, token) is not None:
+            message = await _failure_message(data.id)
+    updated = await DbUpload.update_status(db, data.id, token, data.status, message)
     if updated is None:
+        if await DbUpload.is_finished(db, data.id):
+            log.info(
+                "Ignoring a late %s report for finished upload %s",
+                data.status,
+                data.id,
+            )
+            return {"ok": True, "ignored": "already finished"}
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    if data.status in _FAILURE_STATUSES:
+        log.warning("Upload %s failed: %s", data.id, message)
     return {"ok": True}
 
 

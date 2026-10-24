@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithy "github.com/aws/smithy-go"
 )
 
@@ -125,6 +125,35 @@ func (c *Client) HeadObject(ctx context.Context, key string) (exists bool, lastM
 	return true, lastModified, contentLength, nil
 }
 
+// ErrorKey is where a failed worker leaves its reason, beside its lock.
+func (c *Client) ErrorKey(lockKey string) string { return lockKey + ".error" }
+
+// maxErrorBytes bounds worker failure text before it reaches a response.
+const maxErrorBytes = 2000
+
+// ReadText returns a small text object, treating a missing key as empty.
+func (c *Client) ReadText(ctx context.Context, key string) (string, error) {
+	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var ae smithy.APIError
+		if errors.As(err, &ae) && (ae.ErrorCode() == "NotFound" || ae.ErrorCode() == "NoSuchKey") {
+			return "", nil
+		}
+		log.Printf("s3 read text failed: bucket=%s key=%s err=%v", c.bucket, key, err)
+		return "", err
+	}
+	defer func() { _ = out.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(out.Body, maxErrorBytes))
+	if err != nil {
+		log.Printf("s3 read text body failed: bucket=%s key=%s err=%v", c.bucket, key, err)
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
+}
+
 // DeleteObject removes a key. Used by the handler to clean up a
 // lock object if worker Job creation fails - without this, a
 // transient API → apiserver error would block regeneration for
@@ -144,12 +173,10 @@ func (c *Client) DeleteObject(ctx context.Context, key string) error {
 // requests use to detect an in-progress generation. Body is empty -
 // only existence and LastModified matter.
 func (c *Client) PutLock(ctx context.Context, key string) error {
+	// Body intentionally nil - only existence and LastModified matter.
 	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(c.bucket),
-		Key:         aws.String(key),
-		ContentType: aws.String("text/plain"),
-		// Body intentionally nil - zero-length object is enough.
-		StorageClass: types.StorageClassStandard,
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
 	})
 	if err != nil {
 		log.Printf("s3 put lock failed: bucket=%s key=%s err=%v", c.bucket, key, err)
