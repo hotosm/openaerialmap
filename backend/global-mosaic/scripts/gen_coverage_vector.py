@@ -30,7 +30,7 @@ import math
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -210,7 +210,7 @@ def _date_buckets(acq_ts: datetime | None, now: datetime) -> list[str]:
     if not acq_ts:
         return []
     if acq_ts.tzinfo is None:
-        acq_ts = acq_ts.replace(tzinfo=timezone.utc)
+        acq_ts = acq_ts.replace(tzinfo=UTC)
     keys = [f"count_year_{acq_ts.year}"]
     delta = now - acq_ts
     if timedelta(0) <= delta <= timedelta(days=7):
@@ -320,7 +320,7 @@ def get_density_features() -> None:
         f"Fetching centroids + bboxes for density grid "
         f"(collections={FOOTPRINT_COLLECTIONS}, bbox={BBOX})..."
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Each record: (lon, lat, xmin, ymin, xmax, ymax, buckets)
     records: list[tuple[float, float, float, float, float, float, tuple[str, ...]]] = []
     try:
@@ -754,7 +754,7 @@ def write_stats() -> None:
         raise
 
     stats = {
-        "generated_at": datetime.now(timezone.utc)
+        "generated_at": datetime.now(UTC)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
         "collection": COLLECTION,
