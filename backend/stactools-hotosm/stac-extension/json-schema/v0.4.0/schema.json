@@ -115,12 +115,6 @@
           "type": "string",
           "minLength": 1
         },
-        "oam:uploader_email": {
-          "description": "Contact email for the uploading account, where one is known.",
-          "type": "string",
-          "format": "email",
-          "pattern": "^[^@\\s]+@[^@\\s]+$"
-        },
         "oam:owner_id": {
           "description": "Current owner as `provider|id`: a user (`hotosm|<id>`) or an unclaimed legacy account (`oam-legacy|<id>`). Unlike `oam:uploader_id`, it changes when the imagery is transferred.",
           "type": "string",
