@@ -44,12 +44,20 @@ type fakeStore struct {
 	text    map[string]string
 	deleted []string
 	locked  []string
+	keyArgs []struct {
+		min, max  int
+		canonical bool
+	}
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{objects: map[string]time.Time{}, text: map[string]string{}}
 }
-func (f *fakeStore) KeyFromCOGURL(string, string, int, int) (string, error) {
+func (f *fakeStore) KeyFromCOGURL(_ string, _ string, min, max int, canonical bool) (string, error) {
+	f.keyArgs = append(f.keyArgs, struct {
+		min, max  int
+		canonical bool
+	}{min, max, canonical})
 	return "out/archive.pmtiles", nil
 }
 func (f *fakeStore) LockKey(outputKey string) string { return outputKey + ".lock" }

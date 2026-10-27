@@ -109,11 +109,11 @@ tilepack-api: _install-uv
 
   cd worker
   echo "🔍 Worker lint..."
-  uv run --group test ruff check .
-  uv run --group test ruff format --check .
+  UV_PYTHON=3.13 uv run --group test ruff check .
+  UV_PYTHON=3.13 uv run --group test ruff format --check .
 
   echo "🐍 Worker tests..."
-  uv run --group test pytest tests/ -q
+  UV_PYTHON=3.13 uv run --group test pytest tests/ -q
 
 # Validates the OAM extension schema and its examples. Needs npm.
 [no-cd]

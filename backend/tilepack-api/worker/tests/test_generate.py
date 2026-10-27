@@ -16,6 +16,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import generate
 
 
+def test_resolve_zoom_range_distinguishes_custom_zero_from_canonical():
+    assert generate.resolve_zoom_range(0, 0, False, 0.05) == (0, 0)
+    assert generate.resolve_zoom_range(0, 0, True, 0.05) == (
+        0,
+        generate.derive_max_zoom_from_gsd(0.05),
+    )
+    assert generate.resolve_zoom_range(0, 6, False, 0.05) == (0, 6)
+
+
 class FakeReader:
     dataset = types.SimpleNamespace(width=4096, height=4096)
 

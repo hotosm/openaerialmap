@@ -377,6 +377,36 @@ func TestPostTilepack_EarlyValidationPaths(t *testing.T) {
 	}
 }
 
+func TestPostTilepack_ExplicitZeroZoomsAreCustom(t *testing.T) {
+	canonicalJobs := &fakeJobs{}
+	canonicalStore := newFakeStore()
+	canonicalHandler, _ := newTestHandler(canonicalJobs, canonicalStore)
+	canonicalResponse := httptest.NewRecorder()
+	canonicalRequest := httptest.NewRequest(http.MethodPost,
+		"/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles", nil)
+	canonicalHandler.Routes().ServeHTTP(canonicalResponse, canonicalRequest)
+	if canonicalResponse.Code != http.StatusAccepted ||
+		len(canonicalJobs.created) != 1 || len(canonicalStore.keyArgs) != 1 ||
+		!canonicalStore.keyArgs[0].canonical || !canonicalJobs.created[0].Canonical {
+		t.Fatalf("omitted zooms did not remain canonical")
+	}
+	jobs := &fakeJobs{}
+	store := newFakeStore()
+	h, _ := newTestHandler(jobs, store)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost,
+		"/tilepacks/67ac270a43f18e3e3665bef7?format=pmtiles&min_zoom=0&max_zoom=0", nil)
+	h.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusAccepted || len(jobs.created) != 1 {
+		t.Fatalf("got status %d and %d jobs, want 202 and one job", rr.Code, len(jobs.created))
+	}
+	if len(store.keyArgs) != 1 || store.keyArgs[0].canonical {
+		t.Fatalf("key args = %#v, want explicit custom zooms", store.keyArgs)
+	}
+	if jobs.created[0].Canonical || jobs.created[0].MinZoom != 0 || jobs.created[0].MaxZoom != 0 {
+		t.Fatalf("job spec = %#v, want custom 0..0", jobs.created[0])
+	}
+}
 func TestClientIP(t *testing.T) {
 	tests := []struct {
 		name       string
