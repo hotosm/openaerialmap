@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 All new fields are optional.
 
+### Removed
+
+- `oam:uploader_email`. Items are public and must not carry email addresses,
+  and nothing has written it since stactools-hotosm stopped doing so. Items on
+  v0.3.0 still validate against v0.3.0.
+
 ## [v0.3.0]
 
 ### Added
