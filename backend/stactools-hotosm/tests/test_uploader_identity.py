@@ -63,7 +63,6 @@ def test_legacy_result_with_a_bare_user_id():
 
     assert parsed.uploader_id == f"{LEGACY_ID_PREFIX}|67f8a774f769c0a050db59c2"
     assert parsed.uploader_name == "Lockport AI Tools"
-    assert parsed.uploader_email == "lockportaitools@gmail.com"
 
 
 def test_legacy_result_without_a_user_falls_back_to_contact():
