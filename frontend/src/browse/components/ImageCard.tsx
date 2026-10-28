@@ -10,6 +10,7 @@ import {
 } from "../utils/constants";
 import { formatDate, formatPlatform, formatSensor } from "../utils/format";
 import { triggerTilepack, type TilepackFormat } from "../utils/tilepack";
+import { trackEvent } from "../../analytics";
 
 interface Props {
   feature: ImageFeature;
@@ -123,12 +124,15 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
   const runTilepack = async (format: TilepackFormat) => {
     if (!p.id) return;
     const setState = format === "pmtiles" ? setPmtilesState : setMbtilesState;
+    const current = format === "pmtiles" ? pmtilesState : mbtilesState;
+    if (current.kind !== "pending") trackEvent("imagery", `tilepack_request_${format}`, p.id);
     setState({ kind: "working" });
     try {
       const res = await triggerTilepack(p.id, format);
       if (unmountedRef.current) return;
       if (res.status === "ready" && res.url) {
         setState({ kind: "ready", url: res.url });
+        trackEvent("imagery", `tilepack_download_${format}`, p.id);
         window.open(res.url, "_blank", "noopener,noreferrer");
       } else if (res.status === "started" || res.status === "in_progress") {
         setState({ kind: "pending" });
@@ -167,6 +171,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
     try {
       await navigator.clipboard.writeText(text);
       setCopyFeedback(feedbackId);
+      trackEvent("imagery", `copy_${feedbackId}`, p.id);
     } catch {
       setCopyFeedback(`${feedbackId}-failed`);
     }
@@ -187,6 +192,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
 
   const handleOpenJosm = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    trackEvent("imagery", "open_josm", p.id);
     const url = tmsTemplate(p);
     const title = `OAM - ${p.title || p.id}`;
     const tmsUrl = `tms[22]:${url}`;
@@ -204,6 +210,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
 
   const handleOpenId = (e: React.MouseEvent) => {
     e.stopPropagation();
+    trackEvent("imagery", "open_id", p.id);
     const url = tmsTemplate(p);
     const featureBbox = bbox(feature);
     const centerX = (featureBbox[0] + featureBbox[2]) / 2;
@@ -319,6 +326,7 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
               class="flex-1"
               onClick={(e) => {
                 e.stopPropagation();
+                trackEvent("imagery", "download_geotiff", p.id);
                 window.open(p.uuid!, "_blank", "noopener,noreferrer");
               }}
             >
@@ -371,11 +379,13 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 format="pmtiles"
                 state={pmtilesState}
                 onGenerate={() => runTilepack("pmtiles")}
+                onDownload={() => trackEvent("imagery", "tilepack_download_pmtiles", p.id)}
               />
               <TilepackButton
                 format="mbtiles"
                 state={mbtilesState}
                 onGenerate={() => runTilepack("mbtiles")}
+                onDownload={() => trackEvent("imagery", "tilepack_download_mbtiles", p.id)}
               />
             </div>
             {(pmtilesState.kind === "pending" || mbtilesState.kind === "pending") && (
@@ -444,7 +454,10 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
                 href={stacBrowserItemUrl(p.id, p.collection)}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={stop}
+                onClick={(e) => {
+                  stop(e);
+                  trackEvent("imagery", "open_stac_browser", p.id);
+                }}
                 className="text-[11px] font-semibold text-cyan-700 hover:text-cyan-800 hover:underline inline-flex items-center gap-1"
               >
                 Open in STAC Browser
@@ -462,9 +475,10 @@ interface TilepackButtonProps {
   format: TilepackFormat;
   state: TilepackState;
   onGenerate: () => void;
+  onDownload: () => void;
 }
 
-function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
+function TilepackButton({ format, state, onGenerate, onDownload }: TilepackButtonProps) {
   const label = format === "pmtiles" ? "PMTiles" : "MBTiles";
 
   // Ready: we already have a URL (either from an earlier "ready"
@@ -480,6 +494,7 @@ function TilepackButton({ format, state, onGenerate }: TilepackButtonProps) {
         class="flex-1"
         onClick={(e) => {
           e.stopPropagation();
+          onDownload();
           window.open(state.url, "_blank", "noopener,noreferrer");
         }}
       >
