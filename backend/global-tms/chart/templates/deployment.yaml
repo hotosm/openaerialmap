@@ -14,6 +14,8 @@ spec:
   template:
     metadata:
       annotations:
+        {{- /* subPath mounts never update in place */}}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
       labels:
         {{- include "chart.selectorLabels" . | nindent 8 }}
@@ -23,6 +25,25 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        {{- /* Idempotent (id hashes the body). Falls back to the first collection so z0-13 never waits on TiTiler. */}}
+        - name: register-mosaic
+          image: curlimages/curl:8.21.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -o pipefail
+              base="{{ .Values.titiler.url }}/collections/{{ first .Values.collections }}"
+              id=$(curl -sSf --connect-timeout 5 --max-time 15 --retry 5 --retry-connrefused \
+                -X POST "{{ .Values.titiler.url }}/searches/register" \
+                -H "content-type: application/json" \
+                -d '{"collections":{{ .Values.collections | toJson }},"metadata":{"type":"mosaic"}}' \
+                | sed 's/.*"id":"\([0-9a-f]*\)".*/\1/')
+              if [ ${#id} -eq 32 ]; then base="{{ .Values.titiler.url }}/searches/$id"; else echo "mosaic registration failed, serving $base" >&2; fi
+              echo "return 302 $base/tiles/WebMercatorQuad/\$zoom_level/\$x/\$y.png?assets=visual;" > /mosaic/redirect.conf
+          volumeMounts:
+            - name: mosaic
+              mountPath: /mosaic
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -67,7 +88,11 @@ spec:
               subPath: style.json
             - name: nginx-cache
               mountPath: /var/cache/nginx/tms
+            - name: mosaic
+              mountPath: /etc/nginx/mosaic
       volumes:
+        - name: mosaic
+          emptyDir: {}
         - name: style
           configMap:
             name: {{ include "chart.fullname" . }}-style
