@@ -216,6 +216,9 @@ services:
       - VITE_UPLOADER_URL=${VITE_UPLOADER_URL:-http://upload.imagery.localhost:8080}
       - VITE_PACKAGER_URL=${VITE_PACKAGER_URL:-https://packager.imagery.hotosm.org}
       - VITE_ANNOUNCEMENT_URL=${VITE_ANNOUNCEMENT_URL:-https://d33erh71igmru9.cloudfront.net/oam.json}
+      # Empty disables sign-in. Hanko only accepts allowlisted origins, see
+      # frontend/README.md.
+      - VITE_HANKO_URL=${VITE_HANKO_URL:-}
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html

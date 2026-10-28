@@ -10,6 +10,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { HANKO_URL } from "./auth";
+
+// hotosm-auth pulls in Hanko's own elements, so only load it when sign-in is on.
+if (HANKO_URL) void import("@hotosm/hanko-auth");
 
 // MapLibre + pmtiles protocol registration lives in Map.tsx so the
 // landing route doesn't pull the map runtime into the main chunk. See
