@@ -19,6 +19,7 @@ from stactools.hotosm.constants import COLLECTION_ID as OAM_COLLECTION_ID
 from stactools.hotosm.oam_metadata import OamMetadata
 from stactools.hotosm.oam_metadata_client import OamMetadataClient
 from stactools.hotosm.opendata import OpenDataCatalog
+from stactools.hotosm.queryables import sync_queryables
 from stactools.hotosm.stac import (
     create_collection as create_oam_collection,
     create_item as create_oam_item,
@@ -190,6 +191,10 @@ def sync_collection(
         loader.load_collections(str(destination), Methods.upsert)
 
     click.echo(f"Synchronized the STAC Collection definition for {catalog} to PgSTAC.")
+
+    if catalog == OAM_CATALOG_KEY:
+        names = sync_queryables(ctx.obj["pgstac"], OAM_COLLECTION_ID)
+        click.echo(f"Synchronized indexed queryables: {', '.join(names)}.")
 
 
 @main.command()
