@@ -108,6 +108,7 @@ tilepack-api: _install-uv
   go test ./...
 
   cd worker
+  uv sync --group test --python 3.13
   echo "🔍 Worker lint..."
   uv run --group test ruff check .
   uv run --group test ruff format --check .
