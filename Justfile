@@ -18,6 +18,7 @@
 
 set dotenv-load
 export HELM_REGISTRY := "ghcr.io/hotosm/charts/openaerialmap"
+export UV_PYTHON := "3.13"
 
 mod start 'tasks/start'
 mod test 'tasks/test'

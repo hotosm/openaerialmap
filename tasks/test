@@ -19,8 +19,6 @@
 # Auto-detect nerdctl when docker is not installed (e.g. after `just prep machine`)
 docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo found || echo missing` == "found" { "docker" } else { "nerdctl" })
 
-export UV_PYTHON := "3.13"
-
 # List available commands
 [private]
 default:
@@ -112,11 +110,11 @@ tilepack-api: _install-uv
   cd worker
   uv sync --group test
   echo "🔍 Worker lint..."
-  UV_PYTHON=3.13 uv run --group test ruff check .
-  UV_PYTHON=3.13 uv run --group test ruff format --check .
+  uv run --group test ruff check .
+  uv run --group test ruff format --check .
 
   echo "🐍 Worker tests..."
-  UV_PYTHON=3.13 uv run --group test pytest tests/ -q
+  uv run --group test pytest tests/ -q
 
 # Validates the OAM extension schema and its examples. Needs npm.
 [no-cd]
