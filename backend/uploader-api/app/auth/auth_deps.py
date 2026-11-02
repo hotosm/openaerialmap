@@ -102,6 +102,18 @@ async def mirror_user(db: AsyncConnection, user: object) -> DbUser:
     )
 
 
+def session_token(request: Request) -> str | None:
+    """Return the HOT Login token the request carries, as hotosm-auth reads it.
+
+    Forwarded to Login when it has to answer for this account (organisation
+    membership). Nothing here reads it.
+    """
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() == "bearer" and token:
+        return token
+    return request.cookies.get("hanko")
+
+
 def _auth_disabled() -> bool:
     return settings.DEBUG or settings.AUTH_PROVIDER == AuthProvider.DISABLED
 

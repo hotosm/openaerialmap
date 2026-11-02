@@ -95,15 +95,16 @@ Account ids use the format `provider|id`, for example `hotosm|1234`. Here,
 `provider` identifies the account system, rather than a STAC imagery provider.
 The allowed values are:
 
-| Id                  | Account                                                          | Uploader | Owner |
-| ------------------- | ---------------------------------------------------------------- | -------- | ----- |
-| `hotosm\|<id>`      | HOT Login user                                                   | Yes      | Yes   |
-| `hotosm-org\|<id>`  | HOT Login organisation (not yet used), identified by group UUID. | No       | Yes   |
-| `oam-legacy\|<id>`  | Legacy OAM account, until someone claims it                      | Yes      | Yes   |
-| `custom\|anonymous` | Anonymous upload, with the account identity withheld.            | Yes      | No    |
+| Id                  | Account                                               | Uploader | Owner |
+| ------------------- | ----------------------------------------------------- | -------- | ----- |
+| `hotosm\|<id>`      | HOT Login user                                        | Yes      | Yes   |
+| `hotosm-org\|<id>`  | HOT Login organisation, identified by group UUID.     | No       | Yes   |
+| `oam-legacy\|<id>`  | Legacy OAM account, until someone claims it           | Yes      | Yes   |
+| `custom\|anonymous` | Anonymous upload, with the account identity withheld. | Yes      | No    |
 
-To share an Item between several people, make an organisation its owner. See
-[ADR 0011](../../decisions/0011-imagery-ownership.md).
+To share an Item between several people, make an organisation its owner: a
+member can publish for it from the uploader, which checks the membership with
+Login. See [ADR 0011](../../decisions/0011-imagery-ownership.md).
 
 ### Assets and links
 

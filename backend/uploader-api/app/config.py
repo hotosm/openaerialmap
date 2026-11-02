@@ -247,6 +247,9 @@ class Settings(BaseSettings):
     HANKO_API_URL: str | None = None
     HANKO_PUBLIC_URL: str | None = None
     LOGIN_URL: str | None = None
+    # HOT Login's API (`/api/groups`), for publishing as an organisation. Unset
+    # leaves the feature off: every upload is owned by the uploading account.
+    LOGIN_API_URL: str | None = None
     COOKIE_SECRET: SecretStr = SecretStr(_PLACEHOLDER_COOKIE_SECRET)
 
     MONITORING: MonitoringTypes | None = None
