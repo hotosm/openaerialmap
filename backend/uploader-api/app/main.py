@@ -7,7 +7,7 @@ from pathlib import Path
 from litestar import Litestar, Request, Response, Router, get
 from litestar import status_codes as status
 from litestar.config.cors import CORSConfig
-from litestar.datastructures import ResponseHeader
+from litestar.datastructures import CacheControlHeader, ResponseHeader
 from litestar.di import Provide
 from litestar.exceptions import HTTPException
 from litestar.logging import LoggingConfig
@@ -204,7 +204,14 @@ def create_app() -> Litestar:
         _root_router(),
         page_router,
         upload_router,
-        create_static_files_router(path="/static", directories=[STATIC_DIR]),
+        # Revalidate on every load (ETag, so usually a 304): the script and the
+        # form it drives ship together, and a browser's own heuristics would
+        # otherwise keep the old script for days after a deploy.
+        create_static_files_router(
+            path="/static",
+            directories=[STATIC_DIR],
+            cache_control=CacheControlHeader(no_cache=True),
+        ),
     ]
 
     if settings.AUTH_PROVIDER != AuthProvider.DISABLED and setup_auth is not None:

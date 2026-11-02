@@ -1,5 +1,6 @@
 """Publishing an upload for an organisation."""
 
+import uuid
 from pathlib import Path
 
 import pytest
@@ -18,8 +19,13 @@ from app.main import _configure_templates
 from app.uploads.schemas import CreateMultipartBody, CreateRemoteUploadBody
 from app.uploads.service import create_upload_row
 
-_USER = {"sub": "hotosm|42", "name": "A Name"}
 _ORG = organisations.Organisation(id="org-1", name="Mappers")
+
+
+@pytest.fixture
+def account() -> dict:
+    """A fresh account per test: rows stay Initiated and count against the quota."""
+    return {"sub": f"hotosm|{uuid.uuid4()}", "name": "A Name"}
 
 
 @pytest.fixture
@@ -52,65 +58,65 @@ def test_owner_is_opt_in_on_both_ingest_paths():
 
 
 @pytest.mark.asyncio
-async def test_a_member_can_publish_for_the_organisation(db, member_of):
+async def test_a_member_can_publish_for_the_organisation(db, member_of, account):
     member_of(_ORG)
 
     upload = await create_upload_row(
-        db, _USER, _body(owner=_ORG.owner_id), message="", session_token="tok"
+        db, account, _body(owner=_ORG.owner_id), message="", session_token="tok"
     )
 
     assert upload.owner_id == "hotosm-org|org-1"
     # Still the caller's upload: the organisation owns the imagery, not the job.
-    assert upload.user_sub == "hotosm|42"
+    assert upload.user_sub == account["sub"]
 
 
 @pytest.mark.asyncio
-async def test_without_an_owner_the_caller_owns_it(db, member_of):
+async def test_without_an_owner_the_caller_owns_it(db, member_of, account):
     member_of(_ORG)
 
     upload = await create_upload_row(
-        db, _USER, _body(), message="", session_token="tok"
+        db, account, _body(), message="", session_token="tok"
     )
 
     assert upload.owner_id is None
 
 
 @pytest.mark.asyncio
-async def test_a_non_member_is_refused(db, member_of):
+async def test_a_non_member_is_refused(db, member_of, account):
     member_of()
 
     with pytest.raises(HTTPException) as err:
         await create_upload_row(
-            db, _USER, _body(owner=_ORG.owner_id), message="", session_token="tok"
+            db, account, _body(owner=_ORG.owner_id), message="", session_token="tok"
         )
     assert err.value.status_code == 403
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("owner", ["hotosm|43", "org-1", "hotosm-org|"])
-async def test_only_an_organisation_can_be_named(db, member_of, owner):
+async def test_only_an_organisation_can_be_named(db, member_of, account, owner):
     """A user id or a bare id is a 400, not a membership question."""
     member_of(_ORG)
 
     with pytest.raises(HTTPException) as err:
-        await create_upload_row(db, _USER, _body(owner=owner), message="")
+        await create_upload_row(db, account, _body(owner=owner), message="")
     assert err.value.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_an_anonymous_upload_cannot_name_an_organisation(db, member_of):
+async def test_an_anonymous_upload_cannot_name_an_organisation(db, member_of, account):
     member_of(_ORG)
     await DbUser.upsert(db, DbUser(sub=ANONYMOUS_SUB, username="anonymous"))
 
     with pytest.raises(HTTPException) as err:
         await create_upload_row(
-            db, _USER, _body(owner=_ORG.owner_id, anonymous=True), message=""
+            db, account, _body(owner=_ORG.owner_id, anonymous=True), message=""
         )
     assert err.value.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_login_down_fails_closed(db, monkeypatch):
+async def test_login_down_fails_closed(db, monkeypatch, account):
     async def down(user_sub, session_token):
         raise organisations.LoginUnavailable("down")
 
@@ -118,7 +124,7 @@ async def test_login_down_fails_closed(db, monkeypatch):
 
     with pytest.raises(HTTPException) as err:
         await create_upload_row(
-            db, _USER, _body(owner=_ORG.owner_id), message="", session_token="tok"
+            db, account, _body(owner=_ORG.owner_id), message="", session_token="tok"
         )
     assert err.value.status_code == 503
 
@@ -132,7 +138,7 @@ def test_the_session_token_is_read_as_hotosm_auth_reads_it():
     assert session_token(factory.get("/")) is None
 
 
-def _page(user=_USER) -> str:
+def _page(user) -> str:
     client = create_test_client(
         route_handlers=[upload_page],
         template_config=TemplateConfig(
@@ -148,25 +154,25 @@ def _page(user=_USER) -> str:
     return resp.text
 
 
-def test_a_member_is_offered_their_organisations(member_of):
+def test_a_member_is_offered_their_organisations(member_of, account):
     member_of(_ORG)
 
-    page = _page()
+    page = _page(account)
 
     assert 'label="Publish as"' in page
     assert 'value="hotosm-org|org-1">Mappers' in page
 
 
-def test_without_organisations_the_choice_is_not_offered(member_of):
+def test_without_organisations_the_choice_is_not_offered(member_of, account):
     member_of()
 
-    assert 'label="Publish as"' not in _page()
+    assert 'label="Publish as"' not in _page(account)
 
 
-def test_login_down_hides_the_choice_instead_of_failing(monkeypatch):
+def test_login_down_hides_the_choice_instead_of_failing(monkeypatch, account):
     async def down(user_sub, session_token):
         raise organisations.LoginUnavailable("down")
 
     monkeypatch.setattr(organisations, "user_organisations", down)
 
-    assert 'label="Publish as"' not in _page()
+    assert 'label="Publish as"' not in _page(account)
