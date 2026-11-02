@@ -19,6 +19,8 @@
 # Auto-detect nerdctl when docker is not installed (e.g. after `just prep machine`)
 docker := env("DOCKER_ALIAS", if `command -v docker >/dev/null 2>&1 && echo found || echo missing` == "found" { "docker" } else { "nerdctl" })
 
+export UV_PYTHON := "3.13"
+
 # List available commands
 [private]
 default:
@@ -81,7 +83,7 @@ stactools: _install-uv
   set -euo pipefail
   export PATH="$HOME/.local/bin:$PATH"
   cd {{justfile_directory()}}/backend/stactools-hotosm
-  uv sync --all-extras --python 3.12
+  uv sync --all-extras
   ./scripts/test
   ./scripts/lint
   ./scripts/typecheck
@@ -108,7 +110,7 @@ tilepack-api: _install-uv
   go test ./...
 
   cd worker
-  uv sync --group test --python 3.13
+  uv sync --group test
   echo "🔍 Worker lint..."
   uv run --group test ruff check .
   uv run --group test ruff format --check .
