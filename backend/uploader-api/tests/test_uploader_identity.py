@@ -38,6 +38,17 @@ async def test_authenticated_upload_carries_the_account(db, new_upload):
 
 
 @pytest.mark.asyncio
+async def test_an_organisation_owns_what_was_published_for_it(db, new_upload):
+    """Keep the uploader, but hand the owner to the organisation."""
+    upload = await new_upload(owner_id="hotosm-org|org-1")
+
+    meta = await _uploader_meta(db, upload)
+
+    assert meta["uploader_id"] == upload.user_sub
+    assert meta["owner_id"] == "hotosm-org|org-1"
+
+
+@pytest.mark.asyncio
 async def test_anonymous_upload_withholds_the_account(db, new_upload):
     """Publish only the shared anonymous identifier, with no owner."""
     upload = await new_upload(user_sub=ANONYMOUS_SUB)

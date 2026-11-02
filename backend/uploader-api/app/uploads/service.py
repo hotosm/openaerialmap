@@ -15,7 +15,8 @@ from litestar import status_codes as status
 from litestar.exceptions import HTTPException
 from psycopg import AsyncConnection
 
-from app.auth.auth_deps import get_user_display_name, mirror_user
+from app.auth import organisations
+from app.auth.auth_deps import get_user_display_name, get_user_sub, mirror_user
 from app.blocking import run_blocking
 from app.config import settings
 from app.db.models import ANONYMOUS_SUB, DbUpload, UploadStatus
@@ -52,6 +53,55 @@ async def _require_quota(
             ),
         )
     return user_sub
+
+
+async def _resolve_owner(
+    auth_user: object,
+    data: "CreateMultipartBody | CreateRemoteUploadBody",
+    session_token: str | None,
+) -> str | None:
+    """Return the organisation that will own the upload, or None for the caller.
+
+    The owner is published with the Item, so the form's choice is checked
+    against Login's membership here rather than trusted.
+    """
+    if not data.owner:
+        return None
+    if data.anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "An anonymous upload cannot be published for an organisation. "
+                "Untick 'Upload anonymously', or publish as yourself."
+            ),
+        )
+    prefix, _, org_id = data.owner.partition("|")
+    if prefix != organisations.ORG_PREFIX or not org_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Publish as yourself or as one of your organisations.",
+        )
+    try:
+        orgs = await organisations.user_organisations(
+            get_user_sub(auth_user), session_token
+        )
+    except organisations.LoginUnavailable:
+        log.warning("Could not check organisations with HOT Login", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "HOT Login could not confirm your organisations. Try again in a moment."
+            ),
+        ) from None
+    if org_id not in {org.id for org in orgs}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "That organisation does not list you as a member. "
+                "Ask one of its owners to add you, then upload again."
+            ),
+        )
+    return data.owner
 
 
 def _external_id_conflict(external_id: str, existing: DbUpload | None) -> HTTPException:
@@ -203,6 +253,7 @@ async def create_upload_row(
     message: str,
     filename: str = "",
     source_url: str = "",
+    session_token: str | None = None,
 ) -> DbUpload:
     """Validate, admit and persist a new upload, whichever way the bytes arrive.
 
@@ -222,6 +273,7 @@ async def create_upload_row(
         # The one published field that names a person, however it was filled in.
         dataset_meta.pop("contact", None)
     external_id, external_url = clean_external(data)
+    owner_id = await _resolve_owner(auth_user, data, session_token)
 
     user_sub = await _require_quota(db, auth_user, data.anonymous)
     existing = await DbUpload.find_by_external_id(db, external_id or "")
@@ -257,6 +309,7 @@ async def create_upload_row(
                 external_url=external_url,
                 source_url=source_url or None,
                 dataset_meta=dataset_meta,
+                owner_id=owner_id,
             ),
         )
     except psycopg.errors.UniqueViolation as err:

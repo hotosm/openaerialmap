@@ -190,6 +190,22 @@ the submission itself.
 
 Anonymous uploads share the `MAX_ACTIVE_UPLOADS_PER_USER` limit as a pool.
 
+## Publishing for an organisation
+
+Send `owner: "hotosm-org|<id>"` to `POST /api/v1/s3/createmultipart` or
+`POST /api/v1/uploads`, where `<id>` is a HOT Login organisation the caller
+belongs to. The uploader forwards the session to Login's `GET /api/groups` and
+refuses a non-member or a pending organisation (403), and an anonymous upload
+that names one (400). If Login cannot be reached the request fails with 503
+rather than publishing for the wrong owner. Answers are cached for 60 s per
+account.
+
+The upload stays the caller's (`uploads.user_sub`, "Your uploads"); only the
+published `oam:owner_id` names the organisation, while `oam:uploader_id` still
+names the account. `LOGIN_API_URL` (Login's API origin, e.g.
+`https://login.hotosm.org`) turns the feature on; unset, every upload is owned
+by the uploading account.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the
