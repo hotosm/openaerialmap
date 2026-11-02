@@ -13,7 +13,7 @@ import math
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from minio import Minio
@@ -263,7 +263,7 @@ def write_stats() -> None:
         raise
 
     stats = {
-        "generated_at": datetime.now(timezone.utc)
+        "generated_at": datetime.now(UTC)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
         "collection": COLLECTION,

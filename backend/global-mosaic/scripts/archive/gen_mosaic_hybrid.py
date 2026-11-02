@@ -306,7 +306,7 @@ def generate_mosaic() -> None:
                     )
 
         # Part B: TiTiler tiles (z 11-14) - streaming, bounded concurrency
-        download_zoom_range = [z for z in range(11, min(ZOOM_MAX, 14) + 1)]
+        download_zoom_range = [*range(11, min(ZOOM_MAX, 14) + 1)]
         if download_zoom_range:
             log.info(
                 f"Downloading tiles for zooms {download_zoom_range} using {THREADS} workers (max inflight={MAX_INFLIGHT})"
