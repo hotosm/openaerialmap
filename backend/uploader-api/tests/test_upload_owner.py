@@ -1,12 +1,20 @@
 """Publishing an upload for an organisation."""
 
-import pytest
-from litestar.exceptions import HTTPException
-from litestar.testing import RequestFactory
+from pathlib import Path
 
+import pytest
+from litestar.di import Provide
+from litestar.exceptions import HTTPException
+from litestar.plugins.jinja import JinjaTemplateEngine
+from litestar.template.config import TemplateConfig
+from litestar.testing import RequestFactory, create_test_client
+
+import app
 from app.auth import organisations
 from app.auth.auth_deps import session_token
 from app.db.models import ANONYMOUS_SUB, DbUser
+from app.htmx.page_routes import upload_page
+from app.main import _configure_templates
 from app.uploads.schemas import CreateMultipartBody, CreateRemoteUploadBody
 from app.uploads.service import create_upload_row
 
@@ -122,3 +130,43 @@ def test_the_session_token_is_read_as_hotosm_auth_reads_it():
     bearer = factory.get("/", headers={"authorization": "Bearer b", **cookie})
     assert session_token(bearer) == "b"
     assert session_token(factory.get("/")) is None
+
+
+def _page(user=_USER) -> str:
+    client = create_test_client(
+        route_handlers=[upload_page],
+        template_config=TemplateConfig(
+            directory=Path(app.__file__).parent / "templates",
+            engine=JinjaTemplateEngine,
+            engine_callback=_configure_templates,
+        ),
+        dependencies={"auth_user": Provide(lambda: user, sync_to_thread=False)},
+    )
+    with client:
+        resp = client.get("/", headers={"cookie": "hanko=tok"})
+    assert resp.status_code == 200
+    return resp.text
+
+
+def test_a_member_is_offered_their_organisations(member_of):
+    member_of(_ORG)
+
+    page = _page()
+
+    assert 'label="Publish as"' in page
+    assert 'value="hotosm-org|org-1">Mappers' in page
+
+
+def test_without_organisations_the_choice_is_not_offered(member_of):
+    member_of()
+
+    assert 'label="Publish as"' not in _page()
+
+
+def test_login_down_hides_the_choice_instead_of_failing(monkeypatch):
+    async def down(user_sub, session_token):
+        raise organisations.LoginUnavailable("down")
+
+    monkeypatch.setattr(organisations, "user_organisations", down)
+
+    assert 'label="Publish as"' not in _page()
