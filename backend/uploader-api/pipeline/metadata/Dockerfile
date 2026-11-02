@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim AS builder
+FROM python:3.13-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /bin/
 
 # Keep generated script shebangs valid when copying the venv between stages.
@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY uploader-api/pipeline/metadata/ ./metadata/
 CMD ["pytest", "metadata/tests"]
 
-FROM python:3.12-slim AS prod
+FROM python:3.13-slim AS prod
 # Unbuffered + faulthandler so step logs flush immediately and tracebacks are
 # complete; skip .pyc clutter.
 ENV PYTHONUNBUFFERED=1 \

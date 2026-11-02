@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim AS prod
+FROM python:3.13-slim AS prod
 
 # Unbuffered + faulthandler so step logs flush immediately (crucial for
 # debugging a failed pod) and tracebacks are complete; skip .pyc clutter.

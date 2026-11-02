@@ -2,7 +2,7 @@
 name = "stactools-hotosm"
 description = "STAC creation tools for Humanitarian OpenStreetMap Team's OpenAerialMap data"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 license = "AGPL-3.0"
 dynamic = ["version"]
 
