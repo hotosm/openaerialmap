@@ -3,7 +3,7 @@ name = "hotosm-global-mosaic"
 version = "0.1.0"
 description = "Generate a global mosaic for OAM on a schedule"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "affine>=2.4.0",
     "aiohttp>=3.12.15",
