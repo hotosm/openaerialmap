@@ -13,7 +13,7 @@ OpenAerialMap (OAM) is an open catalogue of openly licensed aerial and drone
 imagery. Contributors upload GeoTIFFs, which are validated, converted to COGs,
 catalogued as STAC items, and served as tiles and a browsable map.
 
-**Stack:** Python 3.12+ / FastAPI / PostgreSQL + PostGIS + pgstac /
+**Stack:** Python 3.13+ / FastAPI / PostgreSQL + PostGIS + pgstac /
 React + Vite + UnoCSS / Argo Workflows / Docker Compose (dev) / Helm (k8s) /
 uv / Ruff / pre-commit
 
