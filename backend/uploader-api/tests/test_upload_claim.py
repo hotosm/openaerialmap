@@ -109,3 +109,32 @@ async def test_an_unconditional_status_write_still_works(db, new_upload):
     assert row.status == "Error"
     # Terminal, so the token goes with it.
     assert row.callback_token is None
+
+
+@pytest.mark.asyncio
+async def test_uploading_parts_keeps_the_session_from_looking_abandoned(db, new_upload):
+    """An 82GB upload outlasts the reconciler's age limit while still sending."""
+    upload = await new_upload()
+    async with db.cursor() as cur:
+        await cur.execute(
+            "UPDATE uploads SET updated_at = NOW() - interval '23 hours' "
+            "WHERE id = %(id)s;",
+            {"id": upload.id},
+        )
+    assert await DbUpload.touch_open(db, upload.id, upload.user_sub)
+    stalled = await DbUpload.stalled(db, quiet_minutes=60)
+    assert upload.id not in [row.id for row in stalled]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["Processing", "Aborted"])
+async def test_a_closed_session_cannot_be_resumed(db, new_upload, status):
+    """Otherwise the browser sends every remaining part before hearing no."""
+    upload = await new_upload(status=status)
+    assert not await DbUpload.touch_open(db, upload.id, upload.user_sub)
+
+
+@pytest.mark.asyncio
+async def test_only_the_owner_keeps_a_session_open(db, new_upload):
+    upload = await new_upload()
+    assert not await DbUpload.touch_open(db, upload.id, "test|someone")

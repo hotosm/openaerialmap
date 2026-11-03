@@ -344,6 +344,23 @@ class DbUpload:
             return await cur.fetchone()
 
     @classmethod
+    async def touch_open(
+        cls, db: AsyncConnection, upload_id: str, user_sub: str
+    ) -> bool:
+        """Mark an Initiated upload as active, or return False if it is not open.
+
+        Parts only reach S3, so without this a multi-day upload looks abandoned.
+        """
+        async with db.cursor() as cur:
+            await cur.execute(
+                "UPDATE uploads SET updated_at = NOW() "
+                "WHERE id = %(id)s AND user_sub = %(u)s AND status = 'Initiated' "
+                "RETURNING id;",
+                {"id": upload_id, "u": user_sub},
+            )
+            return await cur.fetchone() is not None
+
+    @classmethod
     async def get_owned(
         cls, db: AsyncConnection, upload_id: str, user_sub: str
     ) -> Self | None:

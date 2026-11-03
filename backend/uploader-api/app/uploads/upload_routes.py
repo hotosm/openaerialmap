@@ -60,6 +60,19 @@ def _require_key_owner(auth_user: object, key: str) -> str:
     return user_sub
 
 
+async def _require_open_session(
+    db: AsyncConnection, auth_user: object, key: str
+) -> None:
+    """Keep the caller's upload alive, or refuse one that has already ended."""
+    user_sub = _require_key_owner(auth_user, key)
+    upload_id = upload_id_from_key(key)
+    if not await DbUpload.touch_open(db, upload_id, user_sub):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No open upload session for this key.",
+        )
+
+
 @post("/s3/createmultipart")
 async def create_multipart(
     data: CreateMultipartBody, auth_user: object, db: AsyncConnection
@@ -108,9 +121,11 @@ async def create_multipart(
 
 
 @post("/s3/signedurl")
-async def signed_url(data: SignedUrlBody, auth_user: object) -> dict:
+async def signed_url(
+    data: SignedUrlBody, auth_user: object, db: AsyncConnection
+) -> dict:
     """Generate a browser-reachable presigned URL for one part."""
-    _require_key_owner(auth_user, data.key)
+    await _require_open_session(db, auth_user, data.key)
     if not 0 < data.part_number <= 10000:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -130,9 +145,11 @@ async def signed_url(data: SignedUrlBody, auth_user: object) -> dict:
 
 
 @post("/s3/listparts")
-async def list_parts(data: ListPartsBody, auth_user: object) -> list:
+async def list_parts(
+    data: ListPartsBody, auth_user: object, db: AsyncConnection
+) -> list:
     """List already-uploaded parts (supports resumable uploads)."""
-    _require_key_owner(auth_user, data.key)
+    await _require_open_session(db, auth_user, data.key)
     try:
         resp = await run_blocking(
             internal_client().list_parts,
