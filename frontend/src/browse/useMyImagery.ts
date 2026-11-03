@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-import { fetchPage, searchByOwner, type PageRequest } from "./utils/stac";
+import { fetchPage, searchByOwners, type PageRequest } from "./utils/stac";
 import type { RawFeature } from "./utils/types";
 
 interface Loaded {
-  ownerId: string;
+  owners: string;
   attempt: number;
   features: RawFeature[];
   next: PageRequest | null;
@@ -26,23 +26,27 @@ export interface MyImagery {
 // Stable, so memoised consumers do not recompute on every render.
 const NONE: RawFeature[] = [];
 
-const message = (err: unknown) => (err instanceof Error ? err.message : "Request failed.");
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : "Request failed.";
+}
 
-// Items the account owns, from the STAC API. Pass null to load nothing, e.g.
-// while signed out or browsing all imagery.
-export function useMyImagery(ownerId: string | null): MyImagery {
+// Items any of `ownerIds` own, from the STAC API. Pass null to load nothing,
+// e.g. while signed out or browsing all imagery.
+export function useMyImagery(ownerIds: string[] | null): MyImagery {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const moreRequest = useRef<AbortController | null>(null);
+  // A string, so a new array with the same ids does not search again.
+  const owners = ownerIds?.length ? ownerIds.join(",") : null;
 
   useEffect(() => {
-    if (!ownerId) return;
+    if (!owners) return;
     const controller = new AbortController();
-    searchByOwner(ownerId, controller.signal).then(
+    searchByOwners(owners.split(","), controller.signal).then(
       (page) =>
         setLoaded({
-          ownerId,
+          owners,
           attempt,
           features: page.features,
           next: page.next,
@@ -52,7 +56,7 @@ export function useMyImagery(ownerId: string | null): MyImagery {
       (err: unknown) => {
         if (controller.signal.aborted) return;
         setLoaded({
-          ownerId,
+          owners,
           attempt,
           features: [],
           next: null,
@@ -65,22 +69,20 @@ export function useMyImagery(ownerId: string | null): MyImagery {
       controller.abort();
       moreRequest.current?.abort();
     };
-  }, [ownerId, attempt]);
+  }, [owners, attempt]);
 
-  // A result for another account, or an earlier attempt, is stale.
+  // A result for other owners, or an earlier attempt, is stale.
   const current =
-    ownerId && loaded && loaded.ownerId === ownerId && loaded.attempt === attempt ? loaded : null;
+    owners && loaded && loaded.owners === owners && loaded.attempt === attempt ? loaded : null;
 
   const loadMore = () => {
     if (!current?.next || moreRequest.current) return;
-    const { ownerId: owner, attempt: at, next } = current;
+    const { owners: of, attempt: at, next } = current;
     const controller = new AbortController();
     moreRequest.current = controller;
     setLoadingMore(true);
     const update = (patch: (prev: Loaded) => Loaded) =>
-      setLoaded((prev) =>
-        prev && prev.ownerId === owner && prev.attempt === at ? patch(prev) : prev,
-      );
+      setLoaded((prev) => (prev && prev.owners === of && prev.attempt === at ? patch(prev) : prev));
     fetchPage(next, controller.signal)
       .then(
         (page) =>
@@ -108,7 +110,7 @@ export function useMyImagery(ownerId: string | null): MyImagery {
 
   return {
     features: current?.features ?? NONE,
-    loading: !!ownerId && !current,
+    loading: !!owners && !current,
     error: current?.error ?? null,
     hasMore: !!current?.next,
     loadingMore,

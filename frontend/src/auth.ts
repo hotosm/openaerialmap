@@ -58,12 +58,6 @@ function subscribe(notify: () => void) {
   return () => listeners.delete(notify);
 }
 
-// The `oam:owner_id` of imagery this user uploaded, in the uploader's
-// `provider|id` form.
-export function ownerIdFor(user: AuthUser): string {
-  return `hotosm|${user.id}`;
-}
-
 // The signed-in HOT Login user, or null when signed out or auth is disabled.
 export function useAuthUser(): AuthUser | null {
   return useSyncExternalStore(subscribe, () => currentUser);

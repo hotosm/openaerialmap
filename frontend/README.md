@@ -37,16 +37,25 @@ Hanko instance allows.
 ### My imagery
 
 Signed in, the sidebar gets two tabs. **My imagery** lists the Items
-whose `oam:owner_id` is the user's `hotosm|<id>`, from a CQL2 search on
-`VITE_STAC_URL` (ADR 0011). The search is public and needs no token.
+whose `oam:owner_id` is the user's `hotosm|<sub>` or the
+`hotosm-org|<id>` of an organisation they belong to, from a CQL2 search
+on `VITE_STAC_URL` (ADR 0011). The search is public and needs no token.
+
+The owners come from HOT Login at `VITE_HANKO_URL` (`useOwners.ts`):
+`/me` for the `sub`, which the `hanko-login` event does not always
+carry, and `/api/groups?type=organization` for approved organisations.
+Any member sees an organisation's imagery, as in Portal. Members of an
+organisation get an Owner select to narrow the list. If Login cannot
+list the organisations, the user's own imagery still loads. Both calls
+need the Browse origin in Login's CORS allowlist.
 The list is current, while the coverage PMTiles are rebuilt on a
 schedule, so the map draws these footprints from the search results at
 every zoom, with a dot per image below `FOOTPRINT_MIN_ZOOM`.
 
 - The filter bar applies to the list on the client. Results load 100 at
   a time, so the count says so while more pages remain.
-- In either tab, footprints whose PMTiles `owner_id` matches the user are
-  outlined in `MY_IMAGERY_COLOR`.
+- In either tab, footprints whose PMTiles `owner_id` is one of those
+  owners are outlined in `MY_IMAGERY_COLOUR`.
 - `?view=mine` opens the tab directly. Signed out, it shows all imagery.
 
 To see your own uploads locally, `VITE_STAC_URL` has to point at the

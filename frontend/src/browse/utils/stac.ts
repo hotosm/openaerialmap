@@ -1,13 +1,10 @@
 import type { MultiPolygon, Polygon } from "geojson";
 
-import { COLLECTION_ID, STAC_URL } from "./constants";
+import { COLLECTION_ID, MY_IMAGERY_PAGE_SIZE, STAC_SEARCH_TIMEOUT_MS, STAC_URL } from "./constants";
 import type { RawFeature, RawTileProperties } from "./types";
 
 // "My imagery" reads the STAC API rather than the coverage PMTiles: the
 // search is current, while the PMTiles are rebuilt on a schedule (ADR 0011).
-
-// Large enough that most accounts load in one request.
-export const MY_IMAGERY_PAGE_SIZE = 100;
 
 interface StacAsset {
   href?: string;
@@ -43,8 +40,13 @@ export interface SearchPage {
   next: PageRequest | null;
 }
 
-const asString = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
-const asNumber = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" && v ? v : undefined;
+}
+
+function asNumber(v: unknown): number | undefined {
+  return typeof v === "number" ? v : undefined;
+}
 
 // Port of _build_render_query in
 // backend/global-mosaic/scripts/gen_coverage_vector.py.
@@ -110,18 +112,25 @@ export function itemToFeature(item: StacItem): RawFeature | null {
 }
 
 export async function fetchPage(request: PageRequest, signal?: AbortSignal): Promise<SearchPage> {
-  const init: RequestInit =
-    request.method === "POST"
-      ? {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request.body ?? {}),
-          signal,
-        }
-      : { signal };
+  const timeout = AbortSignal.timeout(STAC_SEARCH_TIMEOUT_MS);
+  const init: RequestInit = {
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  };
+  if (request.method === "POST") {
+    init.method = "POST";
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify(request.body ?? {});
+  }
   const res = await fetch(request.href, init);
-  if (!res.ok) throw new Error(`STAC search failed (${res.status})`);
-  const data = (await res.json()) as { features?: StacItem[]; links?: StacLink[] };
+  if (!res.ok) {
+    // stac-fastapi explains a refused search in `description`.
+    const err = (await res.json().catch(() => ({}))) as { description?: string };
+    throw new Error(err.description || `STAC search failed (${res.status})`);
+  }
+  const data = (await res.json().catch(() => ({}))) as {
+    features?: StacItem[];
+    links?: StacLink[];
+  };
 
   const features = (data.features ?? [])
     .map(itemToFeature)
@@ -138,8 +147,8 @@ export async function fetchPage(request: PageRequest, signal?: AbortSignal): Pro
   return { features, next };
 }
 
-// The first page of imagery owned by `ownerId`, newest capture first.
-export function searchByOwner(ownerId: string, signal?: AbortSignal): Promise<SearchPage> {
+// The first page of imagery owned by any of `ownerIds`, newest capture first.
+export function searchByOwners(ownerIds: string[], signal?: AbortSignal): Promise<SearchPage> {
   return fetchPage(
     {
       href: `${STAC_URL}/search`,
@@ -149,7 +158,7 @@ export function searchByOwner(ownerId: string, signal?: AbortSignal): Promise<Se
         // collection. Naming it keeps pgstac on that partition.
         collections: [COLLECTION_ID],
         "filter-lang": "cql2-json",
-        filter: { op: "=", args: [{ property: "oam:owner_id" }, ownerId] },
+        filter: { op: "in", args: [{ property: "oam:owner_id" }, ownerIds] },
         sortby: [{ field: "properties.datetime", direction: "desc" }],
         limit: MY_IMAGERY_PAGE_SIZE,
       },
