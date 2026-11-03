@@ -83,7 +83,13 @@ export const FOOTPRINT_MIN_ZOOM = 8;
 
 // Outlines the signed-in user's imagery. Distinct from the cyan footprints
 // and the red selection.
-export const MY_IMAGERY_COLOR = "#F59E0B";
+export const MY_IMAGERY_COLOUR = "#F59E0B";
+
+// Large enough that most accounts load in one request.
+export const MY_IMAGERY_PAGE_SIZE = 100;
+
+// Generous: a cold pgstac search over a large account can take a few seconds.
+export const STAC_SEARCH_TIMEOUT_MS = 15_000;
 
 export const LARGE_IMAGE_THRESHOLD_SQ_KM = 50;
 export const TMS_LARGE_MIN_ZOOM = 12;

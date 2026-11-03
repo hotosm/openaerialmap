@@ -22,7 +22,7 @@ import {
   MAX_PREVIEWS,
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
-  MY_IMAGERY_COLOR,
+  MY_IMAGERY_COLOUR,
 } from "../utils/constants";
 import { readInitialView, writeView } from "../utils/url";
 import {
@@ -58,8 +58,9 @@ interface Props {
   onHover: (id: string | null) => void;
   basemap: Basemap;
   filters: Filters;
-  // Signed-in owner id; their footprints are outlined in MY_IMAGERY_COLOR.
-  ownerId?: string | null;
+  // Owner ids the signed-in user sees in My imagery; their footprints are
+  // outlined in MY_IMAGERY_COLOUR.
+  ownerIds?: string[] | null;
   // Their imagery from the STAC search, drawn at every zoom. Null hides it.
   myImagery?: RawFeature[] | null;
 }
@@ -91,7 +92,7 @@ export default function OamMap({
   onHover,
   basemap,
   filters,
-  ownerId = null,
+  ownerIds = null,
   myImagery = null,
 }: Props) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -119,7 +120,7 @@ export default function OamMap({
   const onFeaturesUpdateRef = useRef(onFeaturesUpdate);
   const onCollectionsUpdateRef = useRef(onCollectionsUpdate);
   const filtersRef = useRef(filters);
-  const ownerIdRef = useRef(ownerId);
+  const ownerIdsRef = useRef(ownerIds);
   // Full Items by id. A click hit on the GeoJSON layer is clipped to its
   // tile, so selection takes the geometry from here instead.
   const myFeaturesRef = useRef(new Map<string, RawFeature>());
@@ -154,8 +155,8 @@ export default function OamMap({
     filtersRef.current = filters;
   }, [filters]);
   useEffect(() => {
-    ownerIdRef.current = ownerId;
-  }, [ownerId]);
+    ownerIdsRef.current = ownerIds;
+  }, [ownerIds]);
 
   const closePopup = () => {
     popupRef.current?.remove();
@@ -252,12 +253,14 @@ export default function OamMap({
   // Outline the signed-in user's footprints, using the `owner_id` the
   // coverage PMTiles carry. Footprints built before it existed have none and
   // keep the default colour; My imagery draws those from the search instead.
-  const applyOwnerColour = (owner: string | null) => {
+  const applyOwnerColour = (owners: string[] | null) => {
     if (!map.current?.getLayer("footprint-line")) return;
     map.current.setPaintProperty(
       "footprint-line",
       "line-color",
-      owner ? ["case", ["==", ["get", "owner_id"], owner], MY_IMAGERY_COLOR, "#00B0FF"] : "#00B0FF",
+      owners?.length
+        ? ["case", ["in", ["get", "owner_id"], ["literal", owners]], MY_IMAGERY_COLOUR, "#00B0FF"]
+        : "#00B0FF",
     );
   };
 
@@ -524,13 +527,13 @@ export default function OamMap({
         id: "my-imagery-fill",
         type: "fill",
         source: "my-imagery",
-        paint: { "fill-color": MY_IMAGERY_COLOR, "fill-opacity": 0.15 },
+        paint: { "fill-color": MY_IMAGERY_COLOUR, "fill-opacity": 0.15 },
       });
       map.current!.addLayer({
         id: "my-imagery-line",
         type: "line",
         source: "my-imagery",
-        paint: { "line-color": MY_IMAGERY_COLOR, "line-width": 2 },
+        paint: { "line-color": MY_IMAGERY_COLOUR, "line-width": 2 },
       });
       map.current!.addLayer({
         id: "my-imagery-point",
@@ -538,7 +541,7 @@ export default function OamMap({
         source: "my-imagery-points",
         maxzoom: FOOTPRINT_MIN_ZOOM,
         paint: {
-          "circle-color": MY_IMAGERY_COLOR,
+          "circle-color": MY_IMAGERY_COLOUR,
           "circle-radius": 5,
           "circle-stroke-color": "#ffffff",
           "circle-stroke-width": 1.5,
@@ -576,7 +579,7 @@ export default function OamMap({
 
       applyFilters(filtersRef.current);
       applyDensityFilters(filtersRef.current);
-      applyOwnerColour(ownerIdRef.current);
+      applyOwnerColour(ownerIdsRef.current);
 
       map.current!.on("mousemove", (e) => {
         if (!selectedFeatureRef.current) {
@@ -1180,8 +1183,8 @@ export default function OamMap({
   // 9. MY IMAGERY
   useEffect(() => {
     if (!map.current || !isLoaded) return;
-    applyOwnerColour(ownerId);
-  }, [ownerId, isLoaded]);
+    applyOwnerColour(ownerIds);
+  }, [ownerIds, isLoaded]);
 
   useEffect(() => {
     if (!map.current || !isLoaded) return;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import bbox from "@turf/bbox";
 import SiteHeader from "../SiteHeader";
-import { ownerIdFor, useAuthUser } from "../auth";
+import { useAuthUser } from "../auth";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
@@ -11,6 +11,7 @@ import ViewTabs from "./components/ViewTabs";
 import type { Basemap } from "./utils/basemaps";
 import MiniMap from "./components/MiniMap";
 import { useMyImagery, type MyImagery } from "./useMyImagery";
+import { useOwners, type Owner, type Owners } from "./useOwners";
 import { UPLOADER_URL } from "./utils/constants";
 import { matchesFilters } from "./utils/filters";
 import { toImageFeature } from "./utils/format";
@@ -32,7 +33,7 @@ function myImageryHeader(mine: MyImagery, shown: number): string {
   if (mine.error) return "Your imagery";
   const total = mine.features.length;
   const count = mine.hasMore ? `${total}+` : `${total}`;
-  if (shown === total) return `${count} image${total === 1 && !mine.hasMore ? "" : "s"} you own`;
+  if (shown === total) return `${count} image${total === 1 && !mine.hasMore ? "" : "s"}`;
   return `${shown} of ${count} match the filters`;
 }
 
@@ -48,7 +49,8 @@ function MyImageryEmpty({ mine }: { mine: MyImagery }) {
     return (
       <div className="px-2 py-6 space-y-3">
         <wa-callout variant="danger" size="s" class="text-xs">
-          Could not load your imagery: {mine.error}
+          Could not load your imagery ({mine.error}). Try again, or reload the page if it keeps
+          failing.
         </wa-callout>
         <wa-button size="s" appearance="outlined" class="w-full" onClick={mine.retry}>
           Try again
@@ -61,7 +63,7 @@ function MyImageryEmpty({ mine }: { mine: MyImagery }) {
     return (
       <div className="space-y-4">
         <p className="text-center text-gray-500 py-8 px-6">
-          None of your imagery loaded so far matches the filters.
+          None of your imagery loaded so far matches the filters. Clear the filters or load more.
         </p>
         <MyImageryMore mine={mine} />
       </div>
@@ -69,7 +71,10 @@ function MyImageryEmpty({ mine }: { mine: MyImagery }) {
   }
   return (
     <div className="text-center text-gray-500 py-8 px-6 space-y-4">
-      <p>Imagery you upload while signed in to your HOT account will appear here.</p>
+      <p>
+        Imagery you upload while signed in to your HOT account, or publish for one of your
+        organisations, will appear here.
+      </p>
       <wa-button size="s" variant="brand" appearance="filled" href={UPLOADER_URL}>
         Upload imagery
       </wa-button>
@@ -92,20 +97,62 @@ function MyImageryMore({ mine }: { mine: MyImagery }) {
       </wa-button>
       {mine.moreError && (
         <wa-callout variant="danger" size="s" class="text-xs">
-          Could not load more: {mine.moreError}
+          Could not load more ({mine.moreError}). Try again.
         </wa-callout>
       )}
     </div>
   );
 }
 
+// Login has to answer before the search can run, so its state comes first.
+function withAccount(mine: MyImagery, account: Owners): MyImagery {
+  if (account.error) return { ...mine, loading: false, error: account.error, retry: account.retry };
+  if (account.loading) return { ...mine, loading: true };
+  return mine;
+}
+
+// Narrows My imagery to one owner. Shown only to members of an organisation.
+function OwnerSelect({
+  owners,
+  value,
+  onChange,
+}: {
+  owners: Owner[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200 text-xs font-semibold text-gray-600">
+      Owner
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-normal text-gray-800 cursor-pointer"
+      >
+        <option value="">You and your organisations</option>
+        {owners.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Browse() {
   const user = useAuthUser();
-  const ownerId = user ? ownerIdFor(user) : null;
+  const account = useOwners(user);
+  const { ownerIds } = account;
+  // "" lists every owner; a choice no longer on offer falls back to that.
+  const [ownerChoice, setOwnerChoice] = useState("");
+  const ownerScope = ownerChoice && ownerIds?.includes(ownerChoice) ? ownerChoice : "";
+  const listedOwners = ownerScope ? [ownerScope] : ownerIds;
   const [mode, setMode] = useState<BrowseMode>(readInitialMode);
   // A `view=mine` link opened while signed out shows all imagery instead.
-  const showingMine = mode === "mine" && ownerId !== null;
-  const mine = useMyImagery(showingMine ? ownerId : null);
+  const showingMine = mode === "mine" && user !== null;
+  const search = useMyImagery(showingMine ? listedOwners : null);
+  const mine = withAccount(search, account);
 
   const [features, setFeatures] = useState<ImageFeature[]>([]);
   const [seenCollections, setSeenCollections] = useState<string[]>([]);
@@ -176,15 +223,13 @@ export default function Browse() {
     writeMode(next);
   };
 
-  // The filter bar applies to My imagery too, on the client.
+  // The filter bar applies to My imagery too, on the client. Memoised because
+  // Map re-sends its GeoJSON source whenever this identity changes.
   const myFeatures = useMemo<RawFeature[] | null>(
     () => (showingMine ? mine.features.filter((f) => matchesFilters(f.properties, filters)) : null),
     [showingMine, mine.features, filters],
   );
-  const myCards = useMemo(
-    () => (myFeatures ?? []).map((f) => toImageFeature(f.geometry, f.properties)),
-    [myFeatures],
-  );
+  const myCards = (myFeatures ?? []).map((f) => toImageFeature(f.geometry, f.properties));
 
   // The My imagery half of the ?selected_id restore. Its list arrives from
   // the search, not the map, so the check runs here; setState during render
@@ -225,7 +270,16 @@ export default function Browse() {
 
       <div className="flex flex-1 w-full min-h-0 bg-gray-100 font-sans">
         <div className="flex flex-col w-96 h-full bg-white border-r border-gray-200 shadow-xl z-20 relative">
-          {ownerId && <ViewTabs mode={showingMine ? "mine" : "all"} onChange={handleModeChange} />}
+          {user && <ViewTabs mode={showingMine ? "mine" : "all"} onChange={handleModeChange} />}
+          {showingMine && account.owners && account.owners.length > 1 && (
+            <OwnerSelect owners={account.owners} value={ownerScope} onChange={setOwnerChoice} />
+          )}
+          {showingMine && account.orgsError && (
+            <wa-callout variant="warning" size="s" class="text-xs m-3">
+              Could not load your organisations: {account.orgsError} Only your own imagery is
+              listed; reload the page to try again.
+            </wa-callout>
+          )}
           {showingMine ? (
             <Sidebar
               key="mine"
@@ -248,7 +302,7 @@ export default function Browse() {
               }
               empty={<MyImageryEmpty mine={mine} />}
               footer={<MyImageryMore mine={mine} />}
-              resetKey={ownerId}
+              resetKey={listedOwners?.join(",")}
             />
           ) : (
             <Sidebar
@@ -295,7 +349,7 @@ export default function Browse() {
             onHover={setHoveredFeatureId}
             basemap={basemap}
             filters={filters}
-            ownerId={ownerId}
+            ownerIds={ownerIds}
             myImagery={myFeatures}
           />
         </div>
