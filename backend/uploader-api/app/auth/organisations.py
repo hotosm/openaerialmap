@@ -36,11 +36,24 @@ class Organisation:
 
     id: str
     name: str
+    # Login's role for the account: owner, manager or member.
+    role: str = "member"
 
     @property
     def owner_id(self) -> str:
         """The organisation as an `oam:owner_id`."""
         return f"{ORG_PREFIX}|{self.id}"
+
+
+# Roles that may change an organisation's imagery, as in Portal; members see it.
+EDITOR_ROLES = frozenset({"owner", "manager"})
+
+
+def can_edit(owner_id: str | None, user_sub: str, orgs: list[Organisation]) -> bool:
+    """Return whether the account may change imagery with this owner."""
+    if owner_id == user_sub:
+        return True
+    return any(org.owner_id == owner_id and org.role in EDITOR_ROLES for org in orgs)
 
 
 class LoginUnavailable(Exception):
@@ -99,7 +112,11 @@ def _parse(payload: Any) -> list[Organisation]:
     # anyone can ask Login for an organisation under any name.
     groups = payload.get("groups", []) if isinstance(payload, dict) else []
     return [
-        Organisation(id=str(g["id"]), name=str(g.get("name") or ""))
+        Organisation(
+            id=str(g["id"]),
+            name=str(g.get("name") or ""),
+            role=str(g.get("role") or "member"),
+        )
         for g in groups
         if g.get("id")
         and g.get("type") == "organization"
