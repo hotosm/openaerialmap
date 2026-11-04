@@ -11,6 +11,9 @@ importers:
       '@awesome.me/webawesome':
         specifier: 3.11.0
         version: 3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14)
+      '@hotosm/hanko-auth':
+        specifier: 0.5.4
+        version: 0.5.4
       '@hotosm/ui':
         specifier: ^2.1.3
         version: 2.1.3(@awesome.me/webawesome@3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14))
@@ -158,6 +161,11 @@ packages:
   '@ctrl/tinycolor@4.1.0':
     resolution: {integrity: sha512-WyOx8cJQ+FQus4Mm4uPIZA64gbk3Wxh0so5Lcii0aJifqwoVOlfFtorjLE0Hen4OYyHZMXDWqMmaQemBhgxFRQ==}
     engines: {node: '>=14'}
+
+  '@denysvuika/preact-translate@0.6.0':
+    resolution: {integrity: sha512-LPzcbCc9PD+HghgZe4rjWB3wQm05ibQ37Zvh0K8MwIwbPtMZIz9iBe9+9z9uu8yVFNiuswABvUZKaNrDngqmPw==}
+    peerDependencies:
+      preact: '>=10.13.0'
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -372,6 +380,9 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
+  '@hotosm/hanko-auth@0.5.4':
+    resolution: {integrity: sha512-SYChf0myeXglzM9gbP0J56UkKnaRX6MjhE4uSrcXC4AVgOA9EgAR8YNbp9Rru2+aZCR30TeeAf3PZ6XQP7xdqQ==}
+
   '@hotosm/ui@2.1.3':
     resolution: {integrity: sha512-sgzuLACVPq+bHiG/76xAzxy/pWQPg7TXyNWygVwvb4ftbgnBA+55o4HtVSSz7Q+xfJx3S91kxoylMq1YjliUCw==}
     engines: {node: '>=18.0.0'}
@@ -425,9 +436,6 @@ packages:
 
   '@lit-labs/ssr-client@1.1.8':
     resolution: {integrity: sha512-PjGh81oKsoI64m3IDjTqqjhC7dr2uC/o0jrllUb5gRAyp/RlAHxapgJrjq9kWz97faCHLQ8jUlTi6tGm+8fgyA==}
-
-  '@lit-labs/ssr-dom-shim@1.5.1':
-    resolution: {integrity: sha512-Aou5UdlSpr5whQe8AA/bZG0jMj96CoJIWbGfZ91qieWu5AWUMKw8VR/pAkQkJYvBNhmCcWnZlyyk5oze8JIqYA==}
 
   '@lit-labs/ssr-dom-shim@1.6.0':
     resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
@@ -743,6 +751,17 @@ packages:
   '@shoelace-style/localize@3.2.3':
     resolution: {integrity: sha512-pWoZywizMilenLfQcpE9bjaqi7WKiQXJB42cxvmSPwYS76U776wJ7B5QQ0P28yVit1vpHuFZzq1CtfVFv32jaQ==}
 
+  '@teamhanko/hanko-elements@2.7.0':
+    resolution: {integrity: sha512-evCgUu7OTVfzmdhs/FhN40Qn7zF8VZxmlZXBad6gB0m/59JRvPmQxaIoMPR9LkiLSzTjuaS5Vjg+e9I+LAUBwQ==}
+
+  '@teamhanko/hanko-frontend-sdk@2.7.0':
+    resolution: {integrity: sha512-kI+a8bupz/LE8+ed0YzjuofRvHrlMULJ3p0CV8DL19qQnRjQwuqnH0e0SzUfX5gW9JMyScV0R93/I1bl/vyydQ==}
+
+  '@teamhanko/preact-custom-element@4.2.2':
+    resolution: {integrity: sha512-3djCQr25IxQIgpidxD8J0fTQ7/hMuoa5Nmv7delQc6sX4kXgv9e/pE01cywpmGZLi69H1KUH4dmZ4cPPJQrsQQ==}
+    peerDependencies:
+      preact: 10.x
+
   '@turf/bbox@7.3.5':
     resolution: {integrity: sha512-oG1ya/HtBjAIg4TimbWx+nOYPbY0bCvt82Bq8tm6sBw3qqtbOyRSfDz79Sq90TnH7DXJprJ1qnVGKNtZ6jemfw==}
 
@@ -763,6 +782,9 @@ packages:
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
+
+  '@types/js-cookie@3.0.6':
+    resolution: {integrity: sha512-wkw9yd1kEXOPnvEeEV1Go1MmxtBJL0RR79aOTAApecWFVu7w0NNXNqhcWgvw2YgZDYadliXkl14pa3WXw5jlCQ==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -966,6 +988,9 @@ packages:
   chokidar@5.0.0:
     resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
     engines: {node: '>= 20.19.0'}
+
+  classnames@2.5.1:
+    resolution: {integrity: sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==}
 
   colorette@2.0.20:
     resolution: {integrity: sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w==}
@@ -1474,6 +1499,14 @@ packages:
   potpack@2.1.0:
     resolution: {integrity: sha512-pcaShQc1Shq0y+E7GqJqvZj8DTthWV1KeHGdi0Z6IAin2Oi3JnLCOfwnCo84qc+HAp52wT9nK9H7FAJp5a44GQ==}
 
+  preact@10.29.8:
+    resolution: {integrity: sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==}
+    peerDependencies:
+      preact-render-to-string: '>=5'
+    peerDependenciesMeta:
+      preact-render-to-string:
+        optional: true
+
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
@@ -1848,6 +1881,10 @@ snapshots:
 
   '@ctrl/tinycolor@4.1.0': {}
 
+  '@denysvuika/preact-translate@0.6.0(preact@10.29.8)':
+    dependencies:
+      preact: 10.29.8
+
   '@emnapi/core@1.10.0':
     dependencies:
       '@emnapi/wasi-threads': 1.2.1
@@ -1987,6 +2024,13 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
+  '@hotosm/hanko-auth@0.5.4':
+    dependencies:
+      '@teamhanko/hanko-elements': 2.7.0
+      lit: 3.3.2
+    transitivePeerDependencies:
+      - preact-render-to-string
+
   '@hotosm/ui@2.1.3(@awesome.me/webawesome@3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14))':
     dependencies:
       '@awesome.me/webawesome': 3.11.0(@floating-ui/utils@0.2.11)(@types/node@24.12.2)(@types/react@19.2.14)
@@ -2042,8 +2086,6 @@ snapshots:
       lit: 3.3.2
       lit-html: 3.3.2
 
-  '@lit-labs/ssr-dom-shim@1.5.1': {}
-
   '@lit-labs/ssr-dom-shim@1.6.0': {}
 
   '@lit-labs/ssr@4.1.0(@types/node@24.12.2)':
@@ -2071,7 +2113,7 @@ snapshots:
 
   '@lit/reactive-element@2.1.2':
     dependencies:
-      '@lit-labs/ssr-dom-shim': 1.5.1
+      '@lit-labs/ssr-dom-shim': 1.6.0
 
   '@mapbox/jsonlint-lines-primitives@2.0.2': {}
 
@@ -2261,6 +2303,24 @@ snapshots:
 
   '@shoelace-style/localize@3.2.3': {}
 
+  '@teamhanko/hanko-elements@2.7.0':
+    dependencies:
+      '@denysvuika/preact-translate': 0.6.0(preact@10.29.8)
+      '@teamhanko/hanko-frontend-sdk': 2.7.0
+      '@teamhanko/preact-custom-element': 4.2.2(preact@10.29.8)
+      classnames: 2.5.1
+      preact: 10.29.8
+    transitivePeerDependencies:
+      - preact-render-to-string
+
+  '@teamhanko/hanko-frontend-sdk@2.7.0':
+    dependencies:
+      '@types/js-cookie': 3.0.6
+
+  '@teamhanko/preact-custom-element@4.2.2(preact@10.29.8)':
+    dependencies:
+      preact: 10.29.8
+
   '@turf/bbox@7.3.5':
     dependencies:
       '@turf/helpers': 7.3.5
@@ -2289,6 +2349,8 @@ snapshots:
   '@types/estree@1.0.8': {}
 
   '@types/geojson@7946.0.16': {}
+
+  '@types/js-cookie@3.0.6': {}
 
   '@types/json-schema@7.0.15': {}
 
@@ -2573,6 +2635,8 @@ snapshots:
   chokidar@5.0.0:
     dependencies:
       readdirp: 5.0.0
+
+  classnames@2.5.1: {}
 
   colorette@2.0.20: {}
 
@@ -2901,7 +2965,7 @@ snapshots:
 
   lit-element@4.2.2:
     dependencies:
-      '@lit-labs/ssr-dom-shim': 1.5.1
+      '@lit-labs/ssr-dom-shim': 1.6.0
       '@lit/reactive-element': 2.1.2
       lit-html: 3.3.2
 
@@ -3092,6 +3156,8 @@ snapshots:
       source-map-js: 1.2.1
 
   potpack@2.1.0: {}
+
+  preact@10.29.8: {}
 
   prelude-ls@1.2.1: {}
 

@@ -21,6 +21,19 @@ pnpm run dev  # vite on :3000
 Defaults point at the production PMTiles and TiTiler-PgSTAC. Override
 via `.env` - see `.env.example` at the repo root.
 
+### Sign-in
+
+`VITE_HANKO_URL` adds the HOT Login button (`<hotosm-auth>`) to the
+header, the same component the uploader uses. Unset, the header has no
+sign-in and nothing else changes. The Hanko session is a cookie on the
+parent domain, so signing in on the uploader also signs you in here.
+`useAuthUser()` in `src/auth.ts` gives components the signed-in user.
+
+Hanko answers only origins in its CORS allowlist, and the session
+cookie is scoped to the parent domain, so a `localhost` frontend cannot
+sign in. Testing it needs the app served over HTTPS from an origin the
+Hanko instance allows.
+
 ### Credit
 
 Layout, filter bar, disambig popup and preview/TMS handoff started
