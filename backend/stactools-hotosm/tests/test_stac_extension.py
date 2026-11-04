@@ -39,7 +39,7 @@ RELEASED_SCHEMA_SHA256 = {
     "0.1.0": "f8512228a01361265f07d99710056687006b2facb487c57cfe5b90d2a9f5fdfa",
     "0.2.0": "1f442028f486d84fcecbfd63f55e2f872724b654f00e68f8d6ffc1efc4b653d4",
     "0.3.0": "d4961e9ffc77f5dd311d4e6171c106ff522c8177976368f65e7deda5d3878e4f",
-    "0.4.0": "12829626351bcab352bbd86d07798d4f302e66a022c2fcbe9fff8a6dd809a9c9",
+    "0.4.0": "5bdb3a7f49536a74729ba7d62b7aa685c4f07f0b2bca8b393323e69229d3cff6",
 }
 
 
@@ -249,6 +249,7 @@ def test_v0_3_0_fields_reject_bad_values(
     "value",
     [
         "hotosm|1234",
+        "hotosm-org|0b6f8a2e-3c1d-4e5f-9a7b-1c2d3e4f5a6b",
         "oam-legacy|67f8a774f769c0a050db59c2",
     ],
 )
@@ -267,6 +268,8 @@ def test_v0_4_0_fields_accepted(example_extension_item: dict, value: str):
         ("oam:owner_id", "1234"),
         ("oam:owner_id", "HOTOSM|1234"),
         ("oam:owner_id", "hotosm|"),
+        ("oam:owner_id", "custom|anonymous"),
+        ("oam:owner_id", "osm|1234"),
         ("oam:owner_id", 1234),
         ("oam:ownr_id", "typo"),
     ],
