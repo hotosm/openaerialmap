@@ -45,6 +45,8 @@ export interface RawTileProperties {
   gsd?: number;
   file_size?: number;
   license?: string;
+  // `oam:owner_id` as `provider|id`; absent on Items without an owner.
+  owner_id?: string;
 }
 
 export type DatePreset = "" | "week" | "month" | "year";

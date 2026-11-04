@@ -17,7 +17,7 @@ a single layer:
 2. **`global-data.pmtiles`** (`globalcoverage` layer) - per-image
    polygon footprints (z0-13) with rich metadata (title, provider,
    platform, gsd, sensor, license, acquisition_end, thumbnail, uuid,
-   tms, file_size). The frontend reads this layer client-side to
+   tms, file_size, owner_id). The frontend reads this layer client-side to
    drive sidebar cards, filters, and TMS handoff without any STAC
    API calls.
 

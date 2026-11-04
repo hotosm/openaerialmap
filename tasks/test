@@ -26,7 +26,7 @@ default:
 
 # Run every unit test suite. CI splits these across workflows.
 [no-cd]
-all: uploader stactools stac-extension tilepack-api
+all: uploader stactools stac-extension tilepack-api global-mosaic
 
 # Chart rendering tests on the host, for iterating without a container rebuild.
 # `just test all` covers them too: the test image ships helm.
@@ -86,6 +86,16 @@ stactools: _install-uv
   ./scripts/lint
   ./scripts/typecheck
   uv lock --check
+
+# global-mosaic coverage script tests. pytest and a bundled libpq come in
+# per run, so neither lands in the job image, which syncs every group.
+[no-cd]
+global-mosaic: _install-uv
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export PATH="$HOME/.local/bin:$PATH"
+  cd {{justfile_directory()}}/backend/global-mosaic
+  uv run --with pytest --with "psycopg[binary]" pytest tests
 
 # Tilepack API Go + Python worker tests. Chart lint: `just chart tilepack-api lint`.
 [no-cd]
