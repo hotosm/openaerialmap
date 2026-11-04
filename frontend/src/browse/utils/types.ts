@@ -22,6 +22,11 @@ export interface ImageProperties {
   file_size: string;
   license: string;
   acquisition_end: string | null;
+  // `oam:owner_id`; null on Items without an owner.
+  ownerId: string | null;
+  // The owner as the viewer knows them ("You", an organisation's name). Only
+  // set where the names are known, such as My imagery.
+  ownerName?: string;
 }
 
 export type ImageFeature = Feature<Polygon | MultiPolygon, ImageProperties>;

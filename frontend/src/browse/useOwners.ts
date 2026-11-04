@@ -8,6 +8,9 @@ import { HANKO_URL, type AuthUser } from "../auth";
 export interface Owner {
   id: string;
   name: string;
+  // Whether the user may change imagery with this owner: their own, or an
+  // organisation they manage. Members only see.
+  canEdit: boolean;
 }
 
 export interface Owners {
@@ -35,7 +38,11 @@ interface Group {
   name: string;
   type: string;
   status: string;
+  role: string;
 }
+
+// Login roles that may change an organisation's imagery, as in Portal.
+const EDITOR_ROLES = ["owner", "manager"];
 
 // Login answers from cache in well under a second; past this the list is
 // better off showing an error than a spinner.
@@ -60,7 +67,11 @@ async function fromLogin<T>(path: string, signal: AbortSignal): Promise<T> {
 function organisations(groups: Group[]): Owner[] {
   return groups
     .filter((g) => g.type === "organization" && g.status === "approved")
-    .map((g) => ({ id: `hotosm-org|${g.id}`, name: g.name }));
+    .map((g) => ({
+      id: `hotosm-org|${g.id}`,
+      name: g.name,
+      canEdit: EDITOR_ROLES.includes(g.role),
+    }));
 }
 
 // The owners to list in My imagery. The user's id comes from Login's `/me`,
@@ -82,7 +93,7 @@ export function useOwners(user: AuthUser | null): Owners {
     );
     Promise.all([fromLogin<{ user_id: string }>("/me", signal), orgs]).then(
       ([me, { list, error }]) => {
-        const owners = [{ id: `hotosm|${me.user_id}`, name: "You" }, ...list];
+        const owners = [{ id: `hotosm|${me.user_id}`, name: "You", canEdit: true }, ...list];
         setLoaded({
           key,
           owners,

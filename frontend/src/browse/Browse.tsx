@@ -6,6 +6,7 @@ import { useAuthUser } from "../auth";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
+import TransferDialog from "./components/TransferDialog";
 import Toolbar from "./components/Toolbar";
 import ViewTabs from "./components/ViewTabs";
 import type { Basemap } from "./utils/basemaps";
@@ -153,6 +154,7 @@ export default function Browse() {
   const showingMine = mode === "mine" && user !== null;
   const search = useMyImagery(showingMine ? listedOwners : null);
   const mine = withAccount(search, account);
+  const [transferring, setTransferring] = useState<ImageFeature | null>(null);
 
   const [features, setFeatures] = useState<ImageFeature[]>([]);
   const [seenCollections, setSeenCollections] = useState<string[]>([]);
@@ -229,7 +231,11 @@ export default function Browse() {
     () => (showingMine ? mine.features.filter((f) => matchesFilters(f.properties, filters)) : null),
     [showingMine, mine.features, filters],
   );
-  const myCards = (myFeatures ?? []).map((f) => toImageFeature(f.geometry, f.properties));
+  const myCards = (myFeatures ?? []).map((f) => {
+    const card = toImageFeature(f.geometry, f.properties);
+    const owner = account.owners?.find((o) => o.id === card.properties.ownerId);
+    return owner ? { ...card, properties: { ...card.properties, ownerName: owner.name } } : card;
+  });
 
   // The My imagery half of the ?selected_id restore. Its list arrives from
   // the search, not the map, so the check runs here; setState during render
@@ -268,6 +274,19 @@ export default function Browse() {
     <div className="flex flex-col h-screen overflow-hidden">
       <SiteHeader />
 
+      {transferring && account.owners && (
+        <TransferDialog
+          feature={transferring}
+          owners={account.owners}
+          onClose={() => setTransferring(null)}
+          onDone={() => {
+            setTransferring(null);
+            // The list comes from the search, so it shows the new owner at once.
+            mine.retry();
+          }}
+        />
+      )}
+
       <div className="flex flex-1 w-full min-h-0 bg-gray-100 font-sans">
         <div className="flex flex-col w-96 h-full bg-white border-r border-gray-200 shadow-xl z-20 relative">
           {user && <ViewTabs mode={showingMine ? "mine" : "all"} onChange={handleModeChange} />}
@@ -303,6 +322,21 @@ export default function Browse() {
               empty={<MyImageryEmpty mine={mine} />}
               footer={<MyImageryMore mine={mine} />}
               resetKey={listedOwners?.join(",")}
+              renderActions={(f) =>
+                account.owners?.find((o) => o.id === f.properties.ownerId)?.canEdit && (
+                  <wa-button
+                    size="s"
+                    appearance="outlined"
+                    class="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTransferring(f);
+                    }}
+                  >
+                    Transfer…
+                  </wa-button>
+                )
+              }
             />
           ) : (
             <Sidebar

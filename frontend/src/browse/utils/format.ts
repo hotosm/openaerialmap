@@ -81,6 +81,7 @@ export function toImageFeature(
       file_size: formatFileSize(p.file_size),
       license: p.license || "Unknown License",
       acquisition_end: p.acquisition_end || null,
+      ownerId: p.owner_id || null,
     },
   };
 }
