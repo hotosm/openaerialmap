@@ -109,8 +109,8 @@ const RESOURCES = [
 ];
 
 // Snapshot values used for first paint. Refined by a single fetch of
-// stats.json (published every 12h by the global-mosaic cron alongside
-// the density PMTiles). See backend/global-mosaic/scripts/gen_density_vector.py.
+// stats.json (published every 15 min by the global-mosaic cron alongside
+// the density PMTiles). See backend/global-mosaic/scripts/gen_coverage_vector.py.
 const STATIC_STATS = {
   items: 21000,
   areaKm2: 800000,

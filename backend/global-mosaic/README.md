@@ -1,6 +1,6 @@
 # OpenAerialMap Global Mosaic
 
-On a 1hr schedule:
+Every 15 minutes:
 
 - Generates global mosaic in PMTiles format, serving via S3.
 - Also server TMS via a lightweight Martin server, for clients that
@@ -20,14 +20,14 @@ uv sync --all-groups
 ## Note On Various Scripts
 
 The `scripts/` directory has five generators developed iteratively. Only
-`gen_density_vector.py` is currently in use - see
+`gen_coverage_vector.py` is currently in use - see
 [`scripts/README.md`](scripts/README.md) for the full iteration history
 (what each attempt did and why it was retired).
 
-The Dockerfile bundles and runs `gen_density_vector.py`. It emits a
-single `density` layer of grid squares with per-cell image counts at
-zooms 0-13. Above z13 the global-tms hands off to TiTiler for real
-imagery (see `backend/global-tms`).
+The Dockerfile bundles and runs `gen_coverage_vector.py`. It emits a
+`density` grid archive (tippecanoe) and a per-image footprints archive
+(tylertoo), both at zooms 0-13. Above z13 the global-tms hands off to
+TiTiler for real imagery (see `backend/global-tms`).
 
 ## Note On S3 Permissions
 
