@@ -100,6 +100,23 @@ privately from `oam:uploader_id`.
 The uploading account may differ from the imagery producer recorded in
 `oam:producer_name` and `providers`.
 
+### Searching by account
+
+`oam:uploader_id` and `oam:owner_id` are indexed PgSTAC queryables on the
+`openaerialmap` Collection, so a CQL2 search for one account stays fast:
+
+```bash
+curl -s https://api.imagery.hotosm.org/stac/search \
+  -H 'Content-Type: application/json' \
+  -d '{"collections": ["openaerialmap"], "filter-lang": "cql2-json",
+       "filter": {"op": "=", "args": [{"property": "oam:owner_id"}, "hotosm|1234"]}}'
+```
+
+`hotosm sync-collection --catalog OAM` creates them; running it again only
+updates them. PgSTAC adds the index to every partition of the Collection,
+including ones created later. The index is not built concurrently, so writes
+to the Collection wait until it is done.
+
 ### Assets and links
 
 | Field                         | Purpose                                                 |

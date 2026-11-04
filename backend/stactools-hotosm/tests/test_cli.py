@@ -295,6 +295,7 @@ class TestSyncCollection:
             loaded.extend(read_json(file))
 
         monkeypatch.setattr(Loader, "load_collections", _load_collections)
+        monkeypatch.setattr(cli, "sync_queryables", lambda *_: [])
 
         result = CliRunner().invoke(
             main,
@@ -317,3 +318,45 @@ class TestSyncCollection:
 
         assert result.exit_code == 0, result.output
         assert [collection["id"] for collection in loaded] == [COLLECTION_ID_OAM]
+
+    @pytest.mark.parametrize(
+        ("catalog", "expected"),
+        [(OAM_CATALOG_KEY, [COLLECTION_ID_OAM]), (GLO30_CATALOG_KEY, [])],
+    )
+    def test_only_oam_gets_account_queryables(
+        self, monkeypatch: pytest.MonkeyPatch, catalog: str, expected: list[str]
+    ):
+        """Index the account fields once the OAM Collection exists."""
+        calls: list[str] = []
+
+        def _load_collections(_self, _file, _insert_mode=None):
+            calls.append("collection")
+
+        def _sync_queryables(_pgstac, collection_id):
+            calls.append(collection_id)
+            return ["oam:owner_id"]
+
+        monkeypatch.setattr(Loader, "load_collections", _load_collections)
+        monkeypatch.setattr(cli, "sync_queryables", _sync_queryables)
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "sync-collection",
+                "--catalog",
+                catalog,
+                "--pguser",
+                "u",
+                "--pgpassword",
+                "p",
+                "--pghost",
+                "h",
+                "--pgport",
+                "5432",
+                "--pgdatabase",
+                "d",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert calls == ["collection", *expected]

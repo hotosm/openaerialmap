@@ -45,7 +45,8 @@ The `stac-ingester` image provides the `hotosm` command.
 - `dump-<source>` converts Items and saves them as NDJSON. It does not write
   to PgSTAC.
 - `sync-collection --catalog=<name>` creates or updates a Collection. Run this
-  before the first Item sync for a new source.
+  before the first Item sync for a new source. For `OAM` it also creates the
+  [account queryables](./schema.md#searching-by-account).
 
 Run `hotosm --help` to see the available sources.
 

@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Record the uploading account on Items as `oam:uploader_id` and
   `oam:uploader_name` (OAM extension v0.3.0). The legacy sync retains
   `user._id` for account reconciliation.
+- Register `oam:owner_id` and `oam:uploader_id` as indexed PgSTAC queryables
+  in `sync-collection --catalog OAM`, so a search by account uses an index.
 
 ### Changed
 
