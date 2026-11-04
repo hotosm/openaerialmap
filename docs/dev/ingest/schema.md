@@ -8,7 +8,7 @@ adds the small amount of metadata needed by OpenAerialMap.
 The current extension is:
 
 ```text
-https://docs.imagery.hotosm.org/oam/v0.3.0/schema.json
+https://docs.imagery.hotosm.org/oam/v0.4.0/schema.json
 ```
 
 Every Item is validated while it is built. Invalid Items are reported and are
@@ -76,29 +76,34 @@ supplies the information; there is no need to invent values.
 | `properties.oam:external_id`                | ID from the system that submitted the imagery, such as an ODM task.  |
 | `properties.processing:*`                   | Software, version, time and lineage used to create the image.        |
 
-### Uploader
+### Producer, uploader and owner
 
-Set by the uploader and legacy OAM sync. Third-party imports omit these fields.
+| Role     | Fields                                 | Meaning                                                       | Changes              |
+| -------- | -------------------------------------- | ------------------------------------------------------------- | -------------------- |
+| Producer | `oam:producer_name`, `providers`       | Person or organisation credited for making the imagery.       | No                   |
+| Uploader | `oam:uploader_id`, `oam:uploader_name` | Account that uploaded the imagery, with its name at the time. | Never                |
+| Owner    | `oam:owner_id`                         | Account that can edit the imagery or transfer ownership.      | On transfer or claim |
 
-| Field                          | Purpose                                                        |
-| ------------------------------ | -------------------------------------------------------------- |
-| `properties.oam:uploader_id`   | Uploading account as `provider\|id`. See below.                |
-| `properties.oam:uploader_name` | That account's display name or username at the time of upload. |
+The same person may produce, upload and own the imagery, but these roles can
+also belong to different people or organisations. Third-party imports have no
+uploader or owner. Anonymous uploads have no owner.
 
-Items are public, so they never carry an email address. The extension still
-defines `oam:uploader_email`, but nothing writes it. Resolve an account's email
-privately from `oam:uploader_id`.
+Items are public, so they never include an email address. Look it up privately
+from the account id.
 
-`oam:uploader_id` is namespaced so the two catalogues cannot collide:
+Account ids use the format `provider|id`, for example `hotosm|1234`. Here,
+`provider` identifies the account system, rather than a STAC imagery provider.
+The allowed values are:
 
-| Prefix              | Meaning                                                     |
-| ------------------- | ----------------------------------------------------------- |
-| `hotosm\|`          | A HOT login, from the current uploader.                     |
-| `oam-legacy\|`      | An account from the legacy OAM API.                         |
-| `custom\|anonymous` | Uploaded anonymously; the account is withheld, not unknown. |
+| Id                  | Account                                                          | Uploader | Owner |
+| ------------------- | ---------------------------------------------------------------- | -------- | ----- |
+| `hotosm\|<id>`      | HOT Login user                                                   | Yes      | Yes   |
+| `hotosm-org\|<id>`  | HOT Login organisation (not yet used), identified by group UUID. | No       | Yes   |
+| `oam-legacy\|<id>`  | Legacy OAM account, until someone claims it                      | Yes      | Yes   |
+| `custom\|anonymous` | Anonymous upload, with the account identity withheld.            | Yes      | No    |
 
-The uploading account may differ from the imagery producer recorded in
-`oam:producer_name` and `providers`.
+To share an Item between several people, make an organisation its owner. See
+[ADR 0011](../../decisions/0011-imagery-ownership.md).
 
 ### Assets and links
 
@@ -133,11 +138,12 @@ available.
 
 ## Schema versions
 
-| Version  | Notes                                                      |
-| -------- | ---------------------------------------------------------- |
-| `v0.3.0` | Current version. Supports all `oam:` fields listed above.  |
-| `v0.2.0` | Everything except the `oam:uploader_*` fields.             |
-| `v0.1.0` | Only supports `oam:platform_type` and `oam:producer_name`. |
+| Version  | Notes                                                                 |
+| -------- | --------------------------------------------------------------------- |
+| `v0.4.0` | Current version. Supports all `oam:` fields listed above.             |
+| `v0.3.0` | Everything except `oam:owner_id`; still defines `oam:uploader_email`. |
+| `v0.2.0` | Everything except the `oam:uploader_*` fields.                        |
+| `v0.1.0` | Only supports `oam:platform_type` and `oam:producer_name`.            |
 
 Released schemas must not change. Old Items continue to point to the version
 they were created with. Some older Items use the archived URL

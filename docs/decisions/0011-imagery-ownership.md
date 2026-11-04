@@ -64,6 +64,11 @@ The new field uses the same `provider|id` format as `oam:uploader_id`:
 The group id is a stable UUID. An organisation can rename its slug, so we
 cannot use the slug to identify the owner.
 
+An Item can have at most one owner. To share it between several people, make an
+organisation the owner. HOT Login organisation membership then determines
+who can edit it. Teams could use the same approach, but adding an identifier
+prefix would need a new extension version.
+
 ### Setting and changing ownership
 
 When registering an Item, the uploader sets `oam:owner_id` to the uploader id.
