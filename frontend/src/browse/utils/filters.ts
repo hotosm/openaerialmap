@@ -14,9 +14,8 @@ interface DateRange {
 // Resolve a preset into a concrete date range. Anchored to `new Date()`
 // each call so "past week" always means the last 7 days from the moment
 // the user reads the map (not from tab open). Note this drifts up to
-// ~24h out of sync with the pre-baked density bucket in the pmtiles
-// archive, which is anchored to the last generator run - acceptable
-// given daily regeneration.
+// ~15 min out of sync with the pre-baked density bucket in the pmtiles
+// archive, which is anchored to the last generator run.
 export function datePresetRange(preset: DatePreset): DateRange | null {
   if (!preset) return null;
   const now = new Date();

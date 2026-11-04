@@ -50,11 +50,12 @@ not a global raster mosaic.
 
 ## Decision Outcome
 
-Build a **vector** global coverage layer as PMTiles on a 12-hour
+Build a **vector** global coverage layer as PMTiles on a 15-minute
 Kubernetes CronJob (see `backend/global-mosaic/`). The job reads
 footprints from pgSTAC, runs
-[tippecanoe](https://github.com/felt/tippecanoe) to produce two
-independent PMTiles archives, and uploads them to S3 for public read
+[tippecanoe](https://github.com/felt/tippecanoe) (density) and
+[tylertoo](https://github.com/geoparquet-io/tylertoo) (footprints) to
+produce two independent PMTiles archives, and uploads them to S3 for public read
 (see `backend/global-mosaic/scripts/gen_coverage_vector.py`).
 
 The two archives are:
@@ -97,11 +98,11 @@ Why two files rather than one:
 - ✅ Reproducible: the job is deterministic and can be re-run to
   rebuild the archives from scratch.
 - ✅ Cheap to build: no COG IO, no pixel mosaicking - just footprint
-  geometry and metadata into tippecanoe.
+  geometry and metadata into the tilers.
 - ❌ Not real-time. Newly ingested imagery only shows up after the
-  next scheduled build (up to 12h later). Fine for a coverage map.
-- ❌ Tippecanoe has to drop footprints at low zoom to keep each tile
-  under its size budget (`--drop-densest-as-needed`), so world-view
+  next scheduled build (up to ~15 min later). Fine for a coverage map.
+- ❌ The tiler has to drop footprints at low zoom to keep each tile
+  under its size budget, so world-view
   imagery presence comes from the pre-binned `density` layer rather
   than the raw footprints. The frontend gates footprints on
   `FOOTPRINT_MIN_ZOOM` (`frontend/src/browse/utils/constants.ts`) to
