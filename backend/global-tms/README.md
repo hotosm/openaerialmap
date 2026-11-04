@@ -7,7 +7,7 @@
     counts) from PMTiles to raster PNGs via
     [chiitiler](https://github.com/kanahiro/chiitiler), fronted by nginx
     for CORS and PNG caching.
-  - z14+: 302-redirects to TiTiler for real imagery.
+  - z14+: 302-redirects to a TiTiler mosaic of `collections` (falls back to the first) for real imagery.
   - Also offers a Martin tile server as a raw vector-tile XYZ/TMS
     endpoint (e.g. for QGIS).
 
