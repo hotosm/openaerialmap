@@ -10,7 +10,7 @@ from litestar.di import Provide
 from litestar.exceptions import HTTPException
 from litestar.plugins.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
-from litestar.testing import create_test_client
+from litestar.testing import RequestFactory, create_test_client
 from psycopg import AsyncConnection
 
 import app
@@ -185,6 +185,7 @@ async def test_the_upload_session_hands_back_the_row_id(monkeypatch):
         data=CreateMultipartBody(filename="o.tif", title="t", size_bytes=1),
         auth_user=_USER,
         db=MagicMock(spec=AsyncConnection),
+        request=RequestFactory().post("/"),
     )
     assert resp["id"] == row.id
     assert resp["key"] == row.s3_key

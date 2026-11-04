@@ -167,6 +167,9 @@ class DbUpload:
     checksum: str | None = None
     # Non-fatal notice shown with the status (e.g. duplicate bytes detected).
     warning: str | None = None
+    # Organisation the imagery is published for, as `hotosm-org|<id>`. None:
+    # the uploading account owns it.
+    owner_id: str | None = None
 
     def __post_init__(self) -> None:
         """Normalise the primary key to the `str` this class advertises.
