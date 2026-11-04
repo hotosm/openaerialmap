@@ -57,6 +57,10 @@ every zoom, with a dot per image below `FOOTPRINT_MIN_ZOOM`.
 - In either tab, footprints whose PMTiles `owner_id` is one of those
   owners are outlined in `MY_IMAGERY_COLOUR`.
 - `?view=mine` opens the tab directly. Signed out, it shows all imagery.
+- Imagery the user may change (their own, or an organisation's where Login
+  gives them the owner or manager role) gets a **Transfer…** button, which
+  hands it to another of their owners through the uploader's
+  `PATCH /api/v1/imagery/{id}` (`utils/imagery.ts`). Members only see.
 
 To see your own uploads locally, `VITE_STAC_URL` has to point at the
 local STAC API; it defaults to production.

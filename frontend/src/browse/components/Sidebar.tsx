@@ -17,6 +17,8 @@ interface Props {
   // Pagination resets when this changes. Defaults to the list of ids, so a
   // list that only grows should pass something stable.
   resetKey?: string;
+  // Extra buttons under a card's action row, e.g. what the owner may do.
+  renderActions?: (f: ImageFeature) => ReactNode;
 }
 
 export default function Sidebar({
@@ -28,6 +30,7 @@ export default function Sidebar({
   empty,
   footer,
   resetKey,
+  renderActions,
 }: Props) {
   const [visibleCount, setVisibleCount] = useState(SIDEBAR_PAGE_SIZE);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -108,6 +111,7 @@ export default function Sidebar({
                 isSelected={
                   !!selectedFeature && selectedFeature.properties.id === feature.properties.id
                 }
+                actions={renderActions?.(feature)}
               />
             ))}
             {visibleCount < features.length && (

@@ -91,6 +91,9 @@ export const MY_IMAGERY_PAGE_SIZE = 100;
 // Generous: a cold pgstac search over a large account can take a few seconds.
 export const STAC_SEARCH_TIMEOUT_MS = 15_000;
 
+// The uploader asks HOT Login and writes one Item; past this something is wrong.
+export const UPLOADER_TIMEOUT_MS = 10_000;
+
 export const LARGE_IMAGE_THRESHOLD_SQ_KM = 50;
 export const TMS_LARGE_MIN_ZOOM = 12;
 export const TMS_ALL_MIN_ZOOM = 16;
