@@ -91,7 +91,7 @@ services:
   # Same image + env vars as the prod chart. Shares tms-nginx's network namespace
   # so the loopback wiring (chiitiler ↔ nginx) matches the production pod.
   chiitiler:
-    image: ghcr.io/kanahiro/chiitiler:v1.21.1
+    image: ghcr.io/kanahiro/chiitiler:v1.25.1
     network_mode: "service:tms-nginx"
     depends_on:
       tms-nginx:
