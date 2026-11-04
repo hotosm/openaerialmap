@@ -32,13 +32,13 @@ def _answer(monkeypatch, handler):
     return seen
 
 
-def _group(id: str, type: str, status: str) -> dict:
-    return {"id": id, "type": type, "name": id.title(), "status": status}
+def _group(id: str, type: str, status: str, role: str = "member") -> dict:
+    return {"id": id, "type": type, "name": id.title(), "status": status, "role": role}
 
 
 _GROUPS = {
     "groups": [
-        _group("org-1", "organization", "approved"),
+        _group("org-1", "organization", "approved", role="manager"),
         _group("org-2", "organization", "pending"),
         _group("team-1", "team", "approved"),
     ]
@@ -52,7 +52,9 @@ async def test_only_approved_organisations_count(monkeypatch):
 
     orgs = await organisations.user_organisations(_SUB, "tok")
 
-    assert orgs == [organisations.Organisation(id="org-1", name="Org-1")]
+    assert orgs == [
+        organisations.Organisation(id="org-1", name="Org-1", role="manager")
+    ]
     assert orgs[0].owner_id == "hotosm-org|org-1"
     request = seen[0]
     assert request.url == "http://login/api/groups?type=organization"
