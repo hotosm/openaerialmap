@@ -34,6 +34,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+import tylertoo
 from minio import Minio
 from minio.error import S3Error
 from psycopg import connect
@@ -71,8 +74,12 @@ OUTPUT_DENSITY_PMTILES = os.getenv(
 
 # Footprints (per-image polygons with rich metadata) - powers the
 # frontend. Named "data" to distinguish from the density aggregation.
-OUTPUT_FOOTPRINTS_GEOJSON = os.getenv(
-    "OUTPUT_FOOTPRINTS_GEOJSON", "/app/output/global-data.geojson"
+OUTPUT_FOOTPRINTS_PARQUET = os.getenv(
+    "OUTPUT_FOOTPRINTS_PARQUET", "/app/output/global-data.parquet"
+)
+# tylertoo's intermediate zoom pyramid, read back to write the PMTiles.
+OUTPUT_FOOTPRINTS_OVERVIEW = os.getenv(
+    "OUTPUT_FOOTPRINTS_OVERVIEW", "/app/output/global-data-overview.parquet"
 )
 OUTPUT_FOOTPRINTS_PMTILES = os.getenv(
     "OUTPUT_FOOTPRINTS_PMTILES", "/app/output/global-data.pmtiles"
@@ -96,6 +103,18 @@ DENSITY_ZOOM_OFFSET = 4
 # Cap follows DENSITY_MAX_ZOOM + offset so cells scale with display zoom
 # at every level (no saturation).
 DENSITY_CELL_ZOOM_CAP = DENSITY_MAX_ZOOM + DENSITY_ZOOM_OFFSET
+
+# GeoParquet footer for WKB footprints. No `crs` means lon/lat (OGC:CRS84),
+# and an empty `geometry_types` means "any".
+GEOPARQUET_METADATA = {
+    "version": "1.1.0",
+    "primary_column": "geometry",
+    "columns": {"geometry": {"encoding": "WKB", "geometry_types": []}},
+}
+
+# tylertoo 0.8.0 caps the raw MVT at 512 KB, where tippecanoe caps 500 KB
+# gzipped. Its default merges the densest footprints away at z6-10.
+FOOTPRINT_RAW_TILE_LIMIT = 2_000_000
 
 TEST_MODE = os.getenv("TEST_MODE", "").lower() in {"true", "1", "yes"}
 
@@ -520,8 +539,8 @@ def _extract_feature_properties(
 ) -> dict:
     """
     Flatten STAC Item content into the minimal property set the browser
-    consumes. Missing fields are omitted so tippecanoe doesn't emit
-    null-valued keys into every tile.
+    consumes. Missing fields are omitted so tiles don't carry
+    null-valued keys.
 
     Kept in one place because the same field names are read on the
     client (see frontend/src/browse/utils/format.ts).
@@ -595,15 +614,14 @@ def _extract_feature_properties(
         "owner_id": props.get("oam:owner_id"),
     }
 
-    # Strip nulls so tippecanoe doesn't bloat tiles with empty keys.
     return {k: v for k, v in out.items() if v is not None}
 
 
 def get_footprint_features() -> None:
     """
-    Query PgSTAC for imagery features and write them as
-    newline-delimited GeoJSON with per-image metadata that the browser
-    can render sidebar cards and filter on without any STAC API calls.
+    Query PgSTAC for imagery features and write them as GeoParquet
+    with per-image metadata that the browser can render sidebar cards
+    and filter on without any STAC API calls.
     """
     where_bbox = "AND geometry && ST_MakeEnvelope(%s, %s, %s, %s, 4326)"
     params = [FOOTPRINT_COLLECTIONS] + list(BBOX)
@@ -611,7 +629,7 @@ def get_footprint_features() -> None:
         SELECT
             id::text AS id,
             collection::text AS collection,
-            ST_AsGeoJSON(geometry) AS geom,
+            ST_AsBinary(geometry) AS geom,
             -- Raw content is dehydrated: missing item_assets keys are "𒍟※" strings.
             pgstac.content_hydrate(items) AS content
         FROM pgstac.items AS items
@@ -624,94 +642,69 @@ def get_footprint_features() -> None:
         f"Querying PgSTAC for footprints "
         f"(collections={FOOTPRINT_COLLECTIONS}, bbox={BBOX})..."
     )
-    Path(OUTPUT_FOOTPRINTS_GEOJSON).parent.mkdir(parents=True, exist_ok=True)
-    row_count = 0
+    Path(OUTPUT_FOOTPRINTS_PARQUET).parent.mkdir(parents=True, exist_ok=True)
+    rows = []
     try:
-        with (
-            connect(PG_DSN) as conn,
-            conn.cursor() as cur,
-            open(OUTPUT_FOOTPRINTS_GEOJSON, "w") as f,
-        ):
+        with connect(PG_DSN) as conn, conn.cursor() as cur:
             cur.execute(query, params)
-            for row in cur:
-                feature_id, collection, geom_json, content = row
-                if not geom_json:
+            for feature_id, collection, geom_wkb, content in cur:
+                if not geom_wkb:
                     continue
-                try:
-                    geom = json.loads(geom_json)
-                    properties = _extract_feature_properties(
-                        feature_id, content or {}, collection
-                    )
-                    feature = {
-                        "type": "Feature",
-                        "geometry": geom,
-                        "properties": properties,
-                    }
-                    f.write(json.dumps(feature))
-                    f.write("\n")
-                    row_count += 1
-                except json.JSONDecodeError:
-                    log.warning(f"Invalid geometry for {feature_id}, skipping.")
+                properties = _extract_feature_properties(
+                    feature_id, content or {}, collection
+                )
+                rows.append({**properties, "geometry": geom_wkb})
     except Exception as e:
         log.error(f"Footprint query failed: {e}")
         raise
 
-    log.info(f"Wrote {row_count} footprints to {OUTPUT_FOOTPRINTS_GEOJSON}")
+    # Rows omit null properties, so the columns are every key seen.
+    columns = dict.fromkeys(key for row in rows for key in row)
+    table = pa.table({key: [row.get(key) for row in rows] for key in columns})
+    table = table.replace_schema_metadata({"geo": json.dumps(GEOPARQUET_METADATA)})
+    pq.write_table(table, OUTPUT_FOOTPRINTS_PARQUET)
+
+    log.info(f"Wrote {len(rows)} footprints to {OUTPUT_FOOTPRINTS_PARQUET}")
 
 
 def footprints_to_pmtiles() -> None:
     """
-    Run tippecanoe to build the footprints PMTiles archive with a single
+    Run tylertoo to build the footprints PMTiles archive with a single
     `globalcoverage` layer of per-image polygons + metadata.
 
-    `--drop-densest-as-needed` is deliberate: at z0-z2 the coverage
-    layer would otherwise pack all ~21k footprints (~17 MB of rich
-    metadata) into a handful of tiles, blowing past the ~500 KB
-    tile-size limit. Drop-densest picks the densest features and skips
-    them until the tile fits, so it only activates at low zooms where
-    tiles are geographically huge.
+    The sidebar lists tile features from z8 (`FOOTPRINT_MIN_ZOOM` in
+    the frontend), so every footprint must survive there. tylertoo's
+    default thinning, simplification and density budget all drop small
+    polygons, so they are turned off. Polygons too small for a zoom
+    become placeholder squares that keep their properties.
 
-    Consequence: the archive is NOT a lossless copy of the catalogue
-    at every zoom. Low-zoom tiles carry only a subset. This is a
-    deliberate tradeoff - see `README.md` (`Low-zoom tiles are a
-    simplified representation`) and the block comment on
-    `FOOTPRINT_MIN_ZOOM` in
-    `frontend/src/browse/utils/constants.ts` for the full context.
-    The frontend gates its sidebar / footprint layer on
-    `FOOTPRINT_MIN_ZOOM = 8` to hide the truncation, since above ~z8
-    per-tile density is low enough that drop-densest rarely fires and
-    the tile data is effectively complete for the viewport. Low zooms
-    are handled by the separate `density` layer in
-    `global-coverage.pmtiles`, whose counts are pre-binned from all
-    ~21k centroids and are authoritative.
+    Low-zoom tiles can still be incomplete. The `density` layer in
+    `global-coverage.pmtiles` covers those zooms (see `README.md`).
     """
-    log.info("Generating footprints PMTiles with tippecanoe...")
+    log.info("Generating footprints PMTiles with tylertoo...")
 
-    if not Path(OUTPUT_FOOTPRINTS_GEOJSON).exists():
+    if not Path(OUTPUT_FOOTPRINTS_PARQUET).exists():
         raise FileNotFoundError(
-            f"{OUTPUT_FOOTPRINTS_GEOJSON} not found - cannot build PMTiles"
+            f"{OUTPUT_FOOTPRINTS_PARQUET} not found - cannot build PMTiles"
         )
 
-    args = [
-        "tippecanoe",
-        "-o",
+    tylertoo.overview(
+        OUTPUT_FOOTPRINTS_PARQUET,
+        OUTPUT_FOOTPRINTS_OVERVIEW,
+        min_zoom=ZOOM_MIN,
+        max_zoom=ZOOM_MAX,
+        polygon_thinning=0.0,
+        polygon_visibility=0.0,
+        density_drop=False,
+        simplify_factor=0.0,
+        collapse_square=True,
+    )
+    tylertoo.export_pmtiles(
+        OUTPUT_FOOTPRINTS_OVERVIEW,
         OUTPUT_FOOTPRINTS_PMTILES,
-        "--force",
-        "--name=openaerialmap-global-data",
-        f"--description=OAM per-image footprints with metadata (z{ZOOM_MIN}-{ZOOM_MAX})",
-        f"--minimum-zoom={ZOOM_MIN}",
-        f"--maximum-zoom={ZOOM_MAX}",
-        "--drop-densest-as-needed",
-        "--no-progress-indicator",
-        "-L",
-        f"globalcoverage:{OUTPUT_FOOTPRINTS_GEOJSON}",
-    ]
-
-    try:
-        subprocess.run(args, check=True)
-    except subprocess.CalledProcessError as e:
-        log.error(f"Tippecanoe (footprints) failed with exit code {e.returncode}")
-        raise
+        layer_name="globalcoverage",
+        tile_size_limit=FOOTPRINT_RAW_TILE_LIMIT,
+    )
     log.info(f"Footprints PMTiles written to {OUTPUT_FOOTPRINTS_PMTILES}")
 
 

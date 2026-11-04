@@ -25,18 +25,27 @@ z14+ is served by TiTiler via the global-tms nginx routing.
 
 ### Low-zoom tiles are a simplified representation
 
-`--drop-densest-as-needed` makes the `globalcoverage` layer lossy at
-low zoom: at z0-z7 all ~21k footprints can't fit within tippecanoe's
-per-tile byte budget, so some are dropped. The frontend hides this by
+The `globalcoverage` layer is lossy at low zoom: at z0-z7 all ~22k
+footprints can't fit within tylertoo's per-tile byte budget, so tiny
+ones are dropped or merged into neighbours. The frontend hides this by
 gating footprints and the sidebar on `FOOTPRINT_MIN_ZOOM` (see
 `frontend/src/browse/utils/constants.ts`); at higher zooms tiles are
-small enough geographically that drop-densest rarely fires. Low zooms
+small enough geographically that the size cap rarely fires. Low zooms
 use the pre-binned `density` layer from `global-coverage.pmtiles`,
 whose counts are authoritative.
 
-Do not "fix" this by raising `--maximum-tile-bytes` - packing all 21k
-rich footprints into a z0 tile is a multi-MB download for no
-user-visible benefit (individual footprints are dots at world view).
+tylertoo's thinning and simplification are turned off on purpose. At
+its defaults it keeps only ~1.8k of ~22k footprints at z8, which
+empties the sidebar. Its raw tile cap is raised to 2 MB so stored
+(gzipped) tiles land near tippecanoe's 500 KB budget. Do not remove
+the cap entirely: packing all 22k rich footprints into a z0 tile is a
+multi-MB download for no user-visible benefit (individual footprints
+are dots at world view).
+
+The density layer still uses tippecanoe, because it relies on
+per-feature `minzoom`/`maxzoom` clamps that tylertoo 0.8.0 has no
+equivalent for. Its `pyramid` command could replace them once it ships
+in the Python package.
 
 Stages run in ascending order of cost so a failure or timeout in a
 later stage never leaves a downstream service without a fresh input:

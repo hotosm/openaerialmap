@@ -12,7 +12,9 @@ dependencies = [
     "numpy>=2.3.2",
     "pmtiles>=3.4.1",
     "psycopg>=3.2.9",
+    "pyarrow>=21",
     "rasterio>=1.4.3",
     "rio-tiler>=7.8.1",
     "shapely>=2.1.1",
+    "tylertoo==0.8.0",
 ]
