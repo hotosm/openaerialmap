@@ -116,9 +116,9 @@
           "minLength": 1
         },
         "oam:owner_id": {
-          "description": "Current owner as `provider|id`: a user (`hotosm|<id>`) or an unclaimed legacy account (`oam-legacy|<id>`). Unlike `oam:uploader_id`, it changes when the imagery is transferred.",
+          "description": "Account that owns the Item now: a user (`hotosm|<id>`), an organisation (`hotosm-org|<group id>`) or an unclaimed legacy account (`oam-legacy|<id>`). Changes on transfer, unlike `oam:uploader_id`.",
           "type": "string",
-          "pattern": "^[a-z0-9-]+\\|.+$"
+          "pattern": "^(hotosm|hotosm-org|oam-legacy)\\|.+$"
         },
         "license": {
           "description": "If defined, the Item level license must be a Creative Commons license.",

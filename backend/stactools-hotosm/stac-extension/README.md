@@ -36,7 +36,9 @@ The fields in the table below can be used in these parts of STAC documents:
 | oam:acquisition_time_estimated                                                                        | boolean | `true` when the acquisition datetime was estimated rather than supplied by the data provider.                                                                                             |
 | oam:acquisition_source                                                                                | string | Where the acquisition datetime came from. Omitted when the data provider supplied it.                                                                                                     |
 | oam:external_id                                                                                       | string | Identifier for this imagery in the external system that submitted it.                                                                                                                     |
-| oam:owner_id                                                                                          | string | Current owner as `provider\|id`: a user, an organisation, or an unclaimed legacy account. Changes on transfer, unlike `oam:uploader_id`.                                                   |
+| oam:uploader_id                                                                                       | string | Account that uploaded the Item, as `provider\|id`, for example `hotosm\|1234` or `custom\|anonymous`. Never changes. |
+| oam:uploader_name                                                                                     | string | Name of the uploading account at upload time. |
+| oam:owner_id                                                                                          | string | Current owner of the Item: `hotosm\|<id>`, `hotosm-org\|<group id>` or `oam-legacy\|<id>`. Changes when ownership is transferred. Omitted if the Item has no owner. |
 
 ### Additional Field Information
 

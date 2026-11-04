@@ -21,9 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `oam:owner_id`, the current owner of the imagery as `provider|id`: a user
-  (`hotosm|<id>`) or an unclaimed legacy account (`oam-legacy|<id>`). Unlike
-  `oam:uploader_id`, it changes when the imagery is transferred.
+- `oam:owner_id`, the current owner of the imagery. This changes when
+  ownership is transferred; `oam:uploader_id` stays the same. Allowed ids:
+  `hotosm|<id>` (user), `hotosm-org|<group id>` (organisation) and
+  `oam-legacy|<id>` (unclaimed legacy account).
 
 All new fields are optional.
 

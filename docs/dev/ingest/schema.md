@@ -76,41 +76,34 @@ supplies the information; there is no need to invent values.
 | `properties.oam:external_id`                | ID from the system that submitted the imagery, such as an ODM task.  |
 | `properties.processing:*`                   | Software, version, time and lineage used to create the image.        |
 
-### Uploader
+### Producer, uploader and owner
 
-Set by the uploader and legacy OAM sync. Third-party imports omit these fields.
+| Role     | Fields                                 | Meaning                                                       | Changes              |
+| -------- | -------------------------------------- | ------------------------------------------------------------- | -------------------- |
+| Producer | `oam:producer_name`, `providers`       | Person or organisation credited for making the imagery.       | No                   |
+| Uploader | `oam:uploader_id`, `oam:uploader_name` | Account that uploaded the imagery, with its name at the time. | Never                |
+| Owner    | `oam:owner_id`                         | Account that can edit the imagery or transfer ownership.      | On transfer or claim |
 
-| Field                          | Purpose                                                        |
-| ------------------------------ | -------------------------------------------------------------- |
-| `properties.oam:uploader_id`   | Uploading account as `provider\|id`. See below.                |
-| `properties.oam:uploader_name` | That account's display name or username at the time of upload. |
+The same person may produce, upload and own the imagery, but these roles can
+also belong to different people or organisations. Third-party imports have no
+uploader or owner. Anonymous uploads have no owner.
 
-Items are public, so they never carry an email address. Extension v0.3.0
-defines `oam:uploader_email`, but nothing writes it, and v0.4.0 drops it.
-Resolve an account's email privately from `oam:uploader_id`.
+Items are public, so they never include an email address. Look it up privately
+from the account id.
 
-`oam:uploader_id` is namespaced so the two catalogues cannot collide:
+Account ids use the format `provider|id`, for example `hotosm|1234`. Here,
+`provider` identifies the account system, rather than a STAC imagery provider.
+The allowed values are:
 
-| Prefix              | Meaning                                                     |
-| ------------------- | ----------------------------------------------------------- |
-| `hotosm\|`          | A HOT login, from the current uploader.                     |
-| `oam-legacy\|`      | An account from the legacy OAM API.                         |
-| `custom\|anonymous` | Uploaded anonymously; the account is withheld, not unknown. |
+| Id                  | Account                                                          | Uploader | Owner |
+| ------------------- | ---------------------------------------------------------------- | -------- | ----- |
+| `hotosm\|<id>`      | HOT Login user                                                   | Yes      | Yes   |
+| `hotosm-org\|<id>`  | HOT Login organisation (not yet used), identified by group UUID. | No       | Yes   |
+| `oam-legacy\|<id>`  | Legacy OAM account, until someone claims it                      | Yes      | Yes   |
+| `custom\|anonymous` | Anonymous upload, with the account identity withheld.            | Yes      | No    |
 
-The uploading account may differ from the imagery producer recorded in
-`oam:producer_name` and `providers`.
-
-### Owner
-
-| Field                     | Purpose                                               |
-| ------------------------- | ----------------------------------------------------- |
-| `properties.oam:owner_id` | Current owner as `provider\|id`. Changes on transfer. |
-
-`oam:uploader_id` records who uploaded an Item and never changes;
-`oam:owner_id` records who controls it now. It uses the same prefixes. Legacy
-Items are owned by their `oam-legacy|` account until it is claimed; anonymous
-uploads have no owner. Organisations get their own prefix when they can own
-imagery. See [ADR 0011](../../decisions/0011-imagery-ownership.md).
+To share an Item between several people, make an organisation its owner. See
+[ADR 0011](../../decisions/0011-imagery-ownership.md).
 
 ### Assets and links
 
