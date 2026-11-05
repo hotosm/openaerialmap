@@ -683,7 +683,7 @@ def main() -> int:
     _install_signal_handlers()
 
     # Read before anything that can fail, so the lock is always released.
-    bucket = env("S3_BUCKET", "oin-hotosm-temp")
+    bucket = env("S3_BUCKET", "oin-hotosm-prod")
     lock_key = env("LOCK_KEY")
 
     item_id = fmt = "unknown"  # for the summary line in the finally
@@ -707,7 +707,7 @@ def main() -> int:
 
         public_base = env(
             "S3_PUBLIC_BASE_URL",
-            "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com",
+            "https://oin-hotosm-prod.s3.us-east-1.amazonaws.com",
         )
         internal_base = env("INTERNAL_BASE_URL")
         internal_token = env("INTERNAL_TOKEN")

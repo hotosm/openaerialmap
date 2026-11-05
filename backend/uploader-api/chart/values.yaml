@@ -235,8 +235,8 @@ rustfs:
 seed:
   enabled: false
   stacUrl: https://api.imagery.hotosm.org/stac
-  srcBucket: oin-hotosm-temp
-  srcAssetBaseUrl: https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
+  srcBucket: oin-hotosm-prod
+  srcAssetBaseUrl: https://oin-hotosm-prod.s3.us-east-1.amazonaws.com
   collection: ""
   # 0 creates the collection without copying imagery.
   maxItems: 0

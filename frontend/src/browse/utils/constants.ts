@@ -5,7 +5,7 @@ export const API_URL = getRuntimeConfig("VITE_API_URL", "https://api.imagery.hot
 // global-data.pmtiles has footprints; global-coverage.pmtiles is density-only.
 export const PMTILES_URL = getRuntimeConfig(
   "VITE_PMTILES_URL",
-  "https://s3.amazonaws.com/oin-hotosm-temp/global-data.pmtiles",
+  "https://s3.amazonaws.com/oin-hotosm-prod/global-data.pmtiles",
 );
 
 // The pmtiles:// scheme is handled by the protocol registered in main.tsx.
@@ -16,7 +16,7 @@ export const PMTILES_SOURCE_LAYER = "globalcoverage";
 // Pre-binned, filter-aware density cells used below FOOTPRINT_MIN_ZOOM.
 export const DENSITY_PMTILES_URL = getRuntimeConfig(
   "VITE_DENSITY_PMTILES_URL",
-  "https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles",
+  "https://s3.amazonaws.com/oin-hotosm-prod/global-coverage.pmtiles",
 );
 
 export const DENSITY_SOURCE_URL = `pmtiles://${DENSITY_PMTILES_URL}`;

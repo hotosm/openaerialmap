@@ -25,7 +25,7 @@ type Config struct {
 	// <metadata-id>/0/<id>.{mbtiles|pmtiles} key.
 	S3Bucket string
 	// S3PublicBaseURL is the https origin used to construct asset hrefs
-	// in STAC, e.g. https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
+	// in STAC, e.g. https://oin-hotosm-prod.s3.us-east-1.amazonaws.com
 	S3PublicBaseURL string
 
 	// LockTTLSeconds bounds how long a lock without a Job reads as active.
@@ -105,8 +105,8 @@ func Load() (*Config, error) {
 		ListenAddr:      getenv("LISTEN_ADDR", ":8080"),
 		STACBaseURL:     os.Getenv("STAC_BASE_URL"),
 		STACCollection:  getenv("STAC_COLLECTION", "openaerialmap"),
-		S3Bucket:        getenv("S3_BUCKET", "oin-hotosm-temp"),
-		S3PublicBaseURL: getenv("S3_PUBLIC_BASE_URL", "https://oin-hotosm-temp.s3.us-east-1.amazonaws.com"),
+		S3Bucket:        getenv("S3_BUCKET", "oin-hotosm-prod"),
+		S3PublicBaseURL: getenv("S3_PUBLIC_BASE_URL", "https://oin-hotosm-prod.s3.us-east-1.amazonaws.com"),
 		LockTTLSeconds:  getenvInt64("LOCK_TTL_SECONDS", 300),
 
 		WorkerActiveDeadlineSeconds:   getenvInt64("WORKER_ACTIVE_DEADLINE_SECONDS", 10800),

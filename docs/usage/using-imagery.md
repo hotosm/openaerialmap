@@ -29,7 +29,7 @@ For clients that support PMTiles, read the coverage archive directly.
 This avoids the raster round trip and lets you restyle the footprints:
 
 ```text
-https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles
+https://s3.amazonaws.com/oin-hotosm-prod/global-coverage.pmtiles
 ```
 
 The archive has a single vector layer, `density`, covering z0-13. Each
@@ -44,7 +44,7 @@ maplibregl.addProtocol("pmtiles", new Protocol().tile);
 
 map.addSource("oam-coverage", {
   type: "vector",
-  url: "pmtiles://https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles",
+  url: "pmtiles://https://s3.amazonaws.com/oin-hotosm-prod/global-coverage.pmtiles",
 });
 ```
 

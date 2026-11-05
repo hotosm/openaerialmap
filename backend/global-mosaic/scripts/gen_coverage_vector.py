@@ -801,7 +801,7 @@ def upload_artifacts(artifacts: list[tuple[str, str]]) -> None:
     if client is None:
         return
 
-    bucket = os.getenv("S3_BUCKET", "oin-hotosm-temp")
+    bucket = os.getenv("S3_BUCKET", "oin-hotosm-prod")
     try:
         if not client.bucket_exists(bucket):
             log.error(f"Bucket {bucket} does not exist. Exiting upload.")

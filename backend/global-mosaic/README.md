@@ -32,7 +32,7 @@ TiTiler for real imagery (see `backend/global-tms`).
 ## Note On S3 Permissions
 
 - There is an IAM policy `oam-bucket-upload` with permission to upload
-  to the `oin-hotosm-temp` bucket.
+  to the `oin-hotosm-prod` bucket.
   - We must ensure this policy also has `"s3:PutObjectAcl"` set, to allow
     setting the global-mosaic.pmtiles file permission to public.
 - We have a user `hotosm-oam-global-mosaic-upload` that assigned this

@@ -208,8 +208,8 @@ services:
     environment:
       # Seed the local catalog with `just test populate-prod`. Services without
       # local versions continue to use production.
-      - VITE_PMTILES_URL=${VITE_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-data.pmtiles}
-      - VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles}
+      - VITE_PMTILES_URL=${VITE_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-prod/global-data.pmtiles}
+      - VITE_DENSITY_PMTILES_URL=${VITE_DENSITY_PMTILES_URL:-https://s3.amazonaws.com/oin-hotosm-prod/global-coverage.pmtiles}
       - VITE_API_URL=${VITE_API_URL:-http://imagery.localhost:8080}
       - VITE_STAC_TITILER_URL=${VITE_STAC_TITILER_URL:-http://imagery.localhost:8080/raster}
       - VITE_STAC_URL=${VITE_STAC_URL:-http://imagery.localhost:8080/stac}

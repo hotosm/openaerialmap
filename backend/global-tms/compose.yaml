@@ -14,7 +14,7 @@ services:
       /bin/sh -c "
         if [ ! -f /tiles/global-coverage.pmtiles ]; then
           echo 'Downloading global-coverage.pmtiles...'
-          curl -fSL https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles -o /tiles/global-coverage.pmtiles
+          curl -fSL https://s3.amazonaws.com/oin-hotosm-prod/global-coverage.pmtiles -o /tiles/global-coverage.pmtiles
         else
           echo 'File already exists, skipping download.'
         fi

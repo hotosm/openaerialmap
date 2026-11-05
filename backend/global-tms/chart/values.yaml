@@ -9,7 +9,7 @@ fullnameOverride: ""
 
 # PMTiles rendered by chiitiler. maxzoom must match the mosaic generator.
 pmtiles:
-  url: "https://s3.amazonaws.com/oin-hotosm-temp/global-coverage.pmtiles"
+  url: "https://s3.amazonaws.com/oin-hotosm-prod/global-coverage.pmtiles"
   maxzoom: 13
 
 # z14+ redirects to a titiler-pgstac mosaic of these collections.

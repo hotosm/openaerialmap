@@ -6,9 +6,9 @@ services:
       - LISTEN_ADDR=:8080
       - STAC_BASE_URL=${STAC_BASE_URL:-https://api.imagery.hotosm.org/stac}
       - STAC_COLLECTION=openaerialmap
-      - S3_BUCKET=oin-hotosm-temp
+      - S3_BUCKET=oin-hotosm-prod
       - S3_PREFIX=tilepacks
-      - S3_PUBLIC_BASE_URL=https://oin-hotosm-temp.s3.us-east-1.amazonaws.com
+      - S3_PUBLIC_BASE_URL=https://oin-hotosm-prod.s3.us-east-1.amazonaws.com
       - WORKER_IMAGE=ghcr.io/hotosm/openaerialmap/tilepack/worker:dev
       - WORKER_NAMESPACE=default
       - WORKER_SERVICE_ACCOUNT=oam-tilepack-worker

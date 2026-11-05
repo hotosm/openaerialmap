@@ -117,7 +117,7 @@ const STATIC_STATS = {
   collections: 3,
 };
 
-const STATS_URL = "https://s3.amazonaws.com/oin-hotosm-temp/stats.json";
+const STATS_URL = "https://s3.amazonaws.com/oin-hotosm-prod/stats.json";
 
 type LiveStats = {
   items: number;

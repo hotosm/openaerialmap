@@ -48,11 +48,11 @@ func New(ctx context.Context, bucket, publicBaseURL string) (*Client, error) {
 // KeyFromCOGURL derives the tilepack output S3 key from the COG URL
 // on the STAC item. OAM lays imagery out as
 //
-//	oin-hotosm-temp/<metadata-id>/0/<id>.tif
+//	oin-hotosm-prod/<metadata-id>/0/<id>.tif
 //
 // and we want the tilepack to sit next to it as
 //
-//	oin-hotosm-temp/<metadata-id>/0/<id>.{mbtiles|pmtiles}
+//	oin-hotosm-prod/<metadata-id>/0/<id>.{mbtiles|pmtiles}
 //
 // For non-canonical (custom-zoom) variants we append a suffix so they
 // don't collide with the canonical archive key.
