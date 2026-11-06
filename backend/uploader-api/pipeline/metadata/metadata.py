@@ -644,6 +644,7 @@ def build_item(
         image_file_size=os.path.getsize(cog_path),
         thumbnail_url=thumbnail_url,
         metadata_url=metadata_url,
+        owner_id=user_md.get("owner_id"),
         uploader_id=user_md.get("uploader_id"),
         uploader_name=user_md.get("uploader_name"),
     ).sanitize()
