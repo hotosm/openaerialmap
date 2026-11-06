@@ -107,6 +107,7 @@ Versions are original planning targets and may change.
 | 📅 | Public imagery statistics | Show coverage and growth by provider, year, and image detail. | v2.4 |
 | 📅 | More imagery types | Support multispectral and other specialized imagery. | v2.5 |
 | 📅 | Elevation and 3D uploads | Let contributors share elevation models and 3D point clouds. | v2.5 |
+| 📅 | Privacy protection for detailed imagery | Reduce the risk of identifying people in very high-resolution uploads by blurring faces or reducing image detail. | – |
 | 📅 | More accurate maps | Improve imagery outlines, preview alignment, and coverage estimates. | – |
 | 📅 | Easier imagery access | Make finished uploads easier to find and large downloads easier to use. | – |
 | 📅 | Shared imagery management | Let organizations manage imagery together and preserve ownership from the old site. | – |
