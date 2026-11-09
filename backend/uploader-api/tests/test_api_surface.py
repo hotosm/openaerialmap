@@ -8,6 +8,7 @@ from app.main import create_app
 
 # Everything the API serves. Update deliberately, not to make a test pass.
 EXPECTED = {
+    "/api/v1/imagery/{item_id:str}",
     "/api/v1/register",
     "/api/v1/s3/abortmultipart",
     "/api/v1/s3/completemultipart",

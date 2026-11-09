@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import bbox from "@turf/bbox";
 import type { ImageFeature } from "../utils/types";
 import {
@@ -15,6 +15,8 @@ interface Props {
   feature: ImageFeature;
   onSelect: (f: ImageFeature | null) => void;
   isSelected: boolean;
+  // Extra buttons under the action row, e.g. what the owner may do.
+  actions?: ReactNode;
 }
 
 // TiTiler-PgSTAC tile URL template for iD / JOSM handoff and the "Copy
@@ -73,7 +75,7 @@ type TilepackState =
   | { kind: "ready"; url: string }
   | { kind: "error"; message: string };
 
-export default function ImageCard({ feature, onSelect, isSelected }: Props) {
+export default function ImageCard({ feature, onSelect, isSelected, actions }: Props) {
   const [isExpanded, setIsExpanded] = useState(isSelected);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [pmtilesState, setPmtilesState] = useState<TilepackState>({
@@ -293,11 +295,21 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
           <span className="truncate max-w-[130px]" title={p.provider}>
             {p.provider}
           </span>
-          <span
-            className="ml-auto shrink-0 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-[10px] font-medium tracking-wide text-gray-600 uppercase"
-            title={`STAC source: ${p.collection}`}
-          >
-            {collectionLabel(p.collection)}
+          <span className="ml-auto flex items-center gap-1 shrink-0">
+            {p.ownerName && (
+              <span
+                className="px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-800"
+                title="Owner"
+              >
+                {p.ownerName}
+              </span>
+            )}
+            <span
+              className="px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-[10px] font-medium tracking-wide text-gray-600 uppercase"
+              title={`STAC source: ${p.collection}`}
+            >
+              {collectionLabel(p.collection)}
+            </span>
           </span>
         </div>
 
@@ -333,6 +345,8 @@ export default function ImageCard({ feature, onSelect, isSelected }: Props) {
             </wa-button>
           )}
         </div>
+        {/* Their own row: three buttons do not fit beside the details toggle. */}
+        {actions && <div className="flex gap-2 mt-2">{actions}</div>}
       </div>
 
       {isExpanded && (

@@ -86,3 +86,22 @@ CREATE INDEX IF NOT EXISTS uploads_checksum_idx
 CREATE INDEX IF NOT EXISTS uploads_unfinished_idx
     ON uploads (updated_at)
     WHERE status NOT IN ('Uploaded', 'Succeeded', 'Failed', 'Error', 'Aborted');
+
+-- Repeated in ../5-imagery-history.sql. Changes made to published imagery through the uploader (owner transfers,
+-- later licence changes), so a change can be traced to who made it.
+CREATE TABLE IF NOT EXISTS imagery_changes (
+    id BIGSERIAL PRIMARY KEY,
+    -- STAC Item id; the Item itself lives in pgstac.
+    item_id TEXT NOT NULL,
+    -- Item property that changed, e.g. `oam:owner_id`.
+    field TEXT NOT NULL,
+    -- Account that made the change, as `provider|id`.
+    actor_sub TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE IF EXISTS imagery_changes OWNER TO current_user;
+
+CREATE INDEX IF NOT EXISTS imagery_changes_item_id_idx
+    ON imagery_changes (item_id);

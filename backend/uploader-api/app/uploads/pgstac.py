@@ -89,6 +89,63 @@ async def upsert_item(item: dict[str, Any]) -> None:
             await cur.execute("SELECT pgstac.upsert_item(%s::jsonb);", (Jsonb(item),))
 
 
+class ItemChanged(Exception):
+    """The Item no longer matches what the caller saw, so the change was not made."""
+
+
+# Same retry budget as the tilepack API, the other writer of stored Items.
+_MAX_ATTEMPTS = 3
+
+
+async def get_item(item_id: str) -> dict[str, Any] | None:
+    """Return a stored Item of the configured collection, or None."""
+    async with await psycopg.AsyncConnection.connect(settings.PGSTAC_DB_URL) as conn:
+        return await _get_item(conn, item_id)
+
+
+async def _get_item(conn: psycopg.AsyncConnection, item_id: str) -> dict | None:
+    cur = await conn.execute(
+        "SELECT pgstac.get_item(%(id)s, %(collection)s);",
+        {"id": item_id, "collection": settings.STAC_COLLECTION},
+    )
+    row = await cur.fetchone()
+    return row[0] if row else None
+
+
+async def patch_properties(
+    item_id: str, changes: dict[str, Any], *, expect: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
+    """Set properties on a stored Item and return it, or None if it is not stored.
+
+    The read and write share a serializable transaction, like tilepack's, so an
+    asset added meanwhile is not lost. `expect` names property values the Item
+    must still have; `ItemChanged` otherwise, so a stale decision is not written.
+    """
+    async with await psycopg.AsyncConnection.connect(settings.PGSTAC_DB_URL) as conn:
+        attempt = 1
+        while True:
+            try:
+                async with conn.transaction():
+                    await conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;")
+                    item = await _get_item(conn, item_id)
+                    if item is None:
+                        return None
+                    props = item.setdefault("properties", {})
+                    for key, value in (expect or {}).items():
+                        if props.get(key) != value:
+                            raise ItemChanged(key)
+                    props.update(changes)
+                    await conn.execute(
+                        "SELECT pgstac.update_item(%(item)s::jsonb);",
+                        {"item": Jsonb(item)},
+                    )
+                    return item
+            except psycopg.errors.SerializationFailure:
+                if attempt == _MAX_ATTEMPTS:
+                    raise
+                attempt += 1
+
+
 async def find_item_by_checksum(checksum: str) -> str | None:
     """Return an item whose archived original has identical bytes, if any.
 

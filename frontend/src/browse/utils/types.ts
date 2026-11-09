@@ -22,9 +22,20 @@ export interface ImageProperties {
   file_size: string;
   license: string;
   acquisition_end: string | null;
+  // `oam:owner_id`; null on Items without an owner.
+  ownerId: string | null;
+  // The owner as the viewer knows them ("You", an organisation's name). Only
+  // set where the names are known, such as My imagery.
+  ownerName?: string;
 }
 
 export type ImageFeature = Feature<Polygon | MultiPolygon, ImageProperties>;
+
+// A footprint in the PMTiles shape, built from a STAC Item instead of a tile.
+export type RawFeature = Feature<Polygon | MultiPolygon, RawTileProperties>;
+
+// "mine" lists the signed-in user's imagery instead of what is in view.
+export type BrowseMode = "all" | "mine";
 
 // Raw properties as they arrive from the PMTiles vector tile. Written
 // by backend/global-mosaic/scripts/gen_coverage_vector.py; keep in sync.

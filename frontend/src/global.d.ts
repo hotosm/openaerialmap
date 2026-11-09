@@ -112,6 +112,13 @@ type WaCalloutAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLEl
   class?: string;
 };
 
+type WaDialogAttributes = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {
+  open?: boolean;
+  label?: string;
+  "light-dismiss"?: boolean | string;
+  class?: string;
+};
+
 interface CustomElements {
   "hot-announcement": HotAnnouncementAttributes;
   "hot-header": HotHeaderAttributes;
@@ -120,6 +127,7 @@ interface CustomElements {
   "wa-button": WaButtonAttributes;
   "wa-card": WaCardAttributes;
   "wa-callout": WaCalloutAttributes;
+  "wa-dialog": WaDialogAttributes;
   "wa-dropdown": WaDropdownAttributes;
   "wa-dropdown-item": WaDropdownItemAttributes;
   "wa-icon": WaIconAttributes;
