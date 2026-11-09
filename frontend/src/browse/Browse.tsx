@@ -6,6 +6,7 @@ import { useAuthUser } from "../auth";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
+import EditDialog from "./components/EditDialog";
 import TransferDialog from "./components/TransferDialog";
 import Toolbar from "./components/Toolbar";
 import ViewTabs from "./components/ViewTabs";
@@ -155,6 +156,7 @@ export default function Browse() {
   const search = useMyImagery(showingMine ? listedOwners : null);
   const mine = withAccount(search, account);
   const [transferring, setTransferring] = useState<ImageFeature | null>(null);
+  const [editing, setEditing] = useState<ImageFeature | null>(null);
 
   const [features, setFeatures] = useState<ImageFeature[]>([]);
   const [seenCollections, setSeenCollections] = useState<string[]>([]);
@@ -287,6 +289,18 @@ export default function Browse() {
         />
       )}
 
+      {editing && (
+        <EditDialog
+          feature={editing}
+          onClose={() => setEditing(null)}
+          onDone={() => {
+            setEditing(null);
+            // The list comes from the search, so it shows the changes at once.
+            mine.retry();
+          }}
+        />
+      )}
+
       <div className="flex flex-1 w-full min-h-0 bg-gray-100 font-sans">
         <div className="flex flex-col w-96 h-full bg-white border-r border-gray-200 shadow-xl z-20 relative">
           {user && <ViewTabs mode={showingMine ? "mine" : "all"} onChange={handleModeChange} />}
@@ -324,17 +338,30 @@ export default function Browse() {
               resetKey={listedOwners?.join(",")}
               renderActions={(f) =>
                 account.owners?.find((o) => o.id === f.properties.ownerId)?.canEdit && (
-                  <wa-button
-                    size="s"
-                    appearance="outlined"
-                    class="flex-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTransferring(f);
-                    }}
-                  >
-                    Transfer…
-                  </wa-button>
+                  <>
+                    <wa-button
+                      size="s"
+                      appearance="outlined"
+                      class="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditing(f);
+                      }}
+                    >
+                      Edit…
+                    </wa-button>
+                    <wa-button
+                      size="s"
+                      appearance="outlined"
+                      class="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTransferring(f);
+                      }}
+                    >
+                      Transfer…
+                    </wa-button>
+                  </>
                 )
               }
             />
