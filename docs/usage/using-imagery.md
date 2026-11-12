@@ -56,13 +56,13 @@ To render a single image rather than the mosaic, use the per-item TiTiler
 endpoint with that image's STAC item ID:
 
 ```text
-https://api.imagery.hotosm.org/raster/collections/openaerialmap/items/{item_id}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=visual
+https://tiles.imagery.hotosm.org/raster/collections/openaerialmap/items/{item_id}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=visual
 ```
 
 For example, the Freetown 2025 dataset:
 
 ```text
-https://api.imagery.hotosm.org/raster/collections/openaerialmap/items/68beefef128fd7aac0cd73ec/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=visual&nodata=0
+https://tiles.imagery.hotosm.org/raster/collections/openaerialmap/items/68beefef128fd7aac0cd73ec/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=visual&nodata=0
 ```
 
 Add `&nodata=0` for older images, which have black borders otherwise.
@@ -76,7 +76,7 @@ To combine a few specific images into one layer, use the mosaic endpoint
 with a comma separated `ids` list instead:
 
 ```text
-https://api.imagery.hotosm.org/raster/collections/openaerialmap/tiles/WebMercatorQuad/{z}/{x}/{y}?ids=68beefef128fd7aac0cd73ec,688666a220cfbaea039c043b&assets=visual
+https://tiles.imagery.hotosm.org/raster/collections/openaerialmap/tiles/WebMercatorQuad/{z}/{x}/{y}?ids=68beefef128fd7aac0cd73ec,688666a220cfbaea039c043b&assets=visual
 ```
 
 The same endpoint accepts `bbox` and `datetime` filters. See the
