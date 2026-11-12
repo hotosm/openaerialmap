@@ -219,12 +219,15 @@ Browse offers it from My imagery, so `OAM_FRONTEND_URL` is a CORS origin.
 
 The same request corrects published metadata: `title`, `provider`,
 `contact`, `platform`, `sensor` and `license`, each optional, with the same
-limits as the upload form. The licence moves between the three the form
-offers, in any direction: people keep the terms they got the imagery under
-(discussion #332). Each changed field gets its own `imagery_changes` row, and
-the same people who can transfer imagery can edit it. The Item's
-`metadata.json` asset is not rewritten; it stays the record of the Item at
-ingest, as it does after a transfer.
+limits as the upload form. The licence can only change to one of the three
+the form offers that allows at least as much: CC BY-NC or CC BY-SA can open up
+to CC BY, never the other way, since people already rely on the current terms
+(discussion #332). An Item without a licence can get any of the three; one
+under a licence outside the CC BY family, such as CC0 or ODbL, keeps it. Each
+changed field gets its own `imagery_changes` row, and the same people who can
+transfer imagery can edit it. The Item's `metadata.json` asset is not
+rewritten; it stays the record of the Item at ingest, as it does after a
+transfer.
 
 ## Integrating an external system
 
