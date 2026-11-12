@@ -215,6 +215,20 @@ of the organisation that does; members only see. The change is written
 straight into pgstac and recorded in `imagery_changes` with who made it.
 Browse offers it from My imagery, so `OAM_FRONTEND_URL` is a CORS origin.
 
+## Editing imagery
+
+The same request corrects published metadata: `title`, `provider`,
+`contact`, `platform`, `sensor` and `license`, each optional, with the same
+limits as the upload form. The licence can only change to one of the three
+the form offers that allows at least as much: CC BY-NC or CC BY-SA can open up
+to CC BY, never the other way, since people already rely on the current terms
+(discussion #332). An Item without a licence can get any of the three; one
+under a licence outside the CC BY family, such as CC0 or ODbL, keeps it. Each
+changed field gets its own `imagery_changes` row, and the same people who can
+transfer imagery can edit it. The Item's `metadata.json` asset is not
+rewritten; it stays the record of the Item at ingest, as it does after a
+transfer.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the
