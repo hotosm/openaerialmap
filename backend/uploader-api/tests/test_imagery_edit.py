@@ -154,14 +154,27 @@ async def test_unknown_imagery_is_a_404(db, account, member_of, catalogue):
 @pytest.mark.asyncio
 async def test_a_licence_change_is_recorded(db, account, member_of, catalogue):
     member_of()
+    props = catalogue(account["sub"], license="CC-BY-NC-4.0")
+
+    await _edit(db, account, license="CC-BY 4.0")
+
+    assert props["license"] == "CC-BY-4.0"
+    assert await _history(db) == [
+        ("license", "CC-BY-NC-4.0", "CC-BY-4.0", account["sub"])
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_more_restrictive_licence_is_refused(db, account, member_of, catalogue):
+    member_of()
     props = catalogue(account["sub"], license="CC-BY-4.0")
 
-    await _edit(db, account, license="CC BY-NC 4.0")
-
-    assert props["license"] == "CC-BY-NC-4.0"
-    assert await _history(db) == [
-        ("license", "CC-BY-4.0", "CC-BY-NC-4.0", account["sub"])
-    ]
+    with pytest.raises(HTTPException) as err:
+        await _edit(db, account, license="CC BY-NC 4.0", title="New title")
+    assert err.value.status_code == 422
+    assert props["license"] == "CC-BY-4.0"
+    assert props["title"] == "Old title"
+    assert await _history(db) == []
 
 
 @pytest.mark.asyncio

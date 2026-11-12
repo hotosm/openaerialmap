@@ -4,7 +4,12 @@ import pytest
 from pydantic import ValidationError
 
 from app.imagery import metadata
-from app.imagery.metadata import LicenceNotOffered, MetadataEdit, item_changes
+from app.imagery.metadata import (
+    LicenceMoreRestrictive,
+    LicenceNotOffered,
+    MetadataEdit,
+    item_changes,
+)
 
 
 def _item(**props) -> dict:
@@ -147,17 +152,38 @@ def test_other_providers_are_kept():
 @pytest.mark.parametrize(
     ("current", "new"),
     [
-        ("CC-BY-4.0", "CC BY-NC 4.0"),
-        ("CC-BY-NC-4.0", "CC BY-SA 4.0"),
+        ("CC-BY-NC-4.0", "CC-BY 4.0"),
         ("CC-BY-SA-4.0", "CC-BY 4.0"),
+        ("CC-BY-NC-SA-4.0", "CC BY-NC 4.0"),
+        ("CC-BY-NC-SA-4.0", "CC BY-SA 4.0"),
+        ("CC-BY-NC-ND-4.0", "CC BY-NC 4.0"),
+        ("CC BY 2.0", "CC-BY 4.0"),
     ],
 )
-def test_a_licence_can_change_in_any_direction(current, new):
+def test_a_licence_can_change_to_a_less_restrictive_one(current, new):
     changes = item_changes(_item(license=current), MetadataEdit(license=new))
 
     expected = metadata.normalise_licence(new)
     assert changes.properties == {"license": expected}
     assert changes.history == [("license", current, expected)]
+
+
+@pytest.mark.parametrize(
+    ("current", "new"),
+    [
+        ("CC-BY-4.0", "CC BY-NC 4.0"),
+        ("CC-BY-4.0", "CC BY-SA 4.0"),
+        # Each takes away something the other allows.
+        ("CC-BY-NC-4.0", "CC BY-SA 4.0"),
+        ("CC-BY-SA-4.0", "CC BY-NC 4.0"),
+        ("CC0-1.0", "CC-BY 4.0"),
+        # No way to tell what an unknown licence allows.
+        ("ODbL-1.0", "CC-BY 4.0"),
+    ],
+)
+def test_a_licence_cannot_change_to_a_more_restrictive_one(current, new):
+    with pytest.raises(LicenceMoreRestrictive):
+        item_changes(_item(license=current), MetadataEdit(license=new))
 
 
 def test_a_licence_oam_does_not_offer_is_refused():

@@ -19,7 +19,12 @@ from app.auth import organisations
 from app.auth.auth_deps import get_user_sub, login_required, session_token
 from app.db.database import db_conn
 from app.db.models import DbImageryChange
-from app.imagery.metadata import LicenceNotOffered, MetadataEdit, item_changes
+from app.imagery.metadata import (
+    LicenceMoreRestrictive,
+    LicenceNotOffered,
+    MetadataEdit,
+    item_changes,
+)
 from app.uploads import pgstac
 
 log = logging.getLogger(__name__)
@@ -117,6 +122,15 @@ async def update_imagery(
             detail=(
                 "OpenAerialMap does not offer that licence. Choose CC-BY 4.0, "
                 "CC BY-NC 4.0 or CC BY-SA 4.0."
+            ),
+        ) from None
+    except LicenceMoreRestrictive:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "People already use this imagery under its current licence, so "
+                "it can only change to a less restrictive one. Keep the current "
+                "licence or choose one that allows more."
             ),
         ) from None
 

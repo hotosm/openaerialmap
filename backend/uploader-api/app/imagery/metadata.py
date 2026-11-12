@@ -5,6 +5,7 @@ API does not depend on that package, which would bring rasterio into the image,
 so keep the two in step by hand.
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -12,6 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # The licences the upload form offers, as ingest stores them.
 LICENCES = ("CC-BY-4.0", "CC-BY-NC-4.0", "CC-BY-SA-4.0")
+
+# A Creative Commons BY licence; the group holds what it adds to attribution.
+_CC_BY = re.compile(r"CC-BY((?:-(?:NC|ND|SA))*)-\d+(?:\.\d+)?")  # codespell:ignore
 
 # Same cap as upload metadata in app/uploads/schemas.py.
 MAX_VALUE_LENGTH = 500
@@ -25,6 +29,10 @@ _PROVIDER_ROLES = ["producer", "licensor"]
 
 class LicenceNotOffered(Exception):
     """The edit names a licence the upload form does not offer."""
+
+
+class LicenceMoreRestrictive(Exception):
+    """The edit takes away something the current licence allows."""
 
 
 class MetadataEdit(BaseModel):
@@ -66,6 +74,20 @@ def normalise_licence(value: str) -> str:
     return "-".join(value.upper().split())
 
 
+def _restrictions(licence: str) -> frozenset[str] | None:
+    """Return what a CC BY licence adds to attribution; None for any other."""
+    match = _CC_BY.fullmatch(normalise_licence(licence))
+    if match is None:
+        return None
+    return frozenset(match.group(1).split("-")) - {""}
+
+
+def _opens_up(current: str, new: str) -> bool:
+    """Return whether `new` allows everything `current` does."""
+    old, wanted = _restrictions(current), _restrictions(new)
+    return old is not None and wanted is not None and wanted <= old
+
+
 def clean_contact(value: str) -> str:
     """Drop email addresses, which must not be published on an Item."""
     parts = (p.strip() for p in value.split(","))
@@ -83,7 +105,8 @@ def _first(values: Any) -> str | None:
 def item_changes(item: dict[str, Any], edit: MetadataEdit) -> Changes:
     """Return the changes `edit` makes to `item`, leaving out what is unchanged.
 
-    Raises `LicenceNotOffered` for a licence the upload form does not offer.
+    Raises `LicenceNotOffered` for a licence the upload form does not offer,
+    and `LicenceMoreRestrictive` for one that allows less than the current one.
     """
     props = item.get("properties") or {}
     changes = Changes()
@@ -108,11 +131,12 @@ def item_changes(item: dict[str, Any], edit: MetadataEdit) -> Changes:
     if edit.license is not None:
         old_licence = _text(props.get("license"))
         new_licence = normalise_licence(edit.license)
-        # Any direction is fine: people keep the terms they got the imagery
-        # under, and imagery_changes records when each licence applied.
         if new_licence != normalise_licence(old_licence or ""):
             if new_licence not in LICENCES:
                 raise LicenceNotOffered(new_licence)
+            # Never more restrictive: people already rely on the current terms.
+            if old_licence and not _opens_up(old_licence, new_licence):
+                raise LicenceMoreRestrictive(new_licence)
             changes.set("license", props.get("license"), new_licence)
             changes.history.append(("license", old_licence, new_licence))
 
