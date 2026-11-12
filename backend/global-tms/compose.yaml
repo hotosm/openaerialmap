@@ -24,7 +24,7 @@ services:
   register-mosaic:
     image: docker.io/curlimages/curl:8.21.0
     environment:
-      TITILER_URL: ${TITILER_URL:-https://api.imagery.hotosm.org/raster}
+      TITILER_URL: ${TITILER_URL:-https://tiles.imagery.hotosm.org/raster}
       # JSON array; the first entry is the fallback if registration fails.
       COLLECTIONS: ${COLLECTIONS:-["openaerialmap"]}
     volumes:

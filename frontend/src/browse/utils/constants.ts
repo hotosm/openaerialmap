@@ -31,7 +31,7 @@ export const COLLECTION_COUNT_PREFIX = "count_col_";
 // TiTiler endpoint for per-item bounds, previews, and raster tiles.
 export const STAC_TITILER_URL = getRuntimeConfig(
   "VITE_STAC_TITILER_URL",
-  "https://api.imagery.hotosm.org/raster",
+  "https://tiles.imagery.hotosm.org/raster",
 );
 
 // STAC root used to build browser deep links.

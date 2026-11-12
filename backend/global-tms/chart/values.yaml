@@ -15,7 +15,7 @@ pmtiles:
 # z14+ redirects to a titiler-pgstac mosaic of these collections.
 # Keep in step with FOOTPRINT_COLLECTIONS on the global-mosaic CronJob.
 titiler:
-  url: "https://api.imagery.hotosm.org/raster"
+  url: "https://tiles.imagery.hotosm.org/raster"
 collections:
   - openaerialmap
 
