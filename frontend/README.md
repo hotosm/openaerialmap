@@ -64,8 +64,9 @@ every zoom, with a dot per image below `FOOTPRINT_MIN_ZOOM`.
 - The same people get an **Edit…** button for the title, provider,
   contact, platform, sensor and licence. The dialog loads the Item from the
   STAC API, since the card has no contact and shows formatted values, and
-  sends only what changed. Every change is recorded by the uploader, so it
-  is known which licence applied when.
+  sends only what changed. The licence select offers only less restrictive
+  licences, the rule the uploader enforces. Every change is recorded by the
+  uploader, so it is known which licence applied when.
 
 To see your own uploads locally, `VITE_STAC_URL` has to point at the
 local STAC API; it defaults to production.

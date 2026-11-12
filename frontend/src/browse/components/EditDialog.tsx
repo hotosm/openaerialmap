@@ -37,6 +37,21 @@ const LICENCES: Option[] = [
 const normaliseLicence = (value: string) =>
   value.toUpperCase().split(/\s+/).filter(Boolean).join("-");
 
+// What a CC BY licence adds to attribution; null for any other licence.
+const restrictions = (licence: string) => {
+  const match = /^CC-BY((?:-(?:NC|ND|SA))*)-\d+(?:\.\d+)?$/.exec(licence); // codespell:ignore
+  return match ? match[1].split("-").filter(Boolean) : null;
+};
+
+// The uploader refuses a licence that allows less than the current one, since
+// people already rely on its terms. An Item without one can get any.
+const opensUp = (current: string, next: string) => {
+  if (!current) return true;
+  const from = restrictions(current);
+  const to = restrictions(next);
+  return !!from && !!to && to.every((r) => from.includes(r));
+};
+
 const INPUT_CLASS =
   "mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-800";
 
@@ -125,7 +140,10 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
       ? options
       : [{ value: current, label: current || "Not set" }, ...options];
   const platforms = withCurrent(PLATFORMS, original?.platform);
-  const licences = withCurrent(LICENCES, original?.license);
+  const licences = withCurrent(
+    LICENCES.filter((l) => !original || opensUp(original.license, l.value)),
+    original?.license,
+  );
 
   return (
     <wa-dialog ref={dialog} open label="Edit imagery">
@@ -210,7 +228,8 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
                 ))}
               </select>
               <span className="block mt-1 font-normal text-gray-500">
-                People who already use this imagery keep the licence they got it under.
+                It can only change to a less restrictive licence: people already use this imagery
+                under the current one.
               </span>
             </label>
           </>
