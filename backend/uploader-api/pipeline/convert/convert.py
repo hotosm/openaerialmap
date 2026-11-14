@@ -36,6 +36,8 @@ GDAL_CACHEMAX = os.environ.get("COG_GDAL_CACHEMAX", "512")  # MB (values <100000
 VERIFY = os.environ.get("COG_VERIFY", "on").lower() != "off"
 VALIDATE = os.environ.get("COG_VALIDATE", "on").lower() != "off"
 TMPDIR = os.environ.get("CPL_TMPDIR", "/data/tmp")
+# GDAL rewrites compressed temp blocks, growing the file past raw size.
+TMP_COMPRESSION = "NONE"
 # Fixed JPEG q90 keeps output within validate's measured disk budget.
 # JPEG matches the catalogue and avoids WEBP compatibility issues (#342).
 # GDAL writes YCbCr with alpha stored as a mask band.
@@ -282,6 +284,7 @@ def convert_to_cog(src_path: str, dst_path: str, meta_path: str | None = None) -
         "GDAL_NUM_THREADS": NUM_THREADS,
         "GDAL_CACHEMAX": int(GDAL_CACHEMAX),
         "CPL_TMPDIR": TMPDIR,
+        "COG_TMP_COMPRESSION": TMP_COMPRESSION,
     }
     # An open dataset rather than a path, so the copy goes through READ_DRIVER.
     with rasterio.Env(**env):

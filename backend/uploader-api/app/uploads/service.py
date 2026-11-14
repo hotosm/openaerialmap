@@ -19,7 +19,7 @@ from app.auth.auth_deps import get_user_display_name, mirror_user
 from app.blocking import run_blocking
 from app.config import settings
 from app.db.models import ANONYMOUS_SUB, DbUpload, UploadStatus
-from app.uploads import argo, source_links, url_guard
+from app.uploads import argo, source_links, tiff_header, url_guard
 from app.uploads.s3 import build_key, internal_client, safe_filename
 from app.uploads.schemas import (
     CreateMultipartBody,
@@ -111,6 +111,21 @@ async def _object_size(key: str) -> int | None:
     return head.get("ContentLength")
 
 
+async def _object_grid(key: str) -> tiff_header.Grid | None:
+    """Read an uploaded TIFF's grid, None if it cannot be read."""
+    try:
+        return await run_blocking(tiff_header.read_grid, key)
+    except Exception:  # noqa: BLE001
+        log.warning("Could not read %s's grid; sizing by bytes", key, exc_info=True)
+        return None
+
+
+def may_convert_lossy(dataset_meta: dict | None) -> bool:
+    """Return False if convert goes lossless: anything declared but "visual"."""
+    declared = str((dataset_meta or {}).get("product_type", ""))
+    return declared.strip().lower() in ("", "visual")
+
+
 async def start_processing(db: AsyncConnection, upload: DbUpload) -> str | None:
     """Submit the processing workflow for a stored upload row.
 
@@ -148,8 +163,10 @@ async def start_processing(db: AsyncConnection, upload: DbUpload) -> str | None:
         return None
 
     # Sizes the workspace volume: the object itself, not the browser's claim
-    # about it. A remote source has no object yet and gets the ceiling.
+    # about it. A remote source has no object yet and gets the remote default.
     size_bytes = None if remote else await _object_size(upload.s3_key)
+    lossy = may_convert_lossy(upload.dataset_meta)
+    grid = await _object_grid(upload.s3_key) if lossy and not remote else None
     try:
         workflow_name = await run_blocking(
             argo.submit_geotiff_workflow,
@@ -161,6 +178,7 @@ async def start_processing(db: AsyncConnection, upload: DbUpload) -> str | None:
             callback_token=token,
             remote_source=remote,
             size_bytes=size_bytes,
+            grid=grid,
         )
     except Exception as err:  # noqa: BLE001
         log.exception("Submitting the workflow for upload %s failed", upload.id)

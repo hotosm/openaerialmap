@@ -25,6 +25,13 @@ peaked at 0.72-0.83x in measurements (#365). Keep GDAL's overview temp lossless
 ZSTD: lossy temp files halve peak disk use but reduce overview quality to
 36 dB at q90.
 
+Amended November 2026: the overview temp stays lossless but is uncompressed.
+GDAL rewrites temp blocks while building the pyramid, so on a Maxar crop the
+ZSTD temp was 1.8x the raw pyramid it held; uncompressed it is the pyramid,
+and that conversion took a third less time. Full resolution is unchanged;
+lossy overviews at 4x and coarser differ slightly, equally close to a box
+average of the source.
+
 Record the lossy codec in lineage and the visual asset title. Existing items
 are not converted again.
 
