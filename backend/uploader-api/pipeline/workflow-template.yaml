@@ -211,6 +211,11 @@ spec:
     # rechecked on every redirect, and TIFF bytes or a narrowly handled ODM
     # all.zip archive containing that TIFF.
     - name: fetch-source
+      # Stop Karpenter consolidating a node mid-step ("pod deleted"). Not on
+      # report-status: the exit handler has no deadline to release a node.
+      metadata: &keepNode
+        annotations:
+          karpenter.sh/do-not-disrupt: "true"
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/fetch:{{workflow.parameters.image-tag}}
         # image-tag is mutable in production (`main`), and anything but
@@ -253,13 +258,15 @@ spec:
           limits: {memory: "1Gi", cpu: "1"}
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        # OnFailure never retries an Error, so the expression needs Always.
+        retryPolicy: "Always"
         # Only retry what a retry could fix. A 404, a rejected host or bytes
         # that are not a GeoTIFF fail identically every time, and the uploader
         # has already been told which of those it was.
         expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) == 75"
 
     - name: validate-geotiff
+      metadata: *keepNode
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/validate:{{workflow.parameters.image-tag}}
         imagePullPolicy: Always
@@ -283,11 +290,12 @@ spec:
           limits: { memory: "4Gi", cpu: "2" }
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
         # Only 75, the one exit that is about the workspace and not the file.
         expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) == 75"
 
     - name: convert-cog
+      metadata: *keepNode
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/convert:{{workflow.parameters.image-tag}}
         imagePullPolicy: Always
@@ -306,11 +314,14 @@ spec:
           # Memory follows cache size; storage must also fit temporary files.
           requests: { memory: "2Gi", cpu: "2" }
           limits: { memory: "4Gi", cpu: "4" }
+      # Retry a lost or killed pod, not the step's own failure (exit 1).
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
+        expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) != 1"
 
     - name: build-metadata
+      metadata: *keepNode
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/metadata:{{workflow.parameters.image-tag}}
         imagePullPolicy: Always
@@ -334,9 +345,11 @@ spec:
           limits: { memory: "4Gi", cpu: "2" }
       retryStrategy:
         limit: "2"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
+        expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) != 1"
 
     - name: s3-upload-cog
+      metadata: *keepNode
       container:
         image: amazon/aws-cli:2.36.15
         securityContext: *stepSecurity
@@ -363,9 +376,10 @@ spec:
           - { name: workspace, mountPath: /data }
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
 
     - name: s3-upload-meta
+      metadata: *keepNode
       container:
         image: amazon/aws-cli:2.36.15
         securityContext: *stepSecurity
@@ -392,9 +406,10 @@ spec:
           - { name: workspace, mountPath: /data }
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
 
     - name: register-stac
+      metadata: *keepNode
       container:
         image: ghcr.io/hotosm/openaerialmap/uploader/register:{{workflow.parameters.image-tag}}
         imagePullPolicy: Always
@@ -409,7 +424,7 @@ spec:
           - { name: workspace, mountPath: /data }
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
 
     # Validation failed, whatever the reason: say which one, and take the
     # rejected bytes back out of the bucket. Runs for every non-zero exit, not

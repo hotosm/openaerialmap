@@ -258,3 +258,27 @@ def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
         str(tmp_path), lambda: convert.convert_to_cog(src, str(tmp_path / "out.tif"))
     )
     assert peak - input_bytes <= 0.9 * noise.nbytes, (peak - input_bytes) / noise.nbytes
+
+
+def test_a_retry_starts_from_a_clean_workspace(tmp_path):
+    """A killed attempt leaves GDAL temps named for its own PID behind."""
+    tmp = tmp_path / "tmp"
+    tmp.mkdir()
+    stale = tmp / "output_1234_2.ovr.tmp"
+    stale.write_bytes(b"\0" * 1024)
+    (tmp_path / "output.tif").write_bytes(b"partial")
+    _meta(tmp_path, product_type="visual")
+    dst, _ = _convert(tmp_path, _write(tmp_path / "input.tif", _scene()))
+    assert not stale.exists()
+    with rasterio.open(dst) as out:
+        assert out.width == SIZE
+
+
+def test_a_temp_directory_holding_the_input_is_refused(tmp_path, monkeypatch):
+    """Clearing CPL_TMPDIR=/data would delete the upload."""
+    monkeypatch.setattr(convert, "TMPDIR", str(tmp_path))
+    _meta(tmp_path, product_type="visual")
+    src = _write(tmp_path / "input.tif", _scene())
+    with pytest.raises(ValueError, match="must not contain the input"):
+        convert.convert_to_cog(src, str(tmp_path / "output.tif"))
+    assert os.path.exists(src)
