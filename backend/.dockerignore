@@ -6,6 +6,8 @@ tilepack-api
 uploader-api/app
 # Except the address rules, which the fetch step image ships.
 !uploader-api/app/uploads/url_guard.py
+# And the disk bound the convert tests check against.
+!uploader-api/app/uploads/budget.py
 uploader-api/chart
 uploader-api/migrations
 uploader-api/scripts
