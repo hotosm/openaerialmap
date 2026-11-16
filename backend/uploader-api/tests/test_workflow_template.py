@@ -288,6 +288,50 @@ def test_a_report_pod_that_never_ran_is_retried():
     assert int(retry["limit"]) >= 1
 
 
+@pytest.mark.parametrize(
+    "step",
+    [
+        "fetch-source",
+        "validate-geotiff",
+        "convert-cog",
+        "build-metadata",
+        "s3-upload-cog",
+        "s3-upload-meta",
+        "register-stac",
+    ],
+)
+def test_karpenter_does_not_consolidate_a_node_out_from_under_a_step(step):
+    """Consolidation evicted convert pods mid-run; Argo reports "pod deleted"."""
+    annotations = STEPS[step]["metadata"]["annotations"]
+    assert annotations["karpenter.sh/do-not-disrupt"] == "true"
+
+
+def test_the_exit_handler_cannot_pin_a_node():
+    """Exit-handler pods are outside the workflow deadline."""
+    assert "podMetadata" not in SPEC
+    assert "metadata" not in STEPS["report-status"]
+
+
+@pytest.mark.parametrize(
+    "step", [name for name, t in STEPS.items() if "retryStrategy" in t]
+)
+def test_a_lost_pod_is_retried(step):
+    """OnFailure never retries an Error, which is what a lost pod becomes."""
+    retry = STEPS[step]["retryStrategy"]
+    assert retry["retryPolicy"] == "Always", step
+    if "expression" in retry:
+        assert "lastRetry.status == 'Error'" in retry["expression"], step
+
+
+@pytest.mark.parametrize("step", ["convert-cog", "build-metadata"])
+def test_a_failed_conversion_is_not_run_again(step):
+    """Exit 1 is the step's own failure; a kill (137, 143) or eviction is not."""
+    retry = STEPS[step]["retryStrategy"]
+    assert retry["expression"] == (
+        "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) != 1"
+    )
+
+
 def test_progress_is_reported_by_tasks_argo_will_accept():
     """`continueOn` alongside `depends` is a lint error, not a no-op."""
     for name, task in TASKS.items():

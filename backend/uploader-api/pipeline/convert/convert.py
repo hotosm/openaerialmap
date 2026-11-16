@@ -4,6 +4,7 @@ import datetime as dt
 import json
 import logging
 import os
+import shutil
 import sys
 from xml.sax.saxutils import escape
 
@@ -235,10 +236,18 @@ def convert_to_cog(src_path: str, dst_path: str, meta_path: str | None = None) -
     if meta_path is None:
         meta_path = os.path.join(os.path.dirname(src_path), "meta.json")
     declared = _declared_product_type(meta_path)
+    # A retry must not inherit a killed attempt's temp files or partial output.
+    tmp = os.path.abspath(TMPDIR)
+    if os.path.commonpath([tmp, os.path.abspath(src_path)]) == tmp:
+        raise ValueError(f"CPL_TMPDIR {TMPDIR} must not contain the input")
+    shutil.rmtree(TMPDIR, ignore_errors=True)
+    for stale in (dst_path, f"{dst_path}.json"):
+        if os.path.exists(stale):
+            os.remove(stale)
+    os.makedirs(TMPDIR, exist_ok=True)
     with rasterio.open(src_path, driver=READ_DRIVER) as src:
         dtype = src.dtypes[0]
         lossy = _lossy_visual(src, declared)
-        os.makedirs(TMPDIR, exist_ok=True)
         vrt_xml = _rgba_vrt(src_path, src, TMPDIR) if lossy else None
 
     creation: dict = {
