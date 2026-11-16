@@ -59,11 +59,13 @@ def test_the_uploading_account_reaches_the_item(tmp_path):
     item = _item(
         tmp_path,
         uploader_id="hotosm|1234",
+        owner_id="hotosm|1234",
         uploader_name="tester",
         uploader_email="tester@example.org",
     )
 
     assert item["properties"]["oam:uploader_id"] == "hotosm|1234"
+    assert item["properties"]["oam:owner_id"] == "hotosm|1234"
     assert item["properties"]["oam:uploader_name"] == "tester"
     assert "oam:uploader_email" not in item["properties"]
 
@@ -75,6 +77,7 @@ def test_an_anonymous_upload_says_so(tmp_path):
     assert item["properties"]["oam:uploader_id"] == "custom|anonymous"
     assert "oam:uploader_name" not in item["properties"]
     assert "oam:uploader_email" not in item["properties"]
+    assert "oam:owner_id" not in item["properties"]
 
 
 def test_an_import_without_an_account_omits_the_fields(tmp_path):
@@ -82,3 +85,4 @@ def test_an_import_without_an_account_omits_the_fields(tmp_path):
     item = _item(tmp_path)
 
     assert "oam:uploader_id" not in item["properties"]
+    assert "oam:owner_id" not in item["properties"]
