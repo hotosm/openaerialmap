@@ -87,6 +87,11 @@ Why two files rather than one:
   raster TMS reuse the density file without pulling footprint
   metadata it can't render.
 
+The same job also publishes the catalog statistics as static JSON
+(`stats.json` for the landing page, `stats/` for the statistics page,
+see `scripts/catalog_stats.py`). If the stats query grows heavy
+(e.g. a unique-area union), split it into its own daily job.
+
 ### Consequences
 
 - ✅ Cheap to serve: two static files on S3, easy to put behind a CDN,

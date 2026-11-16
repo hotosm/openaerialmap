@@ -19,7 +19,7 @@ Artifacts are produced and uploaded in ascending order of cost so
 a failure in a later stage never leaves a downstream service without
 a fresh input:
 
-  1. ``stats.json`` (landing page)
+  1. ``stats.json`` and ``stats/`` (landing and statistics pages)
   2. ``global-coverage.pmtiles`` density grid (global-tms)
   3. ``global-data.pmtiles`` footprints (frontend browser)
 """
@@ -34,6 +34,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
+import catalog_stats
 import pyarrow as pa
 import pyarrow.parquet as pq
 import tylertoo
@@ -57,7 +58,7 @@ if not PG_DSN:
 COLLECTION = os.getenv("COLLECTION", "openaerialmap")
 
 # Deployment allowlist for collections shown in the browser.
-# Footprints and density use it; stats remain scoped to COLLECTION.
+# Footprints and density use it; stats use catalog_stats.py's groups.
 FOOTPRINT_COLLECTIONS = [
     c.strip()
     for c in os.getenv("FOOTPRINT_COLLECTIONS", COLLECTION).split(",")
@@ -713,62 +714,40 @@ def footprints_to_pmtiles() -> None:
 # =====================================================================
 
 
-def write_stats() -> None:
+def write_stats() -> dict[str, list[tuple[str, str]]]:
     """
-    Query PgSTAC and write catalog stats to a small JSON file. Powers
-    the OAM landing page without needing per-pageview STAC API calls.
+    Compute the catalog figures (see catalog_stats.py) and write them as JSON:
+    ``stats.json`` for the landing page, ``stats/*.json`` for the statistics
+    page, and ``stats/history/<date>.json`` keeping one headline snapshot per
+    day. Returns the files to upload, by object key prefix.
     """
     log.info("Computing catalog stats...")
+    now = datetime.now(UTC)
+    with connect(PG_DSN) as conn:
+        docs = catalog_stats.compute(conn, now)
 
-    oam_query = """
-        SELECT
-            COUNT(*)::bigint AS items,
-            COALESCE(SUM(ST_Area(geometry::geography)) / 1e6, 0)::double precision
-                AS area_km2,
-            MAX(COALESCE(
-                (content->>'datetime')::timestamptz,
-                (content->>'start_datetime')::timestamptz
-            )) AS latest_capture
-        FROM pgstac.items
-        WHERE collection = %s
-    """
-    catalog_query = """
-        SELECT
-            (SELECT COUNT(*)::bigint FROM pgstac.items) AS total_items,
-            (SELECT COUNT(*)::bigint FROM pgstac.collections) AS collections
-    """
+    landing = catalog_stats.landing(docs)
+    stats_dir = Path(OUTPUT_STATS).parent / "stats"
+    files = [(Path(OUTPUT_STATS), "", landing)]
+    files += [(stats_dir / name, "stats/", doc) for name, doc in docs.items()]
+    files.append(
+        (
+            stats_dir / "history" / f"{now.date()}.json",
+            "stats/history/",
+            docs["index.json"],
+        )
+    )
+    uploads: dict[str, list[tuple[str, str]]] = {}
+    for path, prefix, doc in files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc, indent=2, default=_iso) + "\n")
+        uploads.setdefault(prefix, []).append((str(path), "application/json"))
+    log.info(f"Stats written: {landing}")
+    return uploads
 
-    try:
-        with connect(PG_DSN) as conn, conn.cursor() as cur:
-            cur.execute(oam_query, [COLLECTION])
-            items, area_km2, latest = cur.fetchone()
 
-            cur.execute(catalog_query)
-            total_items, total_collections = cur.fetchone()
-    except Exception as e:
-        log.error(f"Stats query failed: {e}")
-        raise
-
-    stats = {
-        "generated_at": datetime.now(UTC)
-        .isoformat(timespec="seconds")
-        .replace("+00:00", "Z"),
-        "collection": COLLECTION,
-        "items": int(items),
-        "area_km2": round(area_km2),
-        "latest_capture": (
-            latest.isoformat().replace("+00:00", "Z") if latest else None
-        ),
-        "catalog": {
-            "total_items": int(total_items),
-            "collections": int(total_collections),
-        },
-    }
-
-    Path(OUTPUT_STATS).parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_STATS, "w") as f:
-        json.dump(stats, f, indent=2)
-    log.info(f"Stats written to {OUTPUT_STATS}: {stats}")
+def _iso(value: datetime) -> str:
+    return value.isoformat().replace("+00:00", "Z")
 
 
 def _s3_client() -> Minio | None:
@@ -790,10 +769,10 @@ def _s3_client() -> Minio | None:
     )
 
 
-def upload_artifacts(artifacts: list[tuple[str, str]]) -> None:
+def upload_artifacts(artifacts: list[tuple[str, str]], prefix: str = "") -> None:
     """
     Upload a list of (local_path, content_type) pairs to the OAM S3
-    bucket, keying by basename. Silently no-ops if S3 creds are missing
+    bucket, keying by prefix + basename. Silently no-ops if S3 creds are missing
     (useful for local runs) or if the file doesn't exist (the caller may
     invoke this after a failed generation step).
     """
@@ -814,7 +793,7 @@ def upload_artifacts(artifacts: list[tuple[str, str]]) -> None:
         if not Path(path).exists():
             log.warning(f"Skipping upload of {path}: file not found")
             continue
-        obj_key = Path(path).name
+        obj_key = prefix + Path(path).name
         log.info(f"Uploading {path} to s3://{bucket}/{obj_key}")
         try:
             client.fput_object(
@@ -837,9 +816,9 @@ if __name__ == "__main__":
     # so a failure or timeout in a later stage never leaves a downstream
     # service without a fresh input.
 
-    # --- Stage 1: stats (tiny JSON, powers landing page) --------------
-    write_stats()
-    upload_artifacts([(OUTPUT_STATS, "application/json")])
+    # --- Stage 1: stats (small JSON, landing and statistics pages) ----
+    for prefix, artifacts in write_stats().items():
+        upload_artifacts(artifacts, prefix)
 
     # --- Stage 2: density (small PMTiles, TMS-critical) ---------------
     if not Path(OUTPUT_DENSITY_PMTILES).exists():
