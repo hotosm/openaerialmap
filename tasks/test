@@ -87,15 +87,12 @@ stactools: _install-uv
   ./scripts/typecheck
   uv lock --check
 
-# global-mosaic coverage script tests. pytest and a bundled libpq come in
-# per run, so neither lands in the job image, which syncs every group.
+# global-mosaic script tests in its built image, including the catalog stats
+# tests against a throwaway pgstac (test-pgstac).
 [no-cd]
-global-mosaic: _install-uv
-  #!/usr/bin/env bash
-  set -euo pipefail
-  export PATH="$HOME/.local/bin:$PATH"
-  cd {{justfile_directory()}}/backend/global-mosaic
-  uv run --with pytest --with "psycopg[binary]" pytest tests
+global-mosaic:
+  {{docker}} compose -f compose.test.yaml run --rm --build test-global-mosaic
+  {{docker}} compose -f compose.test.yaml rm -sf test-pgstac
 
 # Tilepack API Go + Python worker tests. Chart lint: `just chart tilepack-api lint`.
 [no-cd]
