@@ -21,14 +21,17 @@ try:
         get_current_user_optional,
         setup_auth,
     )
-
-    # Not re-exported by the package, but the function hotosm-auth itself
-    # authenticates with, so Login is sent the token that signed the user in.
-    from hotosm_auth_litestar.dependencies import get_token_from_request
 except ImportError:  # pragma: no cover
     get_current_user = None
     get_current_user_optional = None
     setup_auth = None
+
+# The function hotosm-auth itself authenticates with, so Login is sent the
+# token that signed the user in. The package does not re-export it, so it gets
+# its own guard: if it moves, only organisations stop working, not sign-in.
+try:
+    from hotosm_auth_litestar.dependencies import get_token_from_request
+except ImportError:  # pragma: no cover
     get_token_from_request = None
 
 _LOCAL_ADMIN = SimpleNamespace(sub="custom|1", username="localadmin", is_admin=True)
