@@ -258,7 +258,8 @@ async def create_upload_row(
     """Validate, admit and persist a new upload, whichever way the bytes arrive.
 
     Resolving a source URL means DNS, the one step a caller can make arbitrarily
-    slow, so it happens after the cheap indexed checks.
+    slow, so it happens after the cheap indexed checks. So does asking Login
+    about an organisation: a 429 or 409 the caller can act on beats a 503.
     """
     title = data.title.strip()
     if not title:
@@ -273,12 +274,12 @@ async def create_upload_row(
         # The one published field that names a person, however it was filled in.
         dataset_meta.pop("contact", None)
     external_id, external_url = clean_external(data)
-    owner_id = await _resolve_owner(auth_user, data, session_token)
 
     user_sub = await _require_quota(db, auth_user, data.anonymous)
     existing = await DbUpload.find_by_external_id(db, external_id or "")
     if existing:
         raise _external_id_conflict(external_id, existing)
+    owner_id = await _resolve_owner(auth_user, data, session_token)
 
     if source_url:
         source_url = await _checked_source_url(source_url)

@@ -16,6 +16,7 @@ from app.auth.auth_deps import session_token
 from app.db.models import ANONYMOUS_SUB, DbUser
 from app.htmx.page_routes import upload_page
 from app.main import _configure_templates
+from app.uploads import service
 from app.uploads.schemas import CreateMultipartBody, CreateRemoteUploadBody
 from app.uploads.service import create_upload_row
 
@@ -127,6 +128,23 @@ async def test_login_down_fails_closed(db, monkeypatch, account):
             db, account, _body(owner=_ORG.owner_id), message="", session_token="tok"
         )
     assert err.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_a_full_quota_answers_before_login_is_asked(db, monkeypatch, account):
+    """A 429 the caller can act on beats a 503 while Login is down."""
+
+    async def down(user_sub, session_token):
+        raise organisations.LoginUnavailable("down")
+
+    monkeypatch.setattr(organisations, "user_organisations", down)
+    monkeypatch.setattr(service.settings, "MAX_ACTIVE_UPLOADS_PER_USER", 0)
+
+    with pytest.raises(HTTPException) as err:
+        await create_upload_row(
+            db, account, _body(owner=_ORG.owner_id), message="", session_token="tok"
+        )
+    assert err.value.status_code == 429
 
 
 def test_the_session_token_is_read_as_hotosm_auth_reads_it():
