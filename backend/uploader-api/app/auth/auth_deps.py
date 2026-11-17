@@ -21,10 +21,15 @@ try:
         get_current_user_optional,
         setup_auth,
     )
+
+    # Not re-exported by the package, but the function hotosm-auth itself
+    # authenticates with, so Login is sent the token that signed the user in.
+    from hotosm_auth_litestar.dependencies import get_token_from_request
 except ImportError:  # pragma: no cover
     get_current_user = None
     get_current_user_optional = None
     setup_auth = None
+    get_token_from_request = None
 
 _LOCAL_ADMIN = SimpleNamespace(sub="custom|1", username="localadmin", is_admin=True)
 
@@ -108,10 +113,9 @@ def session_token(request: Request) -> str | None:
     Forwarded to Login when it has to answer for this account (organisation
     membership). Nothing here reads it.
     """
-    scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    if scheme.lower() == "bearer" and token:
-        return token
-    return request.cookies.get("hanko")
+    if get_token_from_request is None:
+        return None
+    return get_token_from_request(request)
 
 
 def _auth_disabled() -> bool:
