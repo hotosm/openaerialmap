@@ -100,6 +100,26 @@ async def test_an_unreachable_login_raises_and_is_not_cached(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"text": "<html>Maintenance</html>"},
+        {"json": {"groups": None}},
+        {"json": {"groups": ["org-1"]}},
+    ],
+    ids=["html", "null-groups", "string-groups"],
+)
+async def test_an_unreadable_answer_raises_and_is_not_cached(monkeypatch, body):
+    """A 200 Login cannot be read from fails closed, as an outage does."""
+    seen = _answer(monkeypatch, lambda r: httpx.Response(200, **body))
+
+    for _ in range(2):
+        with pytest.raises(organisations.LoginUnavailable):
+            await organisations.user_organisations(_SUB, "tok")
+    assert len(seen) == 2
+
+
+@pytest.mark.asyncio
 async def test_without_login_or_a_session_nobody_has_organisations(monkeypatch):
     seen = _answer(monkeypatch, lambda r: httpx.Response(200, json=_GROUPS))
 

@@ -44,7 +44,7 @@ class Organisation:
 
 
 class LoginUnavailable(Exception):
-    """Login did not answer, so membership could not be checked."""
+    """Login did not answer usefully, so membership could not be checked."""
 
 
 _cache: dict[str, tuple[float, list[Organisation]]] = {}
@@ -57,7 +57,7 @@ async def user_organisations(
 
     Empty when organisations are not configured (`LOGIN_API_URL`), the request
     carries no session, or Login rejects it. Raises `LoginUnavailable` when
-    Login cannot be reached; that answer is never cached.
+    Login cannot be reached or its answer cannot be read; that is never cached.
     """
     if not settings.LOGIN_API_URL or not session_token:
         return []
@@ -86,7 +86,11 @@ async def user_organisations(
     elif resp.status_code != httpx.codes.OK:
         raise LoginUnavailable(f"HTTP {resp.status_code} from {url}")
     else:
-        orgs = _parse(resp.json())
+        # A proxy's HTML page or a changed contract, still served with 200.
+        try:
+            orgs = _parse(resp.json())
+        except (ValueError, TypeError, AttributeError) as err:
+            raise LoginUnavailable(f"Unexpected response from {url}") from err
 
     if len(_cache) >= _CACHE_MAX:
         _prune()
