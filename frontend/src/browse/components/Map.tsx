@@ -32,7 +32,7 @@ import {
   matchesFilters,
 } from "../utils/filters";
 import { toImageFeature, transformFeature } from "../utils/format";
-import { bboxAreaKm2, getFullBbox, type BBox } from "../utils/geo";
+import { bboxAreaKm2, footprintBbox, getFullBbox, type BBox } from "../utils/geo";
 import { ItemBoundsCache, fetchItemBounds, getTmsUrl, thumbUrl } from "../utils/tiles";
 import type { Filters, ImageFeature, RawFeature, RawTileProperties } from "../utils/types";
 import {
@@ -830,7 +830,7 @@ export default function OamMap({
       try {
         isProgrammaticMove.current = true;
         const full = selectedId ? getFullBbox(mapInstance, selectedId) : null;
-        const bounds = full ? full.bbox : (bbox(selectedFeature) as BBox);
+        const bounds = full ? full.bbox : footprintBbox([selectedFeature]);
         mapInstance.fitBounds(bounds, {
           padding: 50,
           maxZoom: 18,
@@ -1198,10 +1198,12 @@ export default function OamMap({
     points?.setData({
       type: "FeatureCollection",
       features: features.map((f) => {
-        const [w, s, e, n] = bbox(f);
+        const [w, s, e, n] = footprintBbox([f]);
+        // Past 180 the midpoint is on the next copy of the world; bring it back.
+        const lon = (w + e) / 2;
         return {
           type: "Feature",
-          geometry: { type: "Point", coordinates: [(w + e) / 2, (s + n) / 2] },
+          geometry: { type: "Point", coordinates: [lon > 180 ? lon - 360 : lon, (s + n) / 2] },
           properties: { _id: f.properties._id },
         };
       }),

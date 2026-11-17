@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
-import bbox from "@turf/bbox";
 import SiteHeader from "../SiteHeader";
 import { useAuthUser } from "../auth";
 import Map from "./components/Map";
@@ -18,7 +17,7 @@ import { matchesFilters } from "./utils/filters";
 import { toImageFeature } from "./utils/format";
 import type { BrowseMode, Filters, ImageFeature, RawFeature } from "./utils/types";
 import { EMPTY_FILTERS } from "./utils/types";
-import type { BBox } from "./utils/geo";
+import { footprintBbox, type BBox } from "./utils/geo";
 import {
   readInitialFilters,
   readInitialMode,
@@ -155,6 +154,9 @@ export default function Browse() {
   const search = useMyImagery(showingMine ? listedOwners : null);
   const mine = withAccount(search, account);
   const [transferring, setTransferring] = useState<ImageFeature | null>(null);
+  // With no organisations the user is the only owner, so there is nowhere to
+  // transfer to.
+  const canTransfer = (account.owners?.length ?? 0) > 1;
 
   const [features, setFeatures] = useState<ImageFeature[]>([]);
   const [seenCollections, setSeenCollections] = useState<string[]>([]);
@@ -166,8 +168,10 @@ export default function Browse() {
   const [mapBounds, setMapBounds] = useState<BBox | null>(null);
 
   // One-shot restore of ?selected_id, from whichever list carries it first:
-  // the viewport (see handleFeaturesUpdate) or My imagery (below). State
-  // rather than a ref so the render-time check stays lint-clean.
+  // the viewport (see handleFeaturesUpdate) or My imagery (below). It waits
+  // for the Item itself, since the viewport usually answers before the search
+  // and a fresh upload is not on the PMTiles yet. State rather than a ref so
+  // the render-time check stays lint-clean.
   const [urlSelectedId] = useState(readSelectedId);
   const [urlSelectionDone, setUrlSelectionDone] = useState(!urlSelectedId);
 
@@ -206,13 +210,31 @@ export default function Browse() {
   // setState out of an effect body - see react-hooks/set-state-in-effect.
   const handleFeaturesUpdate = (newFeatures: ImageFeature[]) => {
     setFeatures(newFeatures);
-    if (!urlSelectionDone && newFeatures.length > 0) {
-      setUrlSelectionDone(true);
+    if (!urlSelectionDone) {
       const feat = newFeatures.find((f) => f.properties.id === urlSelectedId);
       if (feat) {
+        setUrlSelectionDone(true);
         setSelectedFeature(feat);
       }
     }
+  };
+
+  // Shows a transfer without searching again, which would drop the pages
+  // loaded so far.
+  const handleTransferred = (item: ImageFeature, ownerId: string) => {
+    setTransferring(null);
+    mine.setOwner(item.properties.id, ownerId);
+    if (selectedFeature?.properties.id !== item.properties.id) return;
+    if (!listedOwners?.includes(ownerId)) {
+      // It went to an owner the list is narrowed away from, so it left the list.
+      handleSelectFeature(null);
+      return;
+    }
+    const ownerName = account.owners?.find((o) => o.id === ownerId)?.name;
+    setSelectedFeature({
+      ...selectedFeature,
+      properties: { ...selectedFeature.properties, ownerId, ownerName },
+    });
   };
 
   const handleFilterChange = (newFilters: Filters) => {
@@ -279,11 +301,7 @@ export default function Browse() {
           feature={transferring}
           owners={account.owners}
           onClose={() => setTransferring(null)}
-          onDone={() => {
-            setTransferring(null);
-            // The list comes from the search, so it shows the new owner at once.
-            mine.retry();
-          }}
+          onDone={(ownerId) => handleTransferred(transferring, ownerId)}
         />
       )}
 
@@ -311,9 +329,7 @@ export default function Browse() {
                   <button
                     type="button"
                     className="shrink-0 text-xs font-semibold text-cyan-600 hover:text-cyan-700 cursor-pointer"
-                    onClick={() =>
-                      setMapBbox(bbox({ type: "FeatureCollection", features: myFeatures }) as BBox)
-                    }
+                    onClick={() => setMapBbox(footprintBbox(myFeatures))}
                   >
                     Show on map
                   </button>
@@ -323,6 +339,7 @@ export default function Browse() {
               footer={<MyImageryMore mine={mine} />}
               resetKey={listedOwners?.join(",")}
               renderActions={(f) =>
+                canTransfer &&
                 account.owners?.find((o) => o.id === f.properties.ownerId)?.canEdit && (
                   <wa-button
                     size="s"

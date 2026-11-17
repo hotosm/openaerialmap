@@ -21,6 +21,8 @@ export interface MyImagery {
   moreError: string | null;
   loadMore: () => void;
   retry: () => void;
+  // Records a transfer the uploader has written, without searching again.
+  setOwner: (itemId: string, ownerId: string) => void;
 }
 
 // Stable, so memoised consumers do not recompute on every render.
@@ -108,6 +110,21 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
       });
   };
 
+  // A new search would drop the pages loaded so far, so the list is patched
+  // instead. An Item that went to an owner outside this search leaves it.
+  const setOwner = (itemId: string, ownerId: string) =>
+    setLoaded((prev) => {
+      if (!prev) return prev;
+      const features = prev.owners.split(",").includes(ownerId)
+        ? prev.features.map((f) =>
+            f.properties._id === itemId
+              ? { ...f, properties: { ...f.properties, owner_id: ownerId } }
+              : f,
+          )
+        : prev.features.filter((f) => f.properties._id !== itemId);
+      return { ...prev, features };
+    });
+
   return {
     features: current?.features ?? NONE,
     loading: !!owners && !current,
@@ -117,5 +134,6 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
     moreError: current?.moreError ?? null,
     loadMore,
     retry: () => setAttempt((a) => a + 1),
+    setOwner,
   };
 }

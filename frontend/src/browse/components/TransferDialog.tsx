@@ -8,8 +8,8 @@ interface Props {
   // Who the user may transfer to; the current owner is left out.
   owners: Owner[];
   onClose: () => void;
-  // Called once the uploader has written the new owner.
-  onDone: () => void;
+  // Called with the new owner once the uploader has written it.
+  onDone: (ownerId: string) => void;
 }
 
 // Hands published imagery to the user or one of their organisations. Mounted
@@ -36,8 +36,7 @@ export default function TransferDialog({ feature, owners, onClose, onDone }: Pro
     if (!ownerId) return;
     setState({ kind: "busy" });
     try {
-      await transferImagery(feature.properties.id, ownerId);
-      onDone();
+      onDone(await transferImagery(feature.properties.id, ownerId));
     } catch (err) {
       setState({ kind: "error", message: err instanceof Error ? err.message : "Request failed." });
     }

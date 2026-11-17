@@ -1,6 +1,6 @@
 import bbox from "@turf/bbox";
 import { polygon } from "@turf/helpers";
-import type { Feature, Polygon } from "geojson";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
 import type { GeoJSONFeature, Map as MapLibreMap } from "maplibre-gl";
 import { PMTILES_SOURCE_LAYER } from "./constants";
 
@@ -14,6 +14,35 @@ export function bboxAreaKm2(b: BBox): number {
   const widthKm = (b[2] - b[0]) * 111.32 * Math.cos((avgLat * Math.PI) / 180);
   const heightKm = (b[3] - b[1]) * 111.32;
   return Math.abs(widthKm * heightKm);
+}
+
+// Bbox of footprints that may cross the antimeridian. The pipeline cuts such
+// a footprint at ±180, so its plain bbox spans the planet. Counting the
+// western longitudes a full turn east puts the halves side by side again,
+// and the narrower of the two boxes is the real one. Its east can pass 180,
+// which MapLibre's fitBounds accepts.
+export function footprintBbox(features: Feature<Polygon | MultiPolygon>[]): BBox {
+  let west = Infinity;
+  let east = -Infinity;
+  let turnedWest = Infinity;
+  let turnedEast = -Infinity;
+  let south = Infinity;
+  let north = -Infinity;
+  for (const { geometry } of features) {
+    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+    for (const [lon, lat] of polygons.flat(2)) {
+      const turned = lon < 0 ? lon + 360 : lon;
+      if (lon < west) west = lon;
+      if (lon > east) east = lon;
+      if (turned < turnedWest) turnedWest = turned;
+      if (turned > turnedEast) turnedEast = turned;
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+    }
+  }
+  return turnedEast - turnedWest < east - west
+    ? [turnedWest, south, turnedEast, north]
+    : [west, south, east, north];
 }
 
 export function lon2tile(lon: number, zoom: number): number {

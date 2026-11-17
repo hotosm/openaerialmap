@@ -2,7 +2,8 @@ import { UPLOADER_TIMEOUT_MS, UPLOADER_URL } from "./constants";
 
 // The uploader is the only writer of published Items (ADR 0011). It checks
 // the session cookie and the ownership itself before touching pgstac.
-export async function transferImagery(itemId: string, ownerId: string): Promise<void> {
+// Resolves to the owner it wrote.
+export async function transferImagery(itemId: string, ownerId: string): Promise<string> {
   const res = await fetch(`${UPLOADER_URL}/api/v1/imagery/${encodeURIComponent(itemId)}`, {
     method: "PATCH",
     credentials: "include",
@@ -14,4 +15,6 @@ export async function transferImagery(itemId: string, ownerId: string): Promise<
     const err = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new Error(err.detail || `The uploader answered ${res.status}.`);
   }
+  const written = (await res.json().catch(() => ({}))) as { owner_id?: string };
+  return written.owner_id || ownerId;
 }
