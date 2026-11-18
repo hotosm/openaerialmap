@@ -14,9 +14,16 @@ import MiniMap from "./components/MiniMap";
 import { useMyImagery, type MyImagery } from "./useMyImagery";
 import { useOwners, type Owner, type Owners } from "./useOwners";
 import { UPLOADER_URL } from "./utils/constants";
+import type { MetadataChanges } from "./utils/imagery";
 import { matchesFilters } from "./utils/filters";
 import { toImageFeature } from "./utils/format";
-import type { BrowseMode, Filters, ImageFeature, RawFeature } from "./utils/types";
+import type {
+  BrowseMode,
+  Filters,
+  ImageFeature,
+  RawFeature,
+  RawTileProperties,
+} from "./utils/types";
 import { EMPTY_FILTERS } from "./utils/types";
 import { footprintBbox, type BBox } from "./utils/geo";
 import {
@@ -239,6 +246,23 @@ export default function Browse() {
     });
   };
 
+  // Patched in place too, so the edited card stays where the user left it.
+  const handleEdited = (item: ImageFeature, changes: MetadataChanges) => {
+    setEditing(null);
+    // The rest share their names with the search results; the card has no contact.
+    const shown = Object.fromEntries(
+      Object.entries(changes).filter(([key]) => key !== "contact"),
+    ) as Partial<RawTileProperties>;
+    mine.setProperties(item.properties.id, shown);
+    const raw = mine.features.find((f) => f.properties._id === item.properties.id);
+    if (!raw || selectedFeature?.properties.id !== item.properties.id) return;
+    const card = toImageFeature(raw.geometry, { ...raw.properties, ...shown });
+    setSelectedFeature({
+      ...card,
+      properties: { ...card.properties, ownerName: selectedFeature.properties.ownerName },
+    });
+  };
+
   const handleFilterChange = (newFilters: Filters) => {
     setFilters(newFilters);
     writeFilters(newFilters);
@@ -311,11 +335,7 @@ export default function Browse() {
         <EditDialog
           feature={editing}
           onClose={() => setEditing(null)}
-          onDone={() => {
-            setEditing(null);
-            // The list comes from the search, so it shows the changes at once.
-            mine.retry();
-          }}
+          onDone={(changes) => handleEdited(editing, changes)}
         />
       )}
 

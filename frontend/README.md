@@ -64,7 +64,9 @@ every zoom, with a dot per image below `FOOTPRINT_MIN_ZOOM`.
 - The same people get an **Edit…** button for the title, provider,
   contact, platform, sensor and licence. The dialog loads the Item from the
   STAC API, since the card has no contact and shows formatted values, and
-  sends only what changed. The licence select offers only less restrictive
+  sends only what changed, with the values it showed, so the uploader refuses
+  an edit made over someone else's. Saving patches the card in place, as a
+  transfer does. The licence select offers only less restrictive
   licences, the rule the uploader enforces. Every change is recorded by the
   uploader, so it is known which licence applied when.
 

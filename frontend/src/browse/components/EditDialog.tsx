@@ -6,8 +6,8 @@ import type { ImageFeature } from "../utils/types";
 interface Props {
   feature: ImageFeature;
   onClose: () => void;
-  // Called once the uploader has written the changes.
-  onDone: () => void;
+  // Called with what the uploader wrote.
+  onDone: (changes: MetadataChanges) => void;
 }
 
 type Fields = Required<MetadataChanges>;
@@ -52,8 +52,20 @@ const opensUp = (current: string, next: string) => {
   return !!from && !!to && to.every((r) => from.includes(r));
 };
 
+// The uploader's rule: an email address must not reach the public catalogue.
+const cleanContact = (value: string) =>
+  value
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p && !p.includes("@"))
+    .join(", ");
+
 const INPUT_CLASS =
   "mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-800";
+
+const HINT_CLASS = "block mt-1 font-normal text-gray-500";
+
+const PROBLEM_CLASS = "block mt-1 font-normal text-red-700";
 
 function fieldsOf(props: Record<string, unknown>): Fields {
   const text = (v: unknown) => (typeof v === "string" ? v : "");
@@ -108,27 +120,37 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
   const set = (key: keyof Fields) => (value: string) =>
     setFields((f) => (f ? { ...f, [key]: value } : f));
 
-  // Send only what changed, so a field someone else fixed meanwhile is kept.
+  // Send only what changed, so a field someone else fixed meanwhile is kept,
+  // with the value it had here, so the uploader can tell if it changed since.
   const changes: MetadataChanges = {};
+  const seen: MetadataChanges = {};
+  // An untouched contact is left as stored, even if an older Item has an email in it.
+  const contactEdited = !!fields && fields.contact.trim() !== original?.contact;
+  const contact = cleanContact(fields?.contact ?? "");
   if (original && fields) {
     for (const key of Object.keys(fields) as (keyof Fields)[]) {
-      if (fields[key].trim() !== original[key]) changes[key] = fields[key].trim();
+      const value = key === "contact" && contactEdited ? contact : fields[key].trim();
+      if (value !== original[key]) {
+        changes[key] = value;
+        seen[key] = original[key];
+      }
     }
   }
   const changed = Object.keys(changes).length > 0;
   // The uploader refuses an empty title or provider, and cannot clear a sensor.
-  const valid =
-    !!fields?.title.trim() &&
-    !!fields?.provider.trim() &&
-    (!original?.sensor || !!fields?.sensor.trim());
+  const noTitle = !!fields && !fields.title.trim();
+  const noProvider = !!fields && !fields.provider.trim();
+  const sensorRemoved = !!original?.sensor && !!fields && !fields.sensor.trim();
+  const contactDropped = contactEdited && !!fields?.contact.trim() && !contact;
+  const valid = !noTitle && !noProvider && !sensorRemoved;
   const busy = state.kind === "busy";
 
   const submit = async () => {
     if (!changed || !valid) return;
     setState({ kind: "busy" });
     try {
-      await updateImagery(feature.properties.id, changes);
-      onDone();
+      await updateImagery(feature.properties.id, changes, seen);
+      onDone(changes);
     } catch (err) {
       setState({ kind: "error", message: err instanceof Error ? err.message : "Request failed." });
     }
@@ -161,9 +183,11 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
                 className={INPUT_CLASS}
                 value={fields.title}
                 maxLength={200}
+                required
                 disabled={busy}
                 onChange={(e) => set("title")(e.target.value)}
               />
+              {noTitle && <span className={PROBLEM_CLASS}>A title is required.</span>}
             </label>
             <label className="block text-xs font-semibold text-gray-600">
               Provider / producer
@@ -171,9 +195,11 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
                 className={INPUT_CLASS}
                 value={fields.provider}
                 maxLength={500}
+                required
                 disabled={busy}
                 onChange={(e) => set("provider")(e.target.value)}
               />
+              {noProvider && <span className={PROBLEM_CLASS}>A provider is required.</span>}
             </label>
             <label className="block text-xs font-semibold text-gray-600">
               Contact
@@ -184,9 +210,15 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
                 disabled={busy}
                 onChange={(e) => set("contact")(e.target.value)}
               />
-              <span className="block mt-1 font-normal text-gray-500">
-                Email addresses are left out: the catalogue is public.
-              </span>
+              {contactDropped ? (
+                <span className={PROBLEM_CLASS}>
+                  Email addresses are left out, so this leaves no contact.
+                </span>
+              ) : (
+                <span className={HINT_CLASS}>
+                  Email addresses are left out: the catalogue is public.
+                </span>
+              )}
             </label>
             <label className="block text-xs font-semibold text-gray-600">
               Platform type
@@ -212,6 +244,9 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
                 disabled={busy}
                 onChange={(e) => set("sensor")(e.target.value)}
               />
+              {sensorRemoved && (
+                <span className={PROBLEM_CLASS}>A sensor cannot be removed, only replaced.</span>
+              )}
             </label>
             <label className="block text-xs font-semibold text-gray-600">
               Licence
@@ -227,7 +262,7 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
                   </option>
                 ))}
               </select>
-              <span className="block mt-1 font-normal text-gray-500">
+              <span className={HINT_CLASS}>
                 It can only change to a less restrictive licence: people already use this imagery
                 under the current one.
               </span>
@@ -241,7 +276,7 @@ export default function EditDialog({ feature, onClose, onDone }: Props) {
         )}
         {state.kind === "error" && (
           <wa-callout variant="danger" size="s" class="text-xs">
-            Could not save the changes ({state.message}). Try again.
+            Could not save the changes. {state.message}
           </wa-callout>
         )}
         <div className="flex justify-end gap-2 pt-2">

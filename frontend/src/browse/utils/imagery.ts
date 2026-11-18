@@ -34,6 +34,11 @@ export async function transferImagery(itemId: string, ownerId: string): Promise<
   return written.owner_id || ownerId;
 }
 
-export async function updateImagery(itemId: string, changes: MetadataChanges): Promise<void> {
-  await patchImagery(itemId, changes);
+// `seen` holds the values the changed fields had when the editor loaded them.
+export async function updateImagery(
+  itemId: string,
+  changes: MetadataChanges,
+  seen: MetadataChanges,
+): Promise<void> {
+  await patchImagery(itemId, { ...changes, seen });
 }
