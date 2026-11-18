@@ -229,6 +229,13 @@ transfer imagery can edit it. The Item's `metadata.json` asset is not
 rewritten; it stays the record of the Item at ingest, as it does after a
 transfer.
 
+`seen` carries the values the editor showed, as Browse reads them from the
+Item. A field the request changes that no longer holds its `seen` value
+answers 409, so an edit made since is not overwritten. Without `seen`, the
+last request to arrive wins. An edit and a transfer in the same request are
+one write, and the `imagery_changes` rows are inserted before it, so a refused
+write leaves no rows and a failed insert leaves the Item as it was.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the

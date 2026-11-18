@@ -2,11 +2,13 @@
 
 import uuid
 
+import psycopg
 import pytest
 from litestar.exceptions import HTTPException
 from litestar.testing import RequestFactory
 
 from app.auth import organisations
+from app.db.models import DbImageryChange
 from app.imagery import routes
 from app.imagery.routes import OWNER_FIELD, UpdateImageryBody
 from app.uploads import pgstac
@@ -256,3 +258,68 @@ async def test_a_refused_transfer_writes_no_metadata(db, account, member_of, cat
     assert err.value.status_code == 403
     assert props["title"] == "Old title"
     assert await _history(db) == []
+
+
+@pytest.mark.asyncio
+async def test_an_edit_based_on_stale_values_is_refused(
+    db, account, member_of, catalogue
+):
+    member_of()
+    props = catalogue(account["sub"], title="Their title")
+
+    with pytest.raises(HTTPException) as err:
+        await _edit(db, account, title="New title", seen={"title": "Old title"})
+    assert err.value.status_code == 409
+    assert props["title"] == "Their title"
+    assert await _history(db) == []
+
+
+@pytest.mark.asyncio
+async def test_an_edit_does_not_follow_a_transfer_made_meanwhile(
+    db, account, member_of, catalogue, monkeypatch
+):
+    member_of()
+    props = catalogue(account["sub"])
+    seen = pgstac.get_item
+
+    async def transferred_meanwhile(item_id):
+        item = await seen(item_id)
+        snapshot = {**item, "properties": dict(item["properties"])}
+        props[OWNER_FIELD] = "hotosm|someone-else"
+        return snapshot
+
+    monkeypatch.setattr(pgstac, "get_item", transferred_meanwhile)
+
+    with pytest.raises(HTTPException) as err:
+        await _edit(db, account, title="New title")
+    assert err.value.status_code == 409
+    assert props["title"] == "Old title"
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_published_when_the_change_cannot_be_recorded(
+    db, account, member_of, catalogue, monkeypatch
+):
+    member_of()
+    props = catalogue(account["sub"])
+
+    async def database_down(db, change):
+        raise psycopg.OperationalError("connection lost")
+
+    monkeypatch.setattr(DbImageryChange, "create", database_down)
+
+    with pytest.raises(psycopg.OperationalError):
+        await _edit(db, account, license="CC-BY 4.0")
+    assert props["license"] == "CC-BY-NC-4.0"
+
+
+@pytest.mark.asyncio
+async def test_a_licence_outside_cc_by_is_kept(db, account, member_of, catalogue):
+    member_of()
+    props = catalogue(account["sub"], license="ODbL-1.0")
+
+    with pytest.raises(HTTPException) as err:
+        await _edit(db, account, license="CC-BY 4.0")
+    assert err.value.status_code == 422
+    assert "cannot change" in err.value.detail
+    assert props["license"] == "ODbL-1.0"

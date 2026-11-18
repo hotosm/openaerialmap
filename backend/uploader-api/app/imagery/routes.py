@@ -21,8 +21,11 @@ from app.db.database import db_conn
 from app.db.models import DbImageryChange
 from app.imagery.metadata import (
     LicenceMoreRestrictive,
+    LicenceNotChangeable,
     LicenceNotOffered,
     MetadataEdit,
+    SeenMetadata,
+    changed_meanwhile,
     item_changes,
 )
 from app.uploads import pgstac
@@ -33,6 +36,8 @@ OWNER_FIELD = "oam:owner_id"
 
 _NOT_FOUND = "No published imagery has that id."
 
+_CHANGED = "This imagery changed meanwhile. Reload the page and try again."
+
 
 class UpdateImageryBody(MetadataEdit):
     """What may change on published imagery. A field left out stays as it is."""
@@ -40,6 +45,8 @@ class UpdateImageryBody(MetadataEdit):
     # The caller's own `hotosm|<sub>`, or `hotosm-org|<id>` of one of their
     # organisations.
     owner: str | None = Field(default=None, max_length=200)
+    # What the editor showed, so a change someone made since is not overwritten.
+    seen: SeenMetadata | None = None
 
 
 async def _organisations(
@@ -80,8 +87,7 @@ async def _write(item_id: str, changes: dict[str, Any], expect: dict[str, Any]) 
         updated = await pgstac.patch_properties(item_id, changes, expect=expect)
     except pgstac.ItemChanged:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This imagery changed meanwhile. Reload the page and try again.",
+            status_code=status.HTTP_409_CONFLICT, detail=_CHANGED
         ) from None
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
@@ -114,6 +120,9 @@ async def update_imagery(
             ),
         )
 
+    if data.seen is not None and changed_meanwhile(item, data, data.seen):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_CHANGED)
+
     try:
         edits = item_changes(item, data)
     except LicenceNotOffered:
@@ -133,6 +142,14 @@ async def update_imagery(
                 "licence or choose one that allows more."
             ),
         ) from None
+    except LicenceNotChangeable:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "This imagery is under a licence OpenAerialMap cannot change. "
+                "Leave the licence as it is."
+            ),
+        ) from None
 
     # Check the transfer before writing anything, so a refused one leaves the
     # metadata sent with it unwritten too.
@@ -140,41 +157,40 @@ async def update_imagery(
     if data.owner is not None and data.owner != current:
         owner = _transfer_target(data.owner, user_sub, orgs)
 
-    if edits.properties:
-        await _write(item_id, edits.properties, edits.expected)
-        for field, old, new in edits.history:
-            await DbImageryChange.create(
-                db,
-                DbImageryChange(
-                    item_id=item_id,
-                    field=field,
-                    actor_sub=user_sub,
-                    old_value=old,
-                    new_value=new,
-                ),
-            )
+    changes = dict(edits.properties)
+    history = list(edits.history)
+    if owner != current:
+        changes[OWNER_FIELD] = owner
+        history.append((OWNER_FIELD, current, owner))
+    if not changes:
+        return {"id": item_id, "owner_id": current}
+
+    # Recorded first, so a refused write rolls the rows back with the request.
+    for field, old, new in history:
+        await DbImageryChange.create(
+            db,
+            DbImageryChange(
+                item_id=item_id,
+                field=field,
+                actor_sub=user_sub,
+                old_value=old,
+                new_value=new,
+            ),
+        )
+    # One write, which also refuses an Item transferred since it was checked.
+    await _write(item_id, changes, {**edits.expected, OWNER_FIELD: current})
+
+    if edits.history:
         log.info(
             "Edited %s on %s by %s",
             ", ".join(f for f, _, _ in edits.history),
             item_id,
             user_sub,
         )
-
-    if owner == current:
-        return {"id": item_id, "owner_id": current}
-
-    await _write(item_id, {OWNER_FIELD: owner}, {OWNER_FIELD: current})
-    await DbImageryChange.create(
-        db,
-        DbImageryChange(
-            item_id=item_id,
-            field=OWNER_FIELD,
-            actor_sub=user_sub,
-            old_value=current,
-            new_value=owner,
-        ),
-    )
-    log.info("Transferred %s from %s to %s by %s", item_id, current, owner, user_sub)
+    if owner != current:
+        log.info(
+            "Transferred %s from %s to %s by %s", item_id, current, owner, user_sub
+        )
     return {"id": item_id, "owner_id": owner}
 
 

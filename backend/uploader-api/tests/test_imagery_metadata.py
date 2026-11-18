@@ -6,8 +6,11 @@ from pydantic import ValidationError
 from app.imagery import metadata
 from app.imagery.metadata import (
     LicenceMoreRestrictive,
+    LicenceNotChangeable,
     LicenceNotOffered,
     MetadataEdit,
+    SeenMetadata,
+    changed_meanwhile,
     item_changes,
 )
 
@@ -149,6 +152,21 @@ def test_other_providers_are_kept():
     assert changes.properties["providers"][1] == {"name": "Host", "roles": ["host"]}
 
 
+def test_a_provider_that_is_not_an_object_is_dropped():
+    item = _item()
+    item["properties"]["providers"] += ["Host", None]
+
+    changes = item_changes(item, MetadataEdit(contact="Mapping Team"))
+
+    assert changes.properties["providers"] == [
+        {
+            "name": "Old provider",
+            "description": "Mapping Team",
+            "roles": ["producer", "licensor"],
+        }
+    ]
+
+
 @pytest.mark.parametrize(
     ("current", "new"),
     [
@@ -176,14 +194,18 @@ def test_a_licence_can_change_to_a_less_restrictive_one(current, new):
         # Each takes away something the other allows.
         ("CC-BY-NC-4.0", "CC BY-SA 4.0"),
         ("CC-BY-SA-4.0", "CC BY-NC 4.0"),
-        ("CC0-1.0", "CC-BY 4.0"),
-        # No way to tell what an unknown licence allows.
-        ("ODbL-1.0", "CC-BY 4.0"),
     ],
 )
 def test_a_licence_cannot_change_to_a_more_restrictive_one(current, new):
     with pytest.raises(LicenceMoreRestrictive):
         item_changes(_item(license=current), MetadataEdit(license=new))
+
+
+# No way to tell what a licence outside CC BY allows.
+@pytest.mark.parametrize("current", ["CC0-1.0", "ODbL-1.0"])
+def test_a_licence_outside_cc_by_cannot_change(current):
+    with pytest.raises(LicenceNotChangeable):
+        item_changes(_item(license=current), MetadataEdit(license="CC-BY 4.0"))
 
 
 def test_a_licence_oam_does_not_offer_is_refused():
@@ -228,3 +250,42 @@ def test_invalid_values_are_rejected(fields):
 
 def test_values_are_trimmed():
     assert MetadataEdit(title="  New title  ").title == "New title"
+
+
+def test_an_edit_based_on_what_is_stored_is_current():
+    edit = MetadataEdit(title="New title", license="CC-BY 4.0")
+    seen = SeenMetadata(
+        title="Old title", license="CC-BY-NC-4.0", contact="Old contact"
+    )
+
+    assert changed_meanwhile(_item(), edit, seen) is None
+
+
+def test_an_edit_based_on_a_value_changed_since_is_stale():
+    seen = SeenMetadata(title="Their title")
+
+    assert changed_meanwhile(_item(), MetadataEdit(title="New title"), seen) == "title"
+
+
+def test_a_field_the_edit_leaves_alone_may_have_changed():
+    seen = SeenMetadata(title="Old title", platform="kite")
+
+    assert changed_meanwhile(_item(), MetadataEdit(title="New title"), seen) is None
+
+
+def test_stored_values_are_compared_as_the_dialog_shows_them():
+    # Older Items carry `CC BY-NC 4.0`; the dialog shows the normalised id.
+    item = _item(license="CC BY-NC 4.0", providers=None)
+    edit = MetadataEdit(provider="New provider", license="CC-BY 4.0", contact="Team")
+    seen = SeenMetadata(provider="Old provider", license="CC-BY-NC-4.0", contact="")
+
+    assert changed_meanwhile(item, edit, seen) is None
+
+
+def test_a_long_stored_title_can_be_seen():
+    title = "x" * 300
+    seen = SeenMetadata(title=title)
+
+    assert (
+        changed_meanwhile(_item(title=title), MetadataEdit(title="Short"), seen) is None
+    )

@@ -11,17 +11,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.uploads.schemas import MAX_METADATA_VALUE_LENGTH
+
 # The licences the upload form offers, as ingest stores them.
 LICENCES = ("CC-BY-4.0", "CC-BY-NC-4.0", "CC-BY-SA-4.0")
 
 # A Creative Commons BY licence; the group holds what it adds to attribution.
 _CC_BY = re.compile(r"CC-BY((?:-(?:NC|ND|SA))*)-\d+(?:\.\d+)?")  # codespell:ignore
 
-# Same cap as upload metadata in app/uploads/schemas.py.
-MAX_VALUE_LENGTH = 500
-
 # Same cap as an upload's title.
 MAX_TITLE_LENGTH = 200
+
+# Stored values can predate the form's caps, so what an editor saw may be longer.
+MAX_SEEN_LENGTH = 10_000
 
 # Roles ingest gives the provider it creates.
 _PROVIDER_ROLES = ["producer", "licensor"]
@@ -35,6 +37,10 @@ class LicenceMoreRestrictive(Exception):
     """The edit takes away something the current licence allows."""
 
 
+class LicenceNotChangeable(Exception):
+    """The current licence is outside CC BY, so there is no telling what it allows."""
+
+
 class MetadataEdit(BaseModel):
     """Descriptive fields an owner may correct. A field left out stays as it is."""
 
@@ -42,14 +48,29 @@ class MetadataEdit(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=MAX_TITLE_LENGTH)
     provider: str | None = Field(
-        default=None, min_length=1, max_length=MAX_VALUE_LENGTH
+        default=None, min_length=1, max_length=MAX_METADATA_VALUE_LENGTH
     )
     # Empty clears it.
-    contact: str | None = Field(default=None, max_length=MAX_VALUE_LENGTH)
+    contact: str | None = Field(default=None, max_length=MAX_METADATA_VALUE_LENGTH)
     platform: Literal["uav", "aircraft", "balloon", "kite", "satellite"] | None = None
     # Cannot be cleared: patch_properties sets properties, it never removes one.
-    sensor: str | None = Field(default=None, min_length=1, max_length=MAX_VALUE_LENGTH)
-    license: str | None = Field(default=None, min_length=1, max_length=MAX_VALUE_LENGTH)
+    sensor: str | None = Field(
+        default=None, min_length=1, max_length=MAX_METADATA_VALUE_LENGTH
+    )
+    license: str | None = Field(
+        default=None, min_length=1, max_length=MAX_METADATA_VALUE_LENGTH
+    )
+
+
+class SeenMetadata(BaseModel):
+    """The values the editor showed before the edit, untrimmed, empty when unset."""
+
+    title: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    provider: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    contact: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    platform: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    sensor: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    license: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
 
 
 @dataclass(slots=True)
@@ -102,11 +123,41 @@ def _first(values: Any) -> str | None:
     return _text(values[0]) if isinstance(values, list) and values else None
 
 
+def _shown(props: dict[str, Any]) -> dict[str, str]:
+    """Return the fields as the edit dialog in Browse reads them from an Item."""
+    providers = props.get("providers")
+    first = providers[0] if isinstance(providers, list) and providers else None
+    first = first if isinstance(first, dict) else {}
+    return {
+        "title": _text(props.get("title")) or "",
+        "provider": _text(first.get("name"))
+        or _text(props.get("oam:producer_name"))
+        or "",
+        "contact": _text(first.get("description")) or "",
+        "platform": _text(props.get("oam:platform_type")) or "",
+        "sensor": _first(props.get("instruments")) or "",
+        "license": normalise_licence(_text(props.get("license")) or ""),
+    }
+
+
+def changed_meanwhile(
+    item: dict[str, Any], edit: MetadataEdit, seen: SeenMetadata
+) -> str | None:
+    """Return a field the edit changes that no longer holds what the editor saw."""
+    current = _shown(item.get("properties") or {})
+    for name in MetadataEdit.model_fields:
+        was = getattr(seen, name)
+        if getattr(edit, name) is not None and was is not None and was != current[name]:
+            return name
+    return None
+
+
 def item_changes(item: dict[str, Any], edit: MetadataEdit) -> Changes:
     """Return the changes `edit` makes to `item`, leaving out what is unchanged.
 
     Raises `LicenceNotOffered` for a licence the upload form does not offer,
-    and `LicenceMoreRestrictive` for one that allows less than the current one.
+    `LicenceNotChangeable` when the current one is outside CC BY, and
+    `LicenceMoreRestrictive` for one that allows less than the current one.
     """
     props = item.get("properties") or {}
     changes = Changes()
@@ -134,6 +185,8 @@ def item_changes(item: dict[str, Any], edit: MetadataEdit) -> Changes:
         if new_licence != normalise_licence(old_licence or ""):
             if new_licence not in LICENCES:
                 raise LicenceNotOffered(new_licence)
+            if old_licence and _restrictions(old_licence) is None:
+                raise LicenceNotChangeable(old_licence)
             # Never more restrictive: people already rely on the current terms.
             if old_licence and not _opens_up(old_licence, new_licence):
                 raise LicenceMoreRestrictive(new_licence)
@@ -148,8 +201,11 @@ def _provider_changes(
 ) -> None:
     """Apply provider and contact, which ingest keeps in two places."""
     old_providers = props.get("providers")
+    # A provider that is not an object is dropped rather than failing the edit.
     providers = (
-        [dict(p) for p in old_providers] if isinstance(old_providers, list) else []
+        [dict(p) for p in old_providers if isinstance(p, dict)]
+        if isinstance(old_providers, list)
+        else []
     )
     if not providers:
         # Ingest always writes one; "unknown" is its own fallback name.
