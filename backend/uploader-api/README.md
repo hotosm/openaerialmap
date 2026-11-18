@@ -206,6 +206,15 @@ names the account. `LOGIN_API_URL` (Login's API origin, e.g.
 `https://login.hotosm.org`) turns the feature on; unset, every upload is owned
 by the uploading account.
 
+## Transferring imagery
+
+`PATCH /api/v1/imagery/{item_id}` with `{"owner": "<owner id>"}` moves published
+imagery to the caller (`hotosm|<sub>`) or to an organisation they belong to
+(`hotosm-org|<id>`). The caller must own the Item, or be an owner or manager
+of the organisation that does; members only see. The change is written
+straight into pgstac and recorded in `imagery_changes` with who made it.
+Browse offers it from My imagery, so `OAM_FRONTEND_URL` is a CORS origin.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the

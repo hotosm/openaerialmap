@@ -1,4 +1,4 @@
-import type { DatePreset, Filters, ResolutionPreset } from "./types";
+import type { BrowseMode, DatePreset, Filters, ResolutionPreset } from "./types";
 
 export interface ViewState {
   center: [number, number];
@@ -95,5 +95,18 @@ export function writeFilters(f: Filters): void {
     });
     if (f.collection) p.set("source", f.collection);
     else p.delete("source");
+  });
+}
+
+// Only "mine" is written, so a plain browse URL stays as it was.
+export function readInitialMode(): BrowseMode {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("view") === "mine" ? "mine" : "all";
+}
+
+export function writeMode(mode: BrowseMode): void {
+  replaceParams((p) => {
+    if (mode === "mine") p.set("view", "mine");
+    else p.delete("view");
   });
 }
