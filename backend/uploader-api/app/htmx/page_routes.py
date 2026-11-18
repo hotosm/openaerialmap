@@ -3,9 +3,10 @@
 HTMX refreshes upload status; the uploader remains plain JavaScript.
 """
 
+import logging
 import uuid
 
-from litestar import Router, get
+from litestar import Request, Router, get
 from litestar.datastructures import CacheControlHeader
 from litestar.di import Provide
 from litestar.params import FromQuery
@@ -13,15 +14,19 @@ from litestar.plugins.htmx import HTMXTemplate
 from litestar.response import Template
 from psycopg import AsyncConnection
 
+from app.auth import organisations
 from app.auth.auth_deps import (
     get_optional_auth_user,
     get_user_sub,
     get_user_username,
     login_required,
     mirror_user,
+    session_token,
 )
 from app.db.database import db_conn
 from app.db.models import TERMINAL_STATUSES, DbUpload
+
+log = logging.getLogger(__name__)
 
 MAX_TRACKED = 20
 
@@ -37,8 +42,27 @@ def _upload_ids(raw: str) -> list[str]:
     return ids
 
 
+async def _publishable_organisations(
+    auth_user: object | None, request: Request
+) -> list[organisations.Organisation]:
+    """Return the organisations the form offers to publish for.
+
+    The upload re-checks the choice, so an unreachable Login only hides the
+    choice here instead of failing the page.
+    """
+    if auth_user is None:
+        return []
+    try:
+        return await organisations.user_organisations(
+            get_user_sub(auth_user), session_token(request)
+        )
+    except organisations.LoginUnavailable:
+        log.warning("Could not list organisations from HOT Login", exc_info=True)
+        return []
+
+
 @get("/")
-async def upload_page(auth_user: object | None) -> Template:
+async def upload_page(auth_user: object | None, request: Request) -> Template:
     """Render the single upload page."""
     return HTMXTemplate(
         template_name="upload.html",
@@ -46,6 +70,7 @@ async def upload_page(auth_user: object | None) -> Template:
             "active_nav": "upload",
             "logged_in": auth_user is not None,
             "username": get_user_username(auth_user) if auth_user else None,
+            "organisations": await _publishable_organisations(auth_user, request),
         },
     )
 

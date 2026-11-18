@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS uploads (
     checksum TEXT,
     -- Non-fatal notices (e.g. byte-identical duplicate) shown with the status.
     warning TEXT,
+    -- Repeated in ../4-upload-owner.sql. Owner of the imagery as
+    -- `hotosm-org|<HOT Login group id>`, chosen at upload by one of its
+    -- members. NULL: the uploading account owns it.
+    owner_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
