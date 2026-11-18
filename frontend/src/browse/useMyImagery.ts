@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fetchPage, searchByOwners, type PageRequest } from "./utils/stac";
-import type { RawFeature } from "./utils/types";
+import type { RawFeature, RawTileProperties } from "./utils/types";
 
 interface Loaded {
   owners: string;
@@ -23,6 +23,8 @@ export interface MyImagery {
   retry: () => void;
   // Records a transfer the uploader has written, without searching again.
   setOwner: (itemId: string, ownerId: string) => void;
+  // Records an edit the uploader has written, the same way.
+  setProperties: (itemId: string, properties: Partial<RawTileProperties>) => void;
 }
 
 // Stable, so memoised consumers do not recompute on every render.
@@ -125,6 +127,19 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
       return { ...prev, features };
     });
 
+  const setProperties = (itemId: string, properties: Partial<RawTileProperties>) =>
+    setLoaded(
+      (prev) =>
+        prev && {
+          ...prev,
+          features: prev.features.map((f) =>
+            f.properties._id === itemId
+              ? { ...f, properties: { ...f.properties, ...properties } }
+              : f,
+          ),
+        },
+    );
+
   return {
     features: current?.features ?? NONE,
     loading: !!owners && !current,
@@ -135,5 +150,6 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
     loadMore,
     retry: () => setAttempt((a) => a + 1),
     setOwner,
+    setProperties,
   };
 }
