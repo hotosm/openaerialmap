@@ -8,14 +8,19 @@ import logging
 import re
 
 import botocore.exceptions
-from litestar import Router, get, post
+from litestar import Request, Router, get, post
 from litestar import status_codes as status
 from litestar.di import Provide
 from litestar.exceptions import HTTPException
 from litestar.params import FromPath, FromQuery
 from psycopg import AsyncConnection
 
-from app.auth.auth_deps import get_optional_auth_user, get_user_sub, login_required
+from app.auth.auth_deps import (
+    get_optional_auth_user,
+    get_user_sub,
+    login_required,
+    session_token,
+)
 from app.blocking import run_blocking
 from app.config import settings
 from app.db.database import db_conn
@@ -75,7 +80,7 @@ async def _require_open_session(
 
 @post("/s3/createmultipart")
 async def create_multipart(
-    data: CreateMultipartBody, auth_user: object, db: AsyncConnection
+    data: CreateMultipartBody, auth_user: object, db: AsyncConnection, request: Request
 ) -> dict:
     """Create a multipart upload and its database record."""
     if data.content_type not in ALLOWED_CONTENT_TYPES:
@@ -90,7 +95,12 @@ async def create_multipart(
         )
     # Persist first so completion cannot race ahead of its session row.
     upload = await create_upload_row(
-        db, auth_user, data, filename=data.filename, message="Upload started."
+        db,
+        auth_user,
+        data,
+        filename=data.filename,
+        message="Upload started.",
+        session_token=session_token(request),
     )
 
     # Failed S3 sessions must not count toward the user's upload limit.
@@ -307,7 +317,10 @@ async def abort_multipart(
 
 @post("/uploads", status_code=status.HTTP_201_CREATED)
 async def create_remote_upload(
-    data: CreateRemoteUploadBody, auth_user: object, db: AsyncConnection
+    data: CreateRemoteUploadBody,
+    auth_user: object,
+    db: AsyncConnection,
+    request: Request,
 ) -> dict:
     """Register an upload the pipeline fetches from a URL, and start it.
 
@@ -321,6 +334,7 @@ async def create_remote_upload(
         filename=data.filename,
         source_url=data.source_url,
         message="Queued to fetch from the source URL.",
+        session_token=session_token(request),
     )
     workflow_name = await start_processing(db, upload)
     return {

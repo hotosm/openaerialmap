@@ -26,6 +26,14 @@ except ImportError:  # pragma: no cover
     get_current_user_optional = None
     setup_auth = None
 
+# The function hotosm-auth itself authenticates with, so Login is sent the
+# token that signed the user in. The package does not re-export it, so it gets
+# its own guard: if it moves, only organisations stop working, not sign-in.
+try:
+    from hotosm_auth_litestar.dependencies import get_token_from_request
+except ImportError:  # pragma: no cover
+    get_token_from_request = None
+
 _LOCAL_ADMIN = SimpleNamespace(sub="custom|1", username="localadmin", is_admin=True)
 
 
@@ -100,6 +108,17 @@ async def mirror_user(db: AsyncConnection, user: object) -> DbUser:
             email_address=get_user_email(user),
         ),
     )
+
+
+def session_token(request: Request) -> str | None:
+    """Return the HOT Login token the request carries, as hotosm-auth reads it.
+
+    Forwarded to Login when it has to answer for this account (organisation
+    membership). Nothing here reads it.
+    """
+    if get_token_from_request is None:
+        return None
+    return get_token_from_request(request)
 
 
 def _auth_disabled() -> bool:

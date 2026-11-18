@@ -81,6 +81,19 @@ export const BASEMAP_STYLE_URL = getRuntimeConfig(
 // Low-zoom footprint tiles are thinned, so use density tiles below this zoom.
 export const FOOTPRINT_MIN_ZOOM = 8;
 
+// Outlines the signed-in user's imagery. Distinct from the cyan footprints
+// and the red selection.
+export const MY_IMAGERY_COLOUR = "#F59E0B";
+
+// Large enough that most accounts load in one request.
+export const MY_IMAGERY_PAGE_SIZE = 100;
+
+// Generous: a cold pgstac search over a large account can take a few seconds.
+export const STAC_SEARCH_TIMEOUT_MS = 15_000;
+
+// The uploader asks HOT Login and writes one Item; past this something is wrong.
+export const UPLOADER_TIMEOUT_MS = 10_000;
+
 export const LARGE_IMAGE_THRESHOLD_SQ_KM = 50;
 export const TMS_LARGE_MIN_ZOOM = 12;
 export const TMS_ALL_MIN_ZOOM = 16;

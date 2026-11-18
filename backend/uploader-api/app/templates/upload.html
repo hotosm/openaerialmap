@@ -164,6 +164,22 @@ content %}
       </wa-select>
     </wa-details>
 
+    <!-- Only for members of an organisation; the upload checks the choice again. -->
+    {% if organisations %}
+    <wa-select
+      id="owner"
+      name="owner"
+      label="Publish as"
+      value=""
+      hint="Who owns the imagery once it is published. Choosing an organisation lets it manage the imagery; you are still recorded as the uploader."
+    >
+      <wa-option value="">Yourself{% if username %} ({{ username }}){% endif %}</wa-option>
+      {% for org in organisations %}
+      <wa-option value="{{ org.owner_id }}">{{ org.name }}</wa-option>
+      {% endfor %}
+    </wa-select>
+    {% endif %}
+
     <!-- Hint slot, not the attribute: it needs a link, which a tooltip would hide. -->
     <wa-checkbox id="anonymous" name="anonymous">
       Upload anonymously
