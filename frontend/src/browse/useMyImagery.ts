@@ -21,9 +21,7 @@ export interface MyImagery {
   moreError: string | null;
   loadMore: () => void;
   retry: () => void;
-  // Records a transfer the uploader has written, without searching again.
-  setOwner: (itemId: string, ownerId: string) => void;
-  // Records an edit the uploader has written, the same way.
+  // Records an edit the uploader has written, without searching again.
   setProperties: (itemId: string, properties: Partial<RawTileProperties>) => void;
 }
 
@@ -113,20 +111,7 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
   };
 
   // A new search would drop the pages loaded so far, so the list is patched
-  // instead. An Item that went to an owner outside this search leaves it.
-  const setOwner = (itemId: string, ownerId: string) =>
-    setLoaded((prev) => {
-      if (!prev) return prev;
-      const features = prev.owners.split(",").includes(ownerId)
-        ? prev.features.map((f) =>
-            f.properties._id === itemId
-              ? { ...f, properties: { ...f.properties, owner_id: ownerId } }
-              : f,
-          )
-        : prev.features.filter((f) => f.properties._id !== itemId);
-      return { ...prev, features };
-    });
-
+  // instead.
   const setProperties = (itemId: string, properties: Partial<RawTileProperties>) =>
     setLoaded(
       (prev) =>
@@ -149,7 +134,6 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
     moreError: current?.moreError ?? null,
     loadMore,
     retry: () => setAttempt((a) => a + 1),
-    setOwner,
     setProperties,
   };
 }

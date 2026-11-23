@@ -58,16 +58,15 @@ every zoom, with a dot per image below `FOOTPRINT_MIN_ZOOM`.
   owners are outlined in `MY_IMAGERY_COLOUR`.
 - `?view=mine` opens the tab directly. Signed out, it shows all imagery.
 - Imagery the user may change (their own, or an organisation's where Login
-  gives them the owner or manager role) gets a **Transfer…** button, which
-  hands it to another of their owners through the uploader's
-  `PATCH /api/v1/imagery/{id}` (`utils/imagery.ts`). Members only see.
+  gives them the owner or manager role) gets a **Manage** link to its page
+  in the uploader, `/imagery/{id}`, where it is transferred. Members only see.
 - The same people get an **Edit…** button for the title, provider,
   contact, platform, sensor and licence. The dialog loads the Item from the
   STAC API, since the card has no contact and shows formatted values, and
   sends only what changed, with the values it showed, so the uploader refuses
-  an edit made over someone else's. Saving patches the card in place, as a
-  transfer does. The licence select offers only less restrictive
-  licences, the rule the uploader enforces. Every change is recorded by the
+  an edit made over someone else's. Saving patches the card in place. The
+  licence select offers only less restrictive licences, the rule the
+  uploader enforces. Every change is recorded by the
   uploader, so it is known which licence applied when.
 
 To see your own uploads locally, `VITE_STAC_URL` has to point at the
