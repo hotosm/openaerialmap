@@ -1,0 +1,20 @@
+{% extends "layout.html" %} {% block title %}Manage imagery - {{ app_name }}{% endblock %} {% block
+content %}
+<section class="oam-card">
+  <h1>Manage imagery</h1>
+  {% if problem %}
+  <wa-callout variant="{{ problem_variant }}">
+    <span>{{ problem }}</span>
+  </wa-callout>
+  {% else %}
+  <p>
+    <strong>{{ title }}</strong> -
+    <a href="{{ item_url_base }}/{{ item_id | urlencode }}" target="_blank" rel="noreferrer">
+      View the image</a
+    >
+  </p>
+  {% endif %}
+  <p><a href="{{ main_site_url }}/browse?view=mine">Back to My imagery</a></p>
+</section>
+
+{% if not problem %}{% include "partials/imagery_owner.html" %}{% endif %} {% endblock %}

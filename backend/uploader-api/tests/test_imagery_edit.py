@@ -236,28 +236,17 @@ async def test_an_edit_made_meanwhile_is_not_overwritten(
 
 
 @pytest.mark.asyncio
-async def test_an_edit_and_a_transfer_go_together(db, account, member_of, catalogue):
+async def test_the_api_does_not_transfer(db, account, member_of, catalogue):
+    """Transfers are made on the imagery page, so an owner sent here is ignored."""
     member_of(_ORG)
     props = catalogue(account["sub"])
 
     resp = await _edit(db, account, title="New title", owner=_ORG.owner_id)
 
-    assert resp == {"id": "item-1", "owner_id": _ORG.owner_id}
+    assert resp == {"id": "item-1", "owner_id": account["sub"]}
     assert props["title"] == "New title"
-    assert props[OWNER_FIELD] == _ORG.owner_id
-    assert [row[0] for row in await _history(db)] == ["title", OWNER_FIELD]
-
-
-@pytest.mark.asyncio
-async def test_a_refused_transfer_writes_no_metadata(db, account, member_of, catalogue):
-    member_of(_ORG)
-    props = catalogue(account["sub"])
-
-    with pytest.raises(HTTPException) as err:
-        await _edit(db, account, title="New title", owner="hotosm-org|org-9")
-    assert err.value.status_code == 403
-    assert props["title"] == "Old title"
-    assert await _history(db) == []
+    assert props[OWNER_FIELD] == account["sub"]
+    assert [row[0] for row in await _history(db)] == ["title"]
 
 
 @pytest.mark.asyncio

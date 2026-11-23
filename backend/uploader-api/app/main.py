@@ -29,7 +29,7 @@ from app.db.database import (
 )
 from app.htmx.htmx_helpers import callout, support_html
 from app.htmx.page_routes import page_router
-from app.imagery.routes import imagery_router
+from app.imagery.routes import imagery_api_router, imagery_router
 from app.monitoring import (
     add_endpoint_profiler,
     get_otel_plugin,
@@ -206,6 +206,7 @@ def create_app() -> Litestar:
         page_router,
         upload_router,
         imagery_router,
+        imagery_api_router,
         # Revalidate on every load (ETag, so usually a 304): the script and the
         # form it drives ship together, and a browser's own heuristics would
         # otherwise keep the old script for days after a deploy.
@@ -247,7 +248,7 @@ def create_app() -> Litestar:
         on_startup=[get_db_connection_pool, start_reconciler],
         # Cancel the sweep before the pool it borrows connections from goes.
         on_shutdown=[stop_reconciler, close_db_connection_pool],
-        # Browse manages imagery from its own origin, with the shared cookie.
+        # Browse edits imagery metadata from its own origin, with the shared cookie.
         cors_config=CORSConfig(
             allow_origins=[
                 settings.frontend_url,
