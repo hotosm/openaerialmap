@@ -8,6 +8,7 @@ metadata editor in Browse until that moves to the page too.
 """
 
 import logging
+from datetime import datetime
 from typing import Annotated, Any
 
 from litestar import Request, Router, get, patch, post
@@ -164,6 +165,39 @@ def _owner_context(
     }
 
 
+def _date_label(when: datetime) -> str:
+    return f"{when.day} {when:%b %Y}"
+
+
+def _summary(item: dict[str, Any]) -> dict[str, Any]:
+    """Describe the imagery for its page: a preview and a few facts."""
+    props = item.get("properties", {})
+    captured = props.get("datetime") or props.get("start_datetime")
+    try:
+        captured = _date_label(datetime.fromisoformat(captured)) if captured else None
+    except (TypeError, ValueError):
+        captured = None
+    gsd = props.get("gsd")
+    providers = props.get("providers") or [{}]
+    return {
+        "title": props.get("title") or item["id"],
+        "thumbnail": (item.get("assets", {}).get("thumbnail") or {}).get("href"),
+        "facts": [
+            (label, value)
+            for label, value in (
+                ("Captured", captured),
+                (
+                    "Resolution",
+                    f"{gsd:.2f} m" if isinstance(gsd, int | float) else None,
+                ),
+                ("Provider", providers[0].get("name")),
+                ("Licence", props.get("license")),
+            )
+            if value
+        ],
+    }
+
+
 def _problem_page(
     detail: str, status_code: int, *, variant: str = "danger"
 ) -> Template:
@@ -192,10 +226,7 @@ async def imagery_page(
         return _problem_page(str(err.detail), err.status_code)
     return HTMXTemplate(
         template_name="imagery.html",
-        context={
-            "title": item.get("properties", {}).get("title") or item["id"],
-            **_owner_context(item, auth_user, orgs),
-        },
+        context={**_owner_context(item, auth_user, orgs), **_summary(item)},
     )
 
 

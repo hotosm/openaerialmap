@@ -1,20 +1,49 @@
 {% extends "layout.html" %} {% block title %}Manage imagery - {{ app_name }}{% endblock %} {% block
 content %}
+<nav class="oam-crumbs" aria-label="Breadcrumb">
+  <a href="{{ main_site_url }}/browse?view=mine">My imagery</a>
+</nav>
+
+{% if problem %}
 <section class="oam-card">
   <h1>Manage imagery</h1>
-  {% if problem %}
   <wa-callout variant="{{ problem_variant }}">
     <span>{{ problem }}</span>
   </wa-callout>
+</section>
+{% else %}
+<!-- What is being managed comes before what can be done with it. -->
+<section class="oam-card oam-imagery-summary">
+  {% if thumbnail %}
+  <img class="oam-imagery-summary__thumb" src="{{ thumbnail }}" alt="Preview of {{ title }}" />
   {% else %}
-  <p>
-    <strong>{{ title }}</strong> -
-    <a href="{{ item_url_base }}/{{ item_id | urlencode }}" target="_blank" rel="noreferrer">
-      View the image</a
-    >
-  </p>
+  <div class="oam-imagery-summary__thumb oam-imagery-summary__thumb--empty">No preview</div>
   {% endif %}
-  <p><a href="{{ main_site_url }}/browse?view=mine">Back to My imagery</a></p>
+  <div class="oam-imagery-summary__body">
+    <p class="oam-eyebrow">Manage imagery</p>
+    <h1>{{ title }}</h1>
+    {% if facts %}
+    <dl class="oam-facts">
+      {% for label, value in facts %}
+      <div>
+        <dt>{{ label }}</dt>
+        <dd>{{ value }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+    {% endif %}
+    <div class="oam-imagery-summary__links">
+      <wa-button
+        size="s"
+        appearance="outlined"
+        href="{{ main_site_url }}/browse?view=mine&selected_id={{ item_id | urlencode }}"
+        >View in Browse</wa-button
+      >
+      <a href="{{ item_url_base }}/{{ item_id | urlencode }}" target="_blank" rel="noreferrer"
+        >STAC metadata</a
+      >
+    </div>
+  </div>
 </section>
 
-{% if not problem %}{% include "partials/imagery_owner.html" %}{% endif %} {% endblock %}
+{% include "partials/imagery_owner.html" %} {% endif %} {% endblock %}

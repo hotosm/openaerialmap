@@ -469,3 +469,33 @@ def test_a_refused_transfer_is_a_callout_for_the_form(
     assert "HX-Retarget" not in resp.headers
     assert props[OWNER_FIELD] == account["sub"]
     assert client.recorded == []
+
+
+def test_the_page_names_the_imagery_with_its_preview_and_facts():
+    item = {
+        "id": "item-1",
+        "properties": {
+            "title": "Ward 5",
+            "datetime": "2026-05-01T00:00:00Z",
+            "gsd": 0.05,
+            "providers": [{"name": "Mappers"}],
+            "license": "CC-BY-4.0",
+        },
+        "assets": {"thumbnail": {"href": "https://example.org/thumb.png"}},
+    }
+
+    summary = routes._summary(item)
+
+    assert summary["thumbnail"] == "https://example.org/thumb.png"
+    assert summary["facts"] == [
+        ("Captured", "1 May 2026"),
+        ("Resolution", "0.05 m"),
+        ("Provider", "Mappers"),
+        ("Licence", "CC-BY-4.0"),
+    ]
+
+
+def test_missing_facts_are_left_out():
+    summary = routes._summary({"id": "item-1", "properties": {"datetime": "nope"}})
+
+    assert summary == {"title": "item-1", "thumbnail": None, "facts": []}
