@@ -247,8 +247,9 @@ class Settings(BaseSettings):
     HANKO_API_URL: str | None = None
     HANKO_PUBLIC_URL: str | None = None
     LOGIN_URL: str | None = None
-    # HOT Login's API (`/api/groups`), for publishing as an organisation. Unset
-    # leaves the feature off: every upload is owned by the uploading account.
+    # HOT Login's API (`/api/groups`), for organisations. Only needed where it
+    # is not on the HANKO_API_URL host, such as an in-cluster service; see
+    # login_api_url.
     LOGIN_API_URL: str | None = None
     COOKIE_SECRET: SecretStr = SecretStr(_PLACEHOLDER_COOKIE_SECRET)
 
@@ -286,6 +287,16 @@ class Settings(BaseSettings):
         else:
             root = f"{browser}/external/{catalogue.netloc}{catalogue.path}"
         return f"{root}/collections/{self.STAC_COLLECTION}/items"
+
+    @computed_field
+    @property
+    def login_api_url(self) -> str | None:
+        """HOT Login's API, or None to leave organisations off.
+
+        Login serves its API on the Hanko host, so an unset LOGIN_API_URL means
+        that host.
+        """
+        return self.LOGIN_API_URL or self.HANKO_API_URL
 
     @computed_field
     @property

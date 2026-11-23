@@ -127,5 +127,6 @@ async def test_without_login_or_a_session_nobody_has_organisations(monkeypatch):
 
     assert await organisations.user_organisations(_SUB, None) == []
     monkeypatch.setattr(organisations.settings, "LOGIN_API_URL", None)
+    monkeypatch.setattr(organisations.settings, "HANKO_API_URL", None)
     assert await organisations.user_organisations(_SUB, "tok") == []
     assert seen == []

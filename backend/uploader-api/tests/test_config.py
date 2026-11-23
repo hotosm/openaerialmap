@@ -83,6 +83,22 @@ def test_development_keeps_its_defaults():
     ).DEBUG
 
 
+def test_hot_login_serves_its_api_on_the_hanko_host():
+    """One URL per environment: a second one used to default to production."""
+    settings = _settings(
+        HANKO_API_URL="https://dev.login.hotosm.org", LOGIN_API_URL=None
+    )
+    assert settings.login_api_url == "https://dev.login.hotosm.org"
+
+
+def test_a_named_login_api_wins_over_the_hanko_host():
+    """Hanko and Login are different services on an in-cluster setup."""
+    settings = _settings(
+        HANKO_API_URL="http://hanko:8000", LOGIN_API_URL="http://login-backend:8000"
+    )
+    assert settings.login_api_url == "http://login-backend:8000"
+
+
 def test_the_app_refuses_to_be_framed():
     """The upload page holds a presigned source URL in a form field."""
     headers = {h.name: h.value for h in create_app().response_headers}

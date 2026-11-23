@@ -41,10 +41,11 @@ whose `oam:owner_id` is the user's `hotosm|<sub>` or the
 `hotosm-org|<id>` of an organisation they belong to, from a CQL2 search
 on `VITE_STAC_URL` (ADR 0011). The search is public and needs no token.
 
-The owners come from HOT Login at `VITE_HANKO_URL` (`useOwners.ts`):
-`/me` for the `sub`, which the `hanko-login` event does not always
-carry, and `/api/groups?type=organization` for approved organisations.
-Any member sees an organisation's imagery, as in Portal. Members of an
+The owners come from HOT Login's API (`useOwners.ts`), at
+`VITE_LOGIN_API_URL` or, unset, `VITE_HANKO_URL`, since HOT serves both
+on one host: `/me` for the `sub`, which the `hanko-login` event does not
+always carry, and `/api/groups?type=organization` for approved
+organisations. Any member sees an organisation's imagery, as in Portal. Members of an
 organisation get an Owner select to narrow the list. If Login cannot
 list the organisations, the user's own imagery still loads. Both calls
 need the Browse origin in Login's CORS allowlist.

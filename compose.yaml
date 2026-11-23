@@ -220,6 +220,7 @@ services:
       # Empty disables sign-in. Hanko only accepts allowlisted origins, see
       # frontend/README.md.
       - VITE_HANKO_URL=${VITE_HANKO_URL:-}
+      - VITE_LOGIN_API_URL=${VITE_LOGIN_API_URL:-}
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html

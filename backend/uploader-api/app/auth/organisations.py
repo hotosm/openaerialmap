@@ -68,17 +68,17 @@ async def user_organisations(
 ) -> list[Organisation]:
     """Return the approved organisations the account belongs to.
 
-    Empty when organisations are not configured (`LOGIN_API_URL`), the request
+    Empty when organisations are not configured (`login_api_url`), the request
     carries no session, or Login rejects it. Raises `LoginUnavailable` when
     Login cannot be reached or its answer cannot be read; that is never cached.
     """
-    if not settings.LOGIN_API_URL or not session_token:
+    if not settings.login_api_url or not session_token:
         return []
     cached = _cache.get(user_sub)
     if cached and cached[0] > time.monotonic():
         return cached[1]
 
-    url = f"{settings.LOGIN_API_URL.rstrip('/')}/api/groups"
+    url = f"{settings.login_api_url.rstrip('/')}/api/groups"
     # trust_env=False: a proxy from the environment must not see the session.
     try:
         async with httpx.AsyncClient(
