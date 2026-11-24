@@ -230,8 +230,8 @@ class Settings(BaseSettings):
     # The workspace volume holds the upload, its COG and GDAL's overview temp,
     # so it scales with the upload instead of being provisioned for the largest
     # one allowed. Mirrors ScaleODM's workflow.workspace.dynamicSize.
-    # Admits 12:1 lossless and 26:1 lossy decode ratios (Maxar JPEG mosaics
-    # reach 23:1). The cap holds that up to a 51 GiB upload.
+    # Allows uploads that decode up to 12x their size (26x if lossy, for
+    # Maxar mosaics at 23x). The cap limits this above 51 GiB uploads.
     WORKSPACE_MULTIPLIER: float = 20.0
     WORKSPACE_MIN_GIB: int = 64
     WORKSPACE_MAX_GIB: int = 1024

@@ -36,7 +36,7 @@ GDAL_CACHEMAX = os.environ.get("COG_GDAL_CACHEMAX", "512")  # MB (values <100000
 VERIFY = os.environ.get("COG_VERIFY", "on").lower() != "off"
 VALIDATE = os.environ.get("COG_VALIDATE", "on").lower() != "off"
 TMPDIR = os.environ.get("CPL_TMPDIR", "/data/tmp")
-# GDAL rewrites compressed temp blocks, growing the file past raw size.
+# Compressing GDAL's temp overview file makes it bigger, not smaller.
 TMP_COMPRESSION = "NONE"
 # Fixed JPEG q90 keeps output within validate's measured disk budget.
 # JPEG matches the catalogue and avoids WEBP compatibility issues (#342).
