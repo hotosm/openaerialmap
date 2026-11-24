@@ -120,12 +120,12 @@ def test_a_highly_compressed_visual_upload_is_still_rejected(
     opens, reason, monkeypatch
 ):
     """Keep a disk limit for lossy output: GDAL's overview temp is lossless."""
-    monkeypatch.setattr(validate, "MAX_DECODED_GB", 81)  # 135 GB once lossy
-    opens(_FakeSrc(200_000, 200_000))  # 120 GB decoded
+    monkeypatch.setattr(validate, "MAX_DECODED_GB", 81)  # 180 GB once lossy
+    opens(_FakeSrc(240_000, 240_000))  # 172.8 GB decoded
     assert validate.validate_raster("/data/input.tif") is True
-    opens(_FakeSrc(220_000, 220_000))  # 145.2 GB decoded
+    opens(_FakeSrc(250_000, 250_000))  # 187.5 GB decoded
     assert _rejects() == 6
-    assert "over the 135 GB limit" in reason()
+    assert "over the 180 GB limit" in reason()
 
 
 def test_a_deployment_can_still_cap_pixels(opens, reason, monkeypatch):

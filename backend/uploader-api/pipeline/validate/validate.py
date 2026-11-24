@@ -40,9 +40,9 @@ EXIT_INPUT_MISSING = 75
 # COG. Derived from the PVC in workflow-template.yaml. 0 disables either check.
 MAX_DECODED_GB = float(os.environ.get("OAM_VALIDATE_MAX_DECODED_GB", "130"))
 MAX_GIGAPIXELS = float(os.environ.get("OAM_VALIDATE_MAX_GIGAPIXELS", "0"))
-# JPEG q90 needs 0.9x decoded size: 0.6 of the 1.5x lossless budget.
-# Measured peak: 0.72-0.83x. GDAL's overview temp stays lossless ZSTD.
-LOSSY_DISK_FACTOR = 0.6
+# JPEG q90 needs 0.675x decoded size: 0.45 of the 1.5x lossless budget.
+# Measured peak with an uncompressed overview temp: 0.56-0.61x.
+LOSSY_DISK_FACTOR = 0.45
 
 # Cleanup reports this verbatim; without it the uploader only gets the exit
 # code mapped to a fixed sentence. The API truncates at 300.

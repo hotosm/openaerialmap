@@ -227,7 +227,7 @@ def _peak_bytes(directory, run) -> int:
 
 
 def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
-    """Check the 0.9x decoded-size budget with JPEG q30 noise input.
+    """Check the 0.675x decoded-size budget with JPEG q30 noise input.
 
     GDAL's uncompressed overview temp dominates disk use. Sampling may miss peaks.
     """
@@ -257,4 +257,5 @@ def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
     peak = _peak_bytes(
         str(tmp_path), lambda: convert.convert_to_cog(src, str(tmp_path / "out.tif"))
     )
-    assert peak - input_bytes <= 0.9 * noise.nbytes, (peak - input_bytes) / noise.nbytes
+    used = peak - input_bytes
+    assert used <= 0.675 * noise.nbytes, used / noise.nbytes

@@ -85,8 +85,10 @@ COG of incompressible pixels is the size of the decoded raster. `COG_TEMP_FACTOR
 budgets half the output for temp against GDAL's estimated third, and
 `WORKSPACE_USABLE` keeps 5% back for ext4 metadata and the small sidecar files.
 
-Lossy visual output budgets 0.9x decoded size (`LOSSY_DISK_FACTOR=0.6`),
-including GDAL's lossless overview temp. A conversion test checks this budget
+Lossy visual output budgets 0.675x decoded size (`LOSSY_DISK_FACTOR=0.45`),
+including GDAL's overview temp, which convert writes uncompressed
+(`COG_TMP_COMPRESSION=NONE`): GDAL rewrites compressed temp blocks and they
+outgrow the raw pyramid. A conversion test checks this budget
 with incompressible JPEG input.
 
 | Parameter | Default | Env in the step |
