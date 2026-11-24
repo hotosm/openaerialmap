@@ -104,6 +104,13 @@ def test_a_pod_lost_with_its_node_is_retried(step):
     assert STEPS[step]["retryStrategy"]["retryPolicy"] == "Always"
 
 
+def test_convert_threads_follow_its_cpu_limit():
+    """GDAL's ALL_CPUS can count the node's CPUs and oversubscribe the limit."""
+    env = {e["name"]: e for e in STEPS["convert-cog"]["container"]["env"]}
+    source = env["COG_NUM_THREADS"]["valueFrom"]["resourceFieldRef"]
+    assert source["resource"] == "limits.cpu"
+
+
 def test_the_exit_handler_leaves_the_reason_to_the_api():
     steps = {step["name"]: step for step in _exit_handler_steps()}
     params = {

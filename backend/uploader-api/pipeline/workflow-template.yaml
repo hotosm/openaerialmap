@@ -312,12 +312,17 @@ spec:
           - { name: GDAL_DISABLE_READDIR_ON_OPEN, value: "EMPTY_DIR" }
           # Local Talos misreports capacity, so tests disable this production guard.
           - { name: CHECK_DISK_FREE_SPACE, value: "TRUE" }
+          # Ensure GDAL uses the defined courses in our resource limits
+          - name: COG_NUM_THREADS
+            valueFrom:
+              resourceFieldRef: { resource: limits.cpu }
         volumeMounts:
           - { name: workspace, mountPath: /data }
         resources:
           # Memory follows cache size; storage must also fit temporary files.
-          requests: { memory: "2Gi", cpu: "2" }
-          limits: { memory: "4Gi", cpu: "4" }
+          # NOTE: unspaced braces so `just test` can modify values!
+          requests: {memory: "2Gi", cpu: "4"}
+          limits: {memory: "4Gi", cpu: "4"}
       # Always: a pod lost with its node ends in Error, which OnFailure skips.
       retryStrategy:
         limit: "3"
