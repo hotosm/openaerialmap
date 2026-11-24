@@ -46,6 +46,18 @@ spec:
       fsGroup: 1000
       seccompProfile:
         type: RuntimeDefault
+  # Don't run on spot instances and stop Karpenter disrupting workloads
+  podMetadata:
+    annotations:
+      karpenter.sh/do-not-disrupt: "true"
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/capacity-type
+                operator: NotIn
+                values: ["spot"]
 
   arguments:
     parameters:
@@ -253,7 +265,7 @@ spec:
           limits: {memory: "1Gi", cpu: "1"}
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
         # Only retry what a retry could fix. A 404, a rejected host or bytes
         # that are not a GeoTIFF fail identically every time, and the uploader
         # has already been told which of those it was.
@@ -283,7 +295,7 @@ spec:
           limits: { memory: "4Gi", cpu: "2" }
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
         # Only 75, the one exit that is about the workspace and not the file.
         expression: "lastRetry.status == 'Error' or asInt(lastRetry.exitCode) == 75"
 
@@ -306,9 +318,10 @@ spec:
           # Memory follows cache size; storage must also fit temporary files.
           requests: { memory: "2Gi", cpu: "2" }
           limits: { memory: "4Gi", cpu: "4" }
+      # Always: a pod lost with its node ends in Error, which OnFailure skips.
       retryStrategy:
         limit: "3"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
 
     - name: build-metadata
       container:
@@ -334,7 +347,7 @@ spec:
           limits: { memory: "4Gi", cpu: "2" }
       retryStrategy:
         limit: "2"
-        retryPolicy: "OnFailure"
+        retryPolicy: "Always"
 
     - name: s3-upload-cog
       container:

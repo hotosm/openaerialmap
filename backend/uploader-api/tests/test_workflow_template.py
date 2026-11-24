@@ -78,6 +78,32 @@ def test_step_logs_are_archived():
     assert SPEC["archiveLogs"] is True
 
 
+def test_karpenter_does_not_consolidate_a_node_mid_step():
+    """A deleted pod restarts a convert that may have run for hours."""
+    annotations = SPEC["podMetadata"]["annotations"]
+    assert annotations["karpenter.sh/do-not-disrupt"] == "true"
+
+
+def test_steps_never_land_on_spot():
+    """NotIn, not In on-demand: core nodes carry no capacity-type label."""
+    node_affinity = SPEC["affinity"]["nodeAffinity"]
+    terms = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"]
+    expressions = [e for t in terms["nodeSelectorTerms"] for e in t["matchExpressions"]]
+    assert {
+        "key": "karpenter.sh/capacity-type",
+        "operator": "NotIn",
+        "values": ["spot"],
+    } in expressions
+
+
+@pytest.mark.parametrize(
+    "step", ("fetch-source", "validate-geotiff", "convert-cog", "build-metadata")
+)
+def test_a_pod_lost_with_its_node_is_retried(step):
+    """A deleted pod ends in Error, which OnFailure never retries."""
+    assert STEPS[step]["retryStrategy"]["retryPolicy"] == "Always"
+
+
 def test_the_exit_handler_leaves_the_reason_to_the_api():
     steps = {step["name"]: step for step in _exit_handler_steps()}
     params = {
