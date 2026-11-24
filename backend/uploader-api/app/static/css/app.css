@@ -122,6 +122,14 @@ hotosm-auth {
   gap: 1.5rem;
 }
 
+.oam-footer {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 0 1rem 2rem;
+  font-size: 0.875rem;
+}
+
 .oam-card {
   background: #ffffff;
   border: var(--oam-border-hairline) solid var(--oam-greylight);
