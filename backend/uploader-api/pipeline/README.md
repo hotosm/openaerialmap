@@ -74,9 +74,9 @@ A remote source has no size until it has been fetched and gets the ceiling.
 
 `WORKSPACE_MULTIPLIER` buys the decode ratio the volume will tolerate, because
 compressed bytes do not predict decoded ones - a JPEG-in-TIFF ortho reaches
-10:1. Overhead takes the rest of it, so 17x delivers 10:1 and not 17:1. That
-holds up to a 60 GiB upload, past which `WORKSPACE_MAX_GIB` binds first and the
-ratio degrades to 5.8:1 at the 100 GiB ceiling; raise the cap to extend it. Too
+10:1, and a Maxar JPEG mosaic 23:1. After overhead, 20x allows 12:1 for
+lossless output and 26:1 for lossy. Above a 51 GiB upload `WORKSPACE_MAX_GIB`
+is hit first, so the allowed ratio shrinks, to 5.8:1 lossless at 100 GiB. Too
 tight a ratio here rejects real imagery, which is the bug this replaced.
 
 `max-decoded-gb` follows from that volume rather than being chosen: the run
@@ -85,9 +85,10 @@ COG of incompressible pixels is the size of the decoded raster. `COG_TEMP_FACTOR
 budgets half the output for temp against GDAL's estimated third, and
 `WORKSPACE_USABLE` keeps 5% back for ext4 metadata and the small sidecar files.
 
-Lossy visual output budgets 0.9x decoded size (`LOSSY_DISK_FACTOR=0.6`),
-including GDAL's lossless overview temp. A conversion test checks this budget
-with incompressible JPEG input.
+Lossy visual output budgets 0.675x decoded size (`LOSSY_DISK_FACTOR=0.45`),
+including GDAL's temporary overview file. convert leaves that file
+uncompressed (`COG_TMP_COMPRESSION=NONE`), as compressing it makes it bigger.
+A conversion test checks this budget with incompressible JPEG input.
 
 | Parameter | Default | Env in the step |
 | --- | --- | --- |
