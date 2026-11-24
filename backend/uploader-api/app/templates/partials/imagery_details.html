@@ -1,0 +1,79 @@
+<!-- A save answers with this whole section, so the form and the values it
+     is compared against always match what was just written. -->
+<section id="imagery-details" class="oam-card">
+  <h2>Details</h2>
+  {% if saved %}
+  <wa-callout variant="success">
+    <span
+      >Saved. My imagery shows the new details straight away; the map follows when the global
+      mosaic next rebuilds.</span
+    >
+  </wa-callout>
+  {% elif unchanged %}
+  <wa-callout variant="neutral">
+    <span>Nothing changed, so there was nothing to save.</span>
+  </wa-callout>
+  {% endif %}
+  <form
+    class="oam-form"
+    hx-post="/imagery/{{ item_id | urlencode }}/details"
+    hx-target="#imagery-details-result"
+    hx-swap="innerHTML"
+    hx-disabled-elt="find wa-button"
+  >
+    <!-- Only what differs from these is changed, so a value nobody touched
+         is never rewritten. -->
+    {% for name, value in details.items() %}
+    <input type="hidden" name="seen_{{ name }}" value="{{ value }}" />
+    {% endfor %}
+    <wa-input name="title" label="Dataset title" value="{{ details.title }}"></wa-input>
+    <wa-input
+      name="provider"
+      label="Provider / producer"
+      value="{{ details.provider }}"
+      hint="Organisation or person that produced the imagery."
+    ></wa-input>
+    <wa-input
+      name="contact"
+      label="Contact"
+      value="{{ details.contact }}"
+      hint="Name shown for imagery enquiries. Email addresses are left out, since the metadata is public."
+    ></wa-input>
+    <wa-select name="platform" label="Platform type" value="{{ details.platform }}">
+      {% for value, label in platforms %}
+      <wa-option value="{{ value }}">{{ label }}</wa-option>
+      {% endfor %}
+    </wa-select>
+    <wa-input
+      name="sensor"
+      label="Sensor"
+      value="{{ details.sensor }}"
+      hint="Camera or sensor model, e.g. DJI Zenmuse P1."
+    ></wa-input>
+    {% if licence_locked %}
+    <p>Licence: <strong>{{ licence }}</strong></p>
+    <p class="oam-muted">
+      The licence stays as it is: no licence OpenAerialMap offers is known to allow more, and
+      people already use the imagery under the current terms.
+    </p>
+    {% else %}
+    <wa-select
+      name="license"
+      label="Licence"
+      value="{{ details.license }}"
+      hint="A licence can only change to one that allows more, since people already use the imagery under the current terms."
+    >
+      {% for licence in licences %}
+      <wa-option value="{{ licence }}">{{ licence }}</wa-option>
+      {% endfor %}
+    </wa-select>
+    {% endif %}
+    <div id="imagery-details-result"></div>
+    <div class="oam-actions">
+      <wa-button type="submit" variant="brand">Save</wa-button>
+    </div>
+  </form>
+</section>
+{% if saved %}
+{% with oob = true %}{% include "partials/imagery_summary.html" %}{% endwith %}
+{% endif %}

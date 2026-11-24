@@ -219,25 +219,30 @@ is refused, so another site cannot submit the form for a signed-in user.
 
 ## Editing imagery
 
-`PATCH /api/v1/imagery/{item_id}` corrects published metadata: `title`, `provider`,
-`contact`, `platform`, `sensor` and `license`, each optional, with the same
-limits as the upload form. The licence can only change to one of the three
-the form offers that allows at least as much: CC BY-NC or CC BY-SA can open up
-to CC BY, never the other way, since people already rely on the current terms
+The **Details** section of `/imagery/{item_id}` corrects published
+metadata: title, provider, contact, platform, sensor and licence, with the
+same limits as the upload form. It posts to `/imagery/{item_id}/details`
+through HTMX, with the values the page showed in hidden `seen_*` fields.
+Only fields that differ from them change, so a legacy value nobody touched
+is not rewritten. The licence can only change to one of the three the form
+offers that allows at least as much: CC BY-NC or CC BY-SA can open up to CC
+BY, never the other way, since people already rely on the current terms
 (discussion #332). An Item without a licence can get any of the three; one
-under a licence outside the CC BY family, such as CC0 or ODbL, keeps it. Each
-changed field gets its own `imagery_changes` row, and the same people who can
-transfer imagery can edit it. The Item's `metadata.json` asset is not
-rewritten; it stays the record of the Item at ingest, as it does after a
-transfer.
+under a licence outside the CC BY family, such as CC0 or ODbL, keeps it, and
+the page shows it without a choice. Each changed field gets its own
+`imagery_changes` row, and the same people who can transfer imagery can
+edit it. The Item's `metadata.json` asset is not rewritten; it stays the
+record of the Item at ingest, as it does after a transfer.
 
-`seen` carries the values the editor showed, as Browse reads them from the
-Item. A field the request changes that no longer holds its `seen` value
-answers 409, so an edit made since is not overwritten. Without `seen`, the
-last request to arrive wins. The `imagery_changes` rows are inserted before
-the write, so a refused write leaves no rows and a failed insert leaves the
-Item as it was. Browse calls this from its own origin, so `OAM_FRONTEND_URL`
-is a CORS origin until the editor moves to the imagery page.
+A changed field that no longer holds the value the page showed answers 409,
+so an edit made since is not overwritten. The `imagery_changes` rows are
+inserted before the write, so a refused write leaves no rows and a failed
+insert leaves the Item as it was. As with transfers, a post without the
+`HX-Request` header is refused.
+
+`PATCH /api/v1/imagery/{item_id}` takes the same fields as JSON for the
+editor in Browse, from its own origin, until Browse links here for that
+too.
 
 ## Integrating an external system
 
