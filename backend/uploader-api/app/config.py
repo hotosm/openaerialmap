@@ -230,9 +230,9 @@ class Settings(BaseSettings):
     # The workspace volume holds the upload, its COG and GDAL's overview temp,
     # so it scales with the upload instead of being provisioned for the largest
     # one allowed. Mirrors ScaleODM's workflow.workspace.dynamicSize.
-    # Sized so the decode ratio may reach 10:1, which JPEG-in-TIFF orthos do;
-    # overhead eats the rest. The cap holds that up to a 60 GiB upload.
-    WORKSPACE_MULTIPLIER: float = 17.0
+    # Admits 12:1 lossless and 26:1 lossy decode ratios (Maxar JPEG mosaics
+    # reach 23:1). The cap holds that up to a 51 GiB upload.
+    WORKSPACE_MULTIPLIER: float = 20.0
     WORKSPACE_MIN_GIB: int = 64
     WORKSPACE_MAX_GIB: int = 1024
     # Empty uses the cluster default. It must reclaim on delete, or every run

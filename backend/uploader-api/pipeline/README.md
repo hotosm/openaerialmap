@@ -74,9 +74,10 @@ A remote source has no size until it has been fetched and gets the ceiling.
 
 `WORKSPACE_MULTIPLIER` buys the decode ratio the volume will tolerate, because
 compressed bytes do not predict decoded ones - a JPEG-in-TIFF ortho reaches
-10:1. Overhead takes the rest of it, so 17x delivers 10:1 and not 17:1. That
-holds up to a 60 GiB upload, past which `WORKSPACE_MAX_GIB` binds first and the
-ratio degrades to 5.8:1 at the 100 GiB ceiling; raise the cap to extend it. Too
+10:1, and a lossy Maxar mosaic 23:1. Overhead takes the rest of it, so 20x
+delivers 12:1 lossless and 26:1 lossy. That holds up to a 51 GiB upload, past
+which `WORKSPACE_MAX_GIB` binds first and the ratio degrades to 5.8:1 lossless
+at the 100 GiB ceiling; raise the cap to extend it. Too
 tight a ratio here rejects real imagery, which is the bug this replaced.
 
 `max-decoded-gb` follows from that volume rather than being chosen: the run
