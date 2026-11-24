@@ -4,7 +4,6 @@ import json
 import os
 import threading
 
-import budget
 import convert
 import numpy as np
 import pytest
@@ -227,15 +226,6 @@ def _peak_bytes(directory, run) -> int:
     return peak[0]
 
 
-def _converted_peak(tmp_path, monkeypatch, src) -> int:
-    """Temp files plus output, kept on disk so nothing is missed by polling."""
-    monkeypatch.setenv("COG_DELETE_TEMP_FILES", "NO")
-    dst = tmp_path / "out.tif"
-    convert.convert_to_cog(src, str(dst))
-    temps = sum(f.stat().st_size for f in (tmp_path / "tmp").glob("*.tmp"))
-    return temps + dst.stat().st_size
-
-
 def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
     """Check the 0.9x decoded-size budget with JPEG q30 noise input.
 
@@ -268,60 +258,3 @@ def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
         str(tmp_path), lambda: convert.convert_to_cog(src, str(tmp_path / "out.tif"))
     )
     assert peak - input_bytes <= 0.9 * noise.nbytes, (peak - input_bytes) / noise.nbytes
-
-
-@pytest.mark.parametrize(
-    ("width", "height", "block", "count"),
-    [
-        (2048, 2048, 512, 3),  # incompressible noise
-        (17, 8192, None, 3),  # narrow: every level a padded block
-        (64, 8192, 4096, 4),  # RGBA, 4096-tiled: the VRT still gives 128 px temp blocks
-    ],
-)
-def test_a_visual_conversion_fits_the_api_s_bound(
-    tmp_path, monkeypatch, width, height, block, count
-):
-    """The workspace is sized from this bound, so it must hold the real peak."""
-    data = np.random.default_rng(0).integers(0, 256, (count, height, width))
-    src = str(tmp_path / "input.tif")
-    tiles = {"tiled": True, "blockxsize": block, "blockysize": block} if block else {}
-    with rasterio.open(
-        src,
-        "w",
-        driver="GTiff",
-        width=width,
-        height=height,
-        count=count,
-        dtype="uint8",
-        crs="EPSG:32633",
-        transform=from_origin(500000, 5000000, 0.1, 0.1),
-        **tiles,
-    ) as dst:
-        dst.write(data.astype("uint8"))
-        if count == 4:
-            dst.colorinterp = [
-                ColorInterp.red,
-                ColorInterp.green,
-                ColorInterp.blue,
-                ColorInterp.alpha,
-            ]
-    _meta(tmp_path, product_type="visual")
-    monkeypatch.setattr(convert, "VERIFY", False)  # noise fails the MAE check
-    peak = _converted_peak(tmp_path, monkeypatch, src)
-    bound = budget.conversion_bytes(width, height)
-    assert peak <= bound, peak / bound
-
-
-def test_the_overview_temp_is_written_uncompressed(tmp_path, monkeypatch):
-    """A compressed temp is rewritten block by block and outgrows the raw pyramid."""
-    seen = {}
-    real_env = convert.rasterio.Env
-
-    def env(**options):
-        seen.update(options)
-        return real_env(**options)
-
-    monkeypatch.setattr(convert.rasterio, "Env", env)
-    _meta(tmp_path, product_type="visual")
-    _convert(tmp_path, _write(tmp_path / "input.tif", _scene()))
-    assert seen["COG_TMP_COMPRESSION"] == "NONE"

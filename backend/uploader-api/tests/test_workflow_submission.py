@@ -12,9 +12,7 @@ from kubernetes.client.api_client import ApiClient
 from kubernetes.client.exceptions import ApiException
 
 from app.config import settings
-from app.uploads import argo, service
-from app.uploads.budget import conversion_bytes
-from app.uploads.tiff_header import Grid
+from app.uploads import argo
 
 SUBMIT = dict(
     s3_path="s3://oam/u-abc/id/",
@@ -163,87 +161,19 @@ def test_a_tiny_upload_still_clears_the_floor(api):
     assert storage == f"{settings.WORKSPACE_MIN_GIB}Gi"
 
 
-def test_a_volume_past_the_ceiling_is_capped(api):
+def test_an_upload_at_the_ceiling_is_capped(api):
     fake = api()
-    size = settings.WORKSPACE_MAX_GIB * argo.GIB
-    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=settings.MAX_UPLOAD_BYTES)
     storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
     assert storage == f"{settings.WORKSPACE_MAX_GIB}Gi"
 
 
-# A header gives the grid, so a visual upload's volume holds its worst-case
-# conversion rather than a guess from compressed bytes.
-MAXAR_Q75 = Grid(82_944, 590_848, True)  # 6.6 GB, 147 GB decoded
-
-
-@pytest.mark.parametrize(
-    "grid",
-    [
-        MAXAR_Q75,
-        Grid(17, 2_147_483_600, True),  # every level a padded block: 5.5 TiB
-        Grid(512, 512, True),
-    ],
-)
-def test_a_visual_grid_gets_room_for_its_worst_case(api, grid):
-    fake = api()
-    size = 6_605_000_000
-    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size, grid=grid)
-    max_decoded = float(params(fake.created[0])["max-decoded-gb"])
-    assert max_decoded * 1e9 * argo.COG_TEMP_FACTOR >= conversion_bytes(
-        grid.width, grid.height
-    )
-
-
-def test_validate_admits_the_maxar_mosaic_it_rejected():
-    """validate's lossy rule: decoded size up to max-decoded-gb over 0.6."""
-    size = 6_605_000_000
-    workspace = argo.workspace_gib(size, MAXAR_Q75)
-    decoded_gb = MAXAR_Q75.width * MAXAR_Q75.height * 3 / 1e9
-    assert decoded_gb <= argo.max_decoded_gb(workspace, size) / 0.6
-    assert decoded_gb > argo.max_decoded_gb(argo.workspace_gib(size), size) / 0.6
-
-
-@pytest.mark.parametrize(
-    "grid",
-    [Grid(100_000, 100_000), Grid(1000, 1000, True)],
-    ids=["non-visual", "small-visual"],
-)
-def test_the_byte_multiplier_is_the_floor(api, grid):
-    """Lossless products are sized as before; visual ones never get less."""
-    fake = api()
-    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=40 * argo.GIB, grid=grid)
-    storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
-    assert storage == f"{int(40 * settings.WORKSPACE_MULTIPLIER)}Gi"
-
-
-@pytest.mark.parametrize(
-    "grid",
-    [Grid(2_000_000, 2_000_000, True), Grid(17, 4_000_000_000, True)],
-    ids=["huge", "narrow"],
-)
-def test_a_grid_past_the_ceiling_is_rejected_by_validate(api, grid):
-    """No volume here holds it, so validate's pixel limit stops it up front."""
-    fake = api()
-    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=argo.GIB, grid=grid)
-    storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
-    assert storage == f"{settings.WORKSPACE_MIN_GIB}Gi"
-    limit = float(params(fake.created[0])["max-gigapixels"])
-    assert 0 < limit < grid.width * grid.height / 1e9
-
-
-@pytest.mark.parametrize("grid", [None, MAXAR_Q75, Grid(100_000, 100_000)])
-def test_a_grid_that_fits_has_no_pixel_limit(api, grid):
-    fake = api()
-    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=6_605_000_000, grid=grid)
-    assert params(fake.created[0])["max-gigapixels"] == "0"
-
-
-def test_a_remote_source_gets_the_remote_default(api):
+def test_a_remote_source_gets_the_ceiling(api):
     """Its size is not known until the fetch step has run."""
     fake = api()
     argo.submit_geotiff_workflow(**SUBMIT, remote_source=True)
     storage = _claim(fake.created[0])["spec"]["resources"]["requests"]["storage"]
-    assert storage == f"{settings.WORKSPACE_REMOTE_GIB}Gi"
+    assert storage == f"{settings.WORKSPACE_MAX_GIB}Gi"
 
 
 @pytest.mark.parametrize("gib", [1, 10, 40, 100])
@@ -266,7 +196,7 @@ def _ratio(fake, size) -> float:
     return float(params(fake.created[0])["max-decoded-gb"]) * 1e9 / size
 
 
-@pytest.mark.parametrize("gib", [1, 10, 40, 60, 100])
+@pytest.mark.parametrize("gib", [1, 10, 40, 60])
 def test_every_upload_size_admits_a_realistic_decode_ratio(api, gib):
     """The volume is sized off compressed bytes, which do not predict decoded
     ones: a JPEG-in-TIFF ortho reaches 10:1 and a 1 GiB upload is not a 1 GiB
@@ -276,6 +206,15 @@ def test_every_upload_size_admits_a_realistic_decode_ratio(api, gib):
     size = gib * argo.GIB
     argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
     assert _ratio(fake, size) >= 10
+
+
+def test_the_biggest_uploads_trade_that_ratio_for_a_bounded_volume(api):
+    """Past ~60 GiB the multiplier would ask for more than WORKSPACE_MAX_GIB, so
+    the ratio degrades instead of the volume growing without limit."""
+    fake = api()
+    size = settings.MAX_UPLOAD_BYTES
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=size)
+    assert 5 <= _ratio(fake, size) < 10
 
 
 def test_the_reported_regression_would_now_pass(api):
@@ -324,16 +263,3 @@ def test_the_volume_keeps_room_the_arithmetic_does_not_claim(api):
     )
     used = size + float(params(call)["max-decoded-gb"]) * 1e9 * argo.COG_TEMP_FACTOR
     assert workspace * argo.GIB - used >= 0.04 * workspace * argo.GIB
-
-
-@pytest.mark.parametrize(
-    ("meta", "lossy"),
-    [
-        (None, True),
-        ({"product_type": " Visual "}, True),
-        ({"product_type": "multispectral"}, False),
-    ],
-)
-def test_only_an_upload_convert_may_make_lossy_is_sized_from_its_grid(meta, lossy):
-    """Declared non-visual RGB converts lossless, with source-sized temp blocks."""
-    assert service.may_convert_lossy(meta) is lossy

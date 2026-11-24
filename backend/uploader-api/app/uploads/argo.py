@@ -10,8 +10,6 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
 from app.config import settings
-from app.uploads.budget import conversion_bytes
-from app.uploads.tiff_header import Grid
 
 log = logging.getLogger(__name__)
 
@@ -26,41 +24,16 @@ WORKSPACE_USABLE = 0.95
 COG_TEMP_FACTOR = 1.5
 
 
-def _visual_gib(size_bytes: int | None, grid: Grid | None) -> int | None:
-    """Volume for a visual grid's worst-case conversion; None if not visual.
-
-    2 GiB covers max_decoded_gb rounding down.
-    """
-    if not (size_bytes and grid and grid.visual):
-        return None
-    convert = conversion_bytes(grid.width, grid.height)
-    return math.ceil((size_bytes + convert) / WORKSPACE_USABLE / GIB) + 2
-
-
-def workspace_gib(size_bytes: int | None, grid: Grid | None = None) -> int:
+def workspace_gib(size_bytes: int | None) -> int:
     """Size the workspace volume for an upload of this many bytes.
 
-    A remote source has no size until it has been fetched.
+    A remote source has no size until it has been fetched, so it gets the
+    ceiling rather than a volume its imagery might not fit.
     """
     if not size_bytes:
-        return settings.WORKSPACE_REMOTE_GIB
+        return settings.WORKSPACE_MAX_GIB
     wanted = math.ceil(size_bytes * settings.WORKSPACE_MULTIPLIER / GIB)
-    visual = _visual_gib(size_bytes, grid)
-    if visual and visual <= settings.WORKSPACE_MAX_GIB:
-        wanted = max(wanted, visual)
     return max(settings.WORKSPACE_MIN_GIB, min(wanted, settings.WORKSPACE_MAX_GIB))
-
-
-def max_gigapixels(size_bytes: int | None, grid: Grid | None) -> float:
-    """0 for no limit, or one just under a visual grid no volume here can hold.
-
-    validate then rejects it up front instead of running out of disk.
-    """
-    visual = _visual_gib(size_bytes, grid)
-    if not visual or visual <= settings.WORKSPACE_MAX_GIB:
-        return 0
-    gigapixels = grid.width * grid.height / 1e9
-    return math.floor(gigapixels * settings.WORKSPACE_MAX_GIB / visual * 100) / 100
 
 
 def max_decoded_gb(workspace: int, size_bytes: int | None) -> int:
@@ -124,7 +97,6 @@ def submit_geotiff_workflow(
     callback_token: str,
     remote_source: bool = False,
     size_bytes: int | None = None,
-    grid: Grid | None = None,
 ) -> str:
     """Submit a GeoTIFF processing Workflow; return its name.
 
@@ -134,7 +106,7 @@ def submit_geotiff_workflow(
     read access could see.
     """
     name = workflow_name_for(upload_id)
-    workspace = workspace_gib(size_bytes, grid)
+    workspace = workspace_gib(size_bytes)
     parameters = {
         "s3-path": s3_path,
         "filename": filename,
@@ -154,7 +126,6 @@ def submit_geotiff_workflow(
         # the same answer about private hosts.
         "allow-private-hosts": str(settings.FETCH_ALLOW_PRIVATE_HOSTS).lower(),
         "max-decoded-gb": max_decoded_gb(workspace, size_bytes),
-        "max-gigapixels": max_gigapixels(size_bytes, grid),
     }
     manifest = {
         "apiVersion": "argoproj.io/v1alpha1",

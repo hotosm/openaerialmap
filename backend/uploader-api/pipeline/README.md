@@ -68,24 +68,16 @@ That volume is sized per upload. `uploader-api` reads the object's real size,
 scales it by `WORKSPACE_MULTIPLIER` between `WORKSPACE_MIN_GIB` and
 `WORKSPACE_MAX_GIB`, and submits the claim with the Workflow - Argo takes no
 parameter in a PVC size, so it replaces the whole `volumeClaimTemplates` entry.
-A remote source has no size until it has been fetched and gets
-`WORKSPACE_REMOTE_GIB`.
+A remote source has no size until it has been fetched and gets the ceiling.
 `WORKSPACE_STORAGE_CLASS` must reclaim on delete: HOTOSM's default `gp3` is
 `Retain`, so leaving it unset leaves one EBS volume behind per run.
 
 `WORKSPACE_MULTIPLIER` buys the decode ratio the volume will tolerate, because
 compressed bytes do not predict decoded ones - a JPEG-in-TIFF ortho reaches
-10:1. Overhead takes the rest of it, so 17x delivers 10:1 and not 17:1, up to
-the 100 GiB upload limit. Too tight a ratio here rejects real imagery, which is
-the bug this replaced.
-
-Visual RGB(A) can decode further: JPEG q75 Maxar mosaics reach 22:1. For those
-`uploader-api` also reads the TIFF header and sizes the volume for the worst
-case of that grid in `app/uploads/budget.py`: a JPEG COG at half raw size
-plus the raw overview temp. `WORKSPACE_MAX_GIB` (8 TiB) holds
-that for the largest drone mosaics in the catalogue. A grid past it is sized by
-bytes and gets `max-gigapixels` just under its own size, so validate rejects it
-before conversion starts.
+10:1. Overhead takes the rest of it, so 17x delivers 10:1 and not 17:1. That
+holds up to a 60 GiB upload, past which `WORKSPACE_MAX_GIB` binds first and the
+ratio degrades to 5.8:1 at the 100 GiB ceiling; raise the cap to extend it. Too
+tight a ratio here rejects real imagery, which is the bug this replaced.
 
 `max-decoded-gb` follows from that volume rather than being chosen: the run
 holds the input, its COG and GDAL's overview temp on one disk, and a lossless
@@ -94,15 +86,12 @@ budgets half the output for temp against GDAL's estimated third, and
 `WORKSPACE_USABLE` keeps 5% back for ext4 metadata and the small sidecar files.
 
 Lossy visual output budgets 0.9x decoded size (`LOSSY_DISK_FACTOR=0.6`),
-including GDAL's overview temp. convert writes that temp uncompressed
-(`COG_TMP_COMPRESSION=NONE`), because GDAL rewrites compressed blocks as it
-builds the pyramid and a ZSTD temp grew past the raw size. Conversion tests
-check this budget with incompressible JPEG input, and visual conversions
-against the workspace bound.
+including GDAL's lossless overview temp. A conversion test checks this budget
+with incompressible JPEG input.
 
 | Parameter | Default | Env in the step |
 | --- | --- | --- |
-| `max-decoded-gb` | computed (`130` fallback) | `OAM_VALIDATE_MAX_DECODED_GB` |
+| `max-decoded-gb` | computed (`150` fallback) | `OAM_VALIDATE_MAX_DECODED_GB` |
 | `max-gigapixels` | `0` (off) | `OAM_VALIDATE_MAX_GIGAPIXELS` |
 
 The template's own values are the fallback for a submission that does not come

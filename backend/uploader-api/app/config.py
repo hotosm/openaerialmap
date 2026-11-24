@@ -231,14 +231,10 @@ class Settings(BaseSettings):
     # so it scales with the upload instead of being provisioned for the largest
     # one allowed. Mirrors ScaleODM's workflow.workspace.dynamicSize.
     # Sized so the decode ratio may reach 10:1, which JPEG-in-TIFF orthos do;
-    # overhead eats the rest. The cap holds that up to MAX_UPLOAD_BYTES and
-    # leaves room for visual mosaics sized from their grid. EBS gp3 allows
-    # 64 TiB, and the volume lives only as long as the run.
+    # overhead eats the rest. The cap holds that up to a 60 GiB upload.
     WORKSPACE_MULTIPLIER: float = 17.0
     WORKSPACE_MIN_GIB: int = 64
-    WORKSPACE_MAX_GIB: int = 8192
-    # A remote source has no size until fetched; the cap would bill every one.
-    WORKSPACE_REMOTE_GIB: int = 1024
+    WORKSPACE_MAX_GIB: int = 1024
     # Empty uses the cluster default. It must reclaim on delete, or every run
     # leaves its volume behind - HOTOSM's default `gp3` is Retain.
     WORKSPACE_STORAGE_CLASS: str = ""

@@ -1,10 +1,6 @@
-"""Put convert, and the API's disk bound, on sys.path for the tests."""
+"""Put the convert step module on sys.path so tests can `import convert`."""
 
 import os
 import sys
 
-STEP = os.path.dirname(os.path.dirname(__file__))
-sys.path.insert(0, STEP)
-# In the repository the bound lives in the API; the test image copies it.
-for bound in ("../../app/uploads", "../budget"):
-    sys.path.insert(0, os.path.normpath(os.path.join(STEP, bound)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

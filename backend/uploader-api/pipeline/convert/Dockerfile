@@ -33,8 +33,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-editable \
         --package oam-pipeline-convert --group test
 COPY uploader-api/pipeline/convert/ ./convert/
-# The disk tests check conversions against the API's workspace bound.
-COPY uploader-api/app/uploads/budget.py ./budget/budget.py
 CMD ["pytest", "convert/tests"]
 
 FROM python:3.13-slim AS prod
