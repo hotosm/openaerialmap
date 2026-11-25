@@ -1,17 +1,16 @@
-"""Server-rendered pages to manage published imagery, and the metadata API.
+"""Server-rendered pages to manage published imagery.
 
 Changes are checked against ownership here and written straight into pgstac,
 the only path that writes stored Items (ADR 0011). Each change is recorded
 with who made it. The forms are HTMX, like the rest of the uploader (ADR
-0007); the map frontend only links here. The JSON API still serves the
-metadata editor in Browse until that moves to the page too.
+0007); the map frontend only links here.
 """
 
 import logging
 from datetime import datetime
 from typing import Annotated, Any
 
-from litestar import Request, Router, get, patch, post
+from litestar import Request, Router, get, post
 from litestar import status_codes as status
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
@@ -379,6 +378,21 @@ async def transfer_imagery(
     )
 
 
+async def _write(
+    item_id: str, changes: dict[str, Any], expect: dict[str, Any]
+) -> dict[str, Any]:
+    """Write properties to the stored Item, refusing a stale or vanished one."""
+    try:
+        updated = await pgstac.patch_properties(item_id, changes, expect=expect)
+    except pgstac.ItemChanged:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_CHANGED_MEANWHILE
+        ) from None
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
+    return updated
+
+
 @post("/{item_id:str}/details", status_code=status.HTTP_200_OK)
 async def save_details(
     item_id: str,
@@ -452,114 +466,9 @@ async def save_details(
     )
 
 
-class UpdateImageryBody(MetadataEdit):
-    """What may change on published imagery. A field left out stays as it is."""
-
-    # What the editor showed, so a change someone made since is not overwritten.
-    seen: SeenMetadata | None = None
-
-
-async def _write(
-    item_id: str, changes: dict[str, Any], expect: dict[str, Any]
-) -> dict[str, Any]:
-    """Write properties to the stored Item, refusing a stale or vanished one."""
-    try:
-        updated = await pgstac.patch_properties(item_id, changes, expect=expect)
-    except pgstac.ItemChanged:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_CHANGED_MEANWHILE
-        ) from None
-    if updated is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
-    return updated
-
-
-@patch("/{item_id:str}")
-async def update_imagery(
-    item_id: str,
-    data: UpdateImageryBody,
-    auth_user: object,
-    db: AsyncConnection,
-    request: Request,
-) -> dict:
-    """Correct the metadata of published imagery; transfers are on its page."""
-    user_sub = get_user_sub(auth_user)
-    item, _ = await _editable_item(item_id, auth_user, request)
-    current = item.get("properties", {}).get(OWNER_FIELD)
-
-    if data.seen is not None and changed_meanwhile(item, data, data.seen):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_CHANGED_MEANWHILE
-        )
-
-    try:
-        edits = item_changes(item, data)
-    except LicenceNotOffered:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "OpenAerialMap does not offer that licence. Choose CC-BY 4.0, "
-                "CC BY-NC 4.0 or CC BY-SA 4.0."
-            ),
-        ) from None
-    except LicenceMoreRestrictive:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "People already use this imagery under its current licence, so "
-                "it can only change to a less restrictive one. Keep the current "
-                "licence or choose one that allows more."
-            ),
-        ) from None
-    except LicenceNotChangeable:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "This imagery is under a licence OpenAerialMap cannot change. "
-                "Leave the licence as it is."
-            ),
-        ) from None
-
-    if not edits.properties:
-        return {"id": item_id, "owner_id": current}
-
-    # Recorded first, so a refused write rolls the rows back with the request.
-    for field, old, new in edits.history:
-        await DbImageryChange.create(
-            db,
-            DbImageryChange(
-                item_id=item_id,
-                field=field,
-                actor_sub=user_sub,
-                old_value=old,
-                new_value=new,
-            ),
-        )
-    # Also refuses an Item transferred since it was checked.
-    await _write(
-        item_id, dict(edits.properties), {**edits.expected, OWNER_FIELD: current}
-    )
-    log.info(
-        "Edited %s on %s by %s",
-        ", ".join(f for f, _, _ in edits.history),
-        item_id,
-        user_sub,
-    )
-    return {"id": item_id, "owner_id": current}
-
-
 imagery_router = Router(
     path="/imagery",
     route_handlers=[imagery_page, transfer_imagery, save_details],
-    dependencies={
-        "db": Provide(db_conn),
-        "auth_user": Provide(login_required),
-    },
-)
-
-imagery_api_router = Router(
-    path="/api/v1/imagery",
-    route_handlers=[update_imagery],
     dependencies={
         "db": Provide(db_conn),
         "auth_user": Provide(login_required),

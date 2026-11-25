@@ -240,10 +240,6 @@ inserted before the write, so a refused write leaves no rows and a failed
 insert leaves the Item as it was. As with transfers, a post without the
 `HX-Request` header is refused.
 
-`PATCH /api/v1/imagery/{item_id}` takes the same fields as JSON for the
-editor in Browse, from its own origin, until Browse links here for that
-too.
-
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the
