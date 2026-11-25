@@ -1,0 +1,47 @@
+<!-- A transfer answers with this whole section, so the owner and the choices
+     always match what was just written. -->
+<section id="imagery-owner" class="oam-card">
+  <h2>Owner</h2>
+  {% if moved_to %}
+  <wa-callout variant="success">
+    <span
+      >Transferred to {{ moved_to }}. My imagery lists it under the new owner straight away; the
+      map follows when the global mosaic next rebuilds.</span
+    >
+  </wa-callout>
+  {% endif %}
+  <p>This imagery is owned by <strong>{{ owner_name }}</strong>.</p>
+  {% if not can_edit %}
+  <p class="oam-muted">Only an owner or manager of {{ owner_name }} can change it now.</p>
+  {% elif not choices %}
+  <p class="oam-muted">
+    You do not belong to an organisation, so there is nobody to transfer it to.
+    Join one in HOT Login to share your imagery with it.
+  </p>
+  {% else %}
+  <form
+    class="oam-form"
+    hx-post="/imagery/{{ item_id | urlencode }}/owner"
+    hx-target="#imagery-owner-result"
+    hx-swap="innerHTML"
+    hx-disabled-elt="find wa-button"
+  >
+    <input type="hidden" name="current" value="{{ owner_id }}" />
+    <wa-select
+      name="owner"
+      label="Transfer to"
+      value="{{ choices[0].id }}"
+      hint="The new owner manages the imagery from then on. Who uploaded it stays on record."
+      required
+    >
+      {% for choice in choices %}
+      <wa-option value="{{ choice.id }}">{{ choice.name }}</wa-option>
+      {% endfor %}
+    </wa-select>
+    <div id="imagery-owner-result"></div>
+    <div class="oam-actions">
+      <wa-button type="submit" variant="brand">Transfer</wa-button>
+    </div>
+  </form>
+  {% endif %}
+</section>

@@ -12,8 +12,7 @@ export interface MetadataChanges {
 
 // The uploader is the only writer of published Items (ADR 0011). It checks
 // the session cookie and the ownership itself before touching pgstac.
-// Resolves to what the uploader wrote.
-async function patchImagery(itemId: string, body: object): Promise<{ owner_id?: string }> {
+async function patchImagery(itemId: string, body: object): Promise<void> {
   const res = await fetch(`${UPLOADER_URL}/api/v1/imagery/${encodeURIComponent(itemId)}`, {
     method: "PATCH",
     credentials: "include",
@@ -25,13 +24,6 @@ async function patchImagery(itemId: string, body: object): Promise<{ owner_id?: 
     const err = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new Error(err.detail || `The uploader answered ${res.status}.`);
   }
-  return (await res.json().catch(() => ({}))) as { owner_id?: string };
-}
-
-// Resolves to the owner it wrote.
-export async function transferImagery(itemId: string, ownerId: string): Promise<string> {
-  const written = await patchImagery(itemId, { owner: ownerId });
-  return written.owner_id || ownerId;
 }
 
 // `seen` holds the values the changed fields had when the editor loaded them.

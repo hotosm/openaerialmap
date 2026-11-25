@@ -208,16 +208,18 @@ by the uploading account.
 
 ## Transferring imagery
 
-`PATCH /api/v1/imagery/{item_id}` with `{"owner": "<owner id>"}` moves published
-imagery to the caller (`hotosm|<sub>`) or to an organisation they belong to
-(`hotosm-org|<id>`). The caller must own the Item, or be an owner or manager
-of the organisation that does; members only see. The change is written
-straight into pgstac and recorded in `imagery_changes` with who made it.
-Browse offers it from My imagery, so `OAM_FRONTEND_URL` is a CORS origin.
+`/imagery/{item_id}` is the page where published imagery is managed; My
+imagery in Browse links to it. Its form posts to `/imagery/{item_id}/owner`
+through HTMX and moves the imagery to the caller (`hotosm|<sub>`) or to an
+organisation they belong to (`hotosm-org|<id>`). The caller must own the
+Item, or be an owner or manager of the organisation that does; members only
+see. The change is written straight into pgstac and recorded in
+`imagery_changes` with who made it. A post without the `HX-Request` header
+is refused, so another site cannot submit the form for a signed-in user.
 
 ## Editing imagery
 
-The same request corrects published metadata: `title`, `provider`,
+`PATCH /api/v1/imagery/{item_id}` corrects published metadata: `title`, `provider`,
 `contact`, `platform`, `sensor` and `license`, each optional, with the same
 limits as the upload form. The licence can only change to one of the three
 the form offers that allows at least as much: CC BY-NC or CC BY-SA can open up
@@ -232,9 +234,10 @@ transfer.
 `seen` carries the values the editor showed, as Browse reads them from the
 Item. A field the request changes that no longer holds its `seen` value
 answers 409, so an edit made since is not overwritten. Without `seen`, the
-last request to arrive wins. An edit and a transfer in the same request are
-one write, and the `imagery_changes` rows are inserted before it, so a refused
-write leaves no rows and a failed insert leaves the Item as it was.
+last request to arrive wins. The `imagery_changes` rows are inserted before
+the write, so a refused write leaves no rows and a failed insert leaves the
+Item as it was. Browse calls this from its own origin, so `OAM_FRONTEND_URL`
+is a CORS origin until the editor moves to the imagery page.
 
 ## Integrating an external system
 

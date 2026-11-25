@@ -6,7 +6,6 @@ import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
 import EditDialog from "./components/EditDialog";
-import TransferDialog from "./components/TransferDialog";
 import Toolbar from "./components/Toolbar";
 import ViewTabs from "./components/ViewTabs";
 import type { Basemap } from "./utils/basemaps";
@@ -161,9 +160,8 @@ export default function Browse() {
   const showingMine = mode === "mine" && user !== null;
   const search = useMyImagery(showingMine ? listedOwners : null);
   const mine = withAccount(search, account);
-  const [transferring, setTransferring] = useState<ImageFeature | null>(null);
   // With no organisations the user is the only owner, so there is nowhere to
-  // transfer to.
+  // transfer to, which is all the uploader's page offers so far.
   const canTransfer = (account.owners?.length ?? 0) > 1;
   const [editing, setEditing] = useState<ImageFeature | null>(null);
 
@@ -226,24 +224,6 @@ export default function Browse() {
         setSelectedFeature(feat);
       }
     }
-  };
-
-  // Shows a transfer without searching again, which would drop the pages
-  // loaded so far.
-  const handleTransferred = (item: ImageFeature, ownerId: string) => {
-    setTransferring(null);
-    mine.setOwner(item.properties.id, ownerId);
-    if (selectedFeature?.properties.id !== item.properties.id) return;
-    if (!listedOwners?.includes(ownerId)) {
-      // It went to an owner the list is narrowed away from, so it left the list.
-      handleSelectFeature(null);
-      return;
-    }
-    const ownerName = account.owners?.find((o) => o.id === ownerId)?.name;
-    setSelectedFeature({
-      ...selectedFeature,
-      properties: { ...selectedFeature.properties, ownerId, ownerName },
-    });
   };
 
   // Patched in place too, so the edited card stays where the user left it.
@@ -322,15 +302,6 @@ export default function Browse() {
     <div className="flex flex-col h-screen overflow-hidden">
       <SiteHeader />
 
-      {transferring && account.owners && (
-        <TransferDialog
-          feature={transferring}
-          owners={account.owners}
-          onClose={() => setTransferring(null)}
-          onDone={(ownerId) => handleTransferred(transferring, ownerId)}
-        />
-      )}
-
       {editing && (
         <EditDialog
           feature={editing}
@@ -386,17 +357,16 @@ export default function Browse() {
                     >
                       Edit…
                     </wa-button>
+                    {/* Imagery is managed in the uploader (ADR 0007); transfers happen there. */}
                     {canTransfer && (
                       <wa-button
                         size="s"
                         appearance="outlined"
                         class="flex-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTransferring(f);
-                        }}
+                        href={`${UPLOADER_URL}/imagery/${encodeURIComponent(f.properties.id)}`}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Transfer…
+                        Manage
                       </wa-button>
                     )}
                   </>
