@@ -166,22 +166,3 @@ export function searchByOwners(ownerIds: string[], signal?: AbortSignal): Promis
     signal,
   );
 }
-
-// One stored Item as the API holds it. The card shows formatted values and no
-// contact, so editing starts from here.
-export async function fetchItem(
-  collection: string,
-  id: string,
-  signal?: AbortSignal,
-): Promise<StacItem> {
-  const timeout = AbortSignal.timeout(STAC_SEARCH_TIMEOUT_MS);
-  const res = await fetch(
-    `${STAC_URL}/collections/${encodeURIComponent(collection)}/items/${encodeURIComponent(id)}`,
-    { signal: signal ? AbortSignal.any([signal, timeout]) : timeout },
-  );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { description?: string };
-    throw new Error(err.description || `The STAC API answered ${res.status}.`);
-  }
-  return (await res.json()) as StacItem;
-}

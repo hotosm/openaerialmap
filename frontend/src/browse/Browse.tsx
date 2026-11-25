@@ -5,7 +5,6 @@ import { useAuthUser } from "../auth";
 import Map from "./components/Map";
 import Sidebar from "./components/Sidebar";
 import MapFilterBar from "./components/MapFilterBar";
-import EditDialog from "./components/EditDialog";
 import Toolbar from "./components/Toolbar";
 import ViewTabs from "./components/ViewTabs";
 import type { Basemap } from "./utils/basemaps";
@@ -13,16 +12,9 @@ import MiniMap from "./components/MiniMap";
 import { useMyImagery, type MyImagery } from "./useMyImagery";
 import { useOwners, type Owner, type Owners } from "./useOwners";
 import { UPLOADER_URL } from "./utils/constants";
-import type { MetadataChanges } from "./utils/imagery";
 import { matchesFilters } from "./utils/filters";
 import { toImageFeature } from "./utils/format";
-import type {
-  BrowseMode,
-  Filters,
-  ImageFeature,
-  RawFeature,
-  RawTileProperties,
-} from "./utils/types";
+import type { BrowseMode, Filters, ImageFeature, RawFeature } from "./utils/types";
 import { EMPTY_FILTERS } from "./utils/types";
 import { footprintBbox, type BBox } from "./utils/geo";
 import {
@@ -160,10 +152,6 @@ export default function Browse() {
   const showingMine = mode === "mine" && user !== null;
   const search = useMyImagery(showingMine ? listedOwners : null);
   const mine = withAccount(search, account);
-  // With no organisations the user is the only owner, so there is nowhere to
-  // transfer to, which is all the uploader's page offers so far.
-  const canTransfer = (account.owners?.length ?? 0) > 1;
-  const [editing, setEditing] = useState<ImageFeature | null>(null);
 
   const [features, setFeatures] = useState<ImageFeature[]>([]);
   const [seenCollections, setSeenCollections] = useState<string[]>([]);
@@ -226,23 +214,6 @@ export default function Browse() {
     }
   };
 
-  // Patched in place too, so the edited card stays where the user left it.
-  const handleEdited = (item: ImageFeature, changes: MetadataChanges) => {
-    setEditing(null);
-    // The rest share their names with the search results; the card has no contact.
-    const shown = Object.fromEntries(
-      Object.entries(changes).filter(([key]) => key !== "contact"),
-    ) as Partial<RawTileProperties>;
-    mine.setProperties(item.properties.id, shown);
-    const raw = mine.features.find((f) => f.properties._id === item.properties.id);
-    if (!raw || selectedFeature?.properties.id !== item.properties.id) return;
-    const card = toImageFeature(raw.geometry, { ...raw.properties, ...shown });
-    setSelectedFeature({
-      ...card,
-      properties: { ...card.properties, ownerName: selectedFeature.properties.ownerName },
-    });
-  };
-
   const handleFilterChange = (newFilters: Filters) => {
     setFilters(newFilters);
     writeFilters(newFilters);
@@ -302,14 +273,6 @@ export default function Browse() {
     <div className="flex flex-col h-screen overflow-hidden">
       <SiteHeader />
 
-      {editing && (
-        <EditDialog
-          feature={editing}
-          onClose={() => setEditing(null)}
-          onDone={(changes) => handleEdited(editing, changes)}
-        />
-      )}
-
       <div className="flex flex-1 w-full min-h-0 bg-gray-100 font-sans">
         <div className="flex flex-col w-96 h-full bg-white border-r border-gray-200 shadow-xl z-20 relative">
           {user && <ViewTabs mode={showingMine ? "mine" : "all"} onChange={handleModeChange} />}
@@ -344,32 +307,17 @@ export default function Browse() {
               footer={<MyImageryMore mine={mine} />}
               resetKey={listedOwners?.join(",")}
               renderActions={(f) =>
+                // Imagery is managed in the uploader (ADR 0007): details and owner.
                 account.owners?.find((o) => o.id === f.properties.ownerId)?.canEdit && (
-                  <>
-                    <wa-button
-                      size="s"
-                      appearance="outlined"
-                      class="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditing(f);
-                      }}
-                    >
-                      Edit…
-                    </wa-button>
-                    {/* Imagery is managed in the uploader (ADR 0007); transfers happen there. */}
-                    {canTransfer && (
-                      <wa-button
-                        size="s"
-                        appearance="outlined"
-                        class="flex-1"
-                        href={`${UPLOADER_URL}/imagery/${encodeURIComponent(f.properties.id)}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Manage
-                      </wa-button>
-                    )}
-                  </>
+                  <wa-button
+                    size="s"
+                    appearance="outlined"
+                    class="flex-1"
+                    href={`${UPLOADER_URL}/imagery/${encodeURIComponent(f.properties.id)}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Manage
+                  </wa-button>
                 )
               }
             />

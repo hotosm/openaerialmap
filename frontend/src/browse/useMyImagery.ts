@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fetchPage, searchByOwners, type PageRequest } from "./utils/stac";
-import type { RawFeature, RawTileProperties } from "./utils/types";
+import type { RawFeature } from "./utils/types";
 
 interface Loaded {
   owners: string;
@@ -21,8 +21,6 @@ export interface MyImagery {
   moreError: string | null;
   loadMore: () => void;
   retry: () => void;
-  // Records an edit the uploader has written, without searching again.
-  setProperties: (itemId: string, properties: Partial<RawTileProperties>) => void;
 }
 
 // Stable, so memoised consumers do not recompute on every render.
@@ -110,21 +108,6 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
       });
   };
 
-  // A new search would drop the pages loaded so far, so the list is patched
-  // instead.
-  const setProperties = (itemId: string, properties: Partial<RawTileProperties>) =>
-    setLoaded(
-      (prev) =>
-        prev && {
-          ...prev,
-          features: prev.features.map((f) =>
-            f.properties._id === itemId
-              ? { ...f, properties: { ...f.properties, ...properties } }
-              : f,
-          ),
-        },
-    );
-
   return {
     features: current?.features ?? NONE,
     loading: !!owners && !current,
@@ -134,6 +117,5 @@ export function useMyImagery(ownerIds: string[] | null): MyImagery {
     moreError: current?.moreError ?? null,
     loadMore,
     retry: () => setAttempt((a) => a + 1),
-    setProperties,
   };
 }
