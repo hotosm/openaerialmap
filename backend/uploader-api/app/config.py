@@ -247,7 +247,7 @@ class Settings(BaseSettings):
     HANKO_API_URL: str | None = None
     HANKO_PUBLIC_URL: str | None = None
     LOGIN_URL: str | None = None
-    # Leave empty in prod and staging (uses HANKO_API_URL as fallback); 
+    # Leave empty in prod and staging (uses HANKO_API_URL as fallback);
     # only needed for local development with a Login instance.
     LOGIN_API_URL: str | None = None
     COOKIE_SECRET: SecretStr = SecretStr(_PLACEHOLDER_COOKIE_SECRET)
