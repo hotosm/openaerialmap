@@ -1,4 +1,4 @@
-"""Turn an edit from My imagery into changes to a stored STAC Item.
+"""Turn an edit from the imagery page into changes to a stored STAC Item.
 
 The rules match ingest (stactools-hotosm `oam_metadata.py` and `stac.py`). The
 API does not depend on that package, which would bring rasterio into the image,
@@ -15,6 +15,16 @@ from app.uploads.schemas import MAX_METADATA_VALUE_LENGTH
 
 # The licences the upload form offers, as ingest stores them.
 LICENCES = ("CC-BY-4.0", "CC-BY-NC-4.0", "CC-BY-SA-4.0")
+
+# The platforms the upload form offers, with its labels.
+Platform = Literal["uav", "aircraft", "balloon", "kite", "satellite"]
+PLATFORMS: tuple[tuple[Platform, str], ...] = (
+    ("uav", "UAV / drone"),
+    ("aircraft", "Aircraft"),
+    ("balloon", "Balloon"),
+    ("kite", "Kite"),
+    ("satellite", "Satellite"),
+)
 
 # A Creative Commons BY licence; the group holds what it adds to attribution.
 _CC_BY = re.compile(r"CC-BY((?:-(?:NC|ND|SA))*)-\d+(?:\.\d+)?")  # codespell:ignore
@@ -52,7 +62,7 @@ class MetadataEdit(BaseModel):
     )
     # Empty clears it.
     contact: str | None = Field(default=None, max_length=MAX_METADATA_VALUE_LENGTH)
-    platform: Literal["uav", "aircraft", "balloon", "kite", "satellite"] | None = None
+    platform: Platform | None = None
     # Cannot be cleared: patch_properties sets properties, it never removes one.
     sensor: str | None = Field(
         default=None, min_length=1, max_length=MAX_METADATA_VALUE_LENGTH
@@ -109,6 +119,21 @@ def _opens_up(current: str, new: str) -> bool:
     return old is not None and wanted is not None and wanted <= old
 
 
+def licence_choices(current: str | None) -> list[str]:
+    """Return the licences an Item under `current` may move to, current first."""
+    if not current:
+        return list(LICENCES)
+    current = normalise_licence(current)
+    return [
+        current,
+        *(
+            licence
+            for licence in LICENCES
+            if licence != current and _opens_up(current, licence)
+        ),
+    ]
+
+
 def clean_contact(value: str) -> str:
     """Drop email addresses, which must not be published on an Item."""
     parts = (p.strip() for p in value.split(","))
@@ -123,8 +148,8 @@ def _first(values: Any) -> str | None:
     return _text(values[0]) if isinstance(values, list) and values else None
 
 
-def _shown(props: dict[str, Any]) -> dict[str, str]:
-    """Return the fields as the edit dialog in Browse reads them from an Item."""
+def shown(props: dict[str, Any]) -> dict[str, str]:
+    """Return the fields as the details form shows them from an Item."""
     providers = props.get("providers")
     first = providers[0] if isinstance(providers, list) and providers else None
     first = first if isinstance(first, dict) else {}
@@ -144,7 +169,7 @@ def changed_meanwhile(
     item: dict[str, Any], edit: MetadataEdit, seen: SeenMetadata
 ) -> str | None:
     """Return a field the edit changes that no longer holds what the editor saw."""
-    current = _shown(item.get("properties") or {})
+    current = shown(item.get("properties") or {})
     for name in MetadataEdit.model_fields:
         was = getattr(seen, name)
         if getattr(edit, name) is not None and was is not None and was != current[name]:

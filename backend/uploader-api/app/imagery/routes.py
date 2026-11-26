@@ -1,17 +1,16 @@
-"""Server-rendered pages to manage published imagery, and the metadata API.
+"""Server-rendered pages to manage published imagery.
 
 Changes are checked against ownership here and written straight into pgstac,
 the only path that writes stored Items (ADR 0011). Each change is recorded
 with who made it. The forms are HTMX, like the rest of the uploader (ADR
-0007); the map frontend only links here. The JSON API still serves the
-metadata editor in Browse until that moves to the page too.
+0007); the map frontend only links here.
 """
 
 import logging
 from datetime import datetime
 from typing import Annotated, Any
 
-from litestar import Request, Router, get, patch, post
+from litestar import Request, Router, get, post
 from litestar import status_codes as status
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
@@ -20,7 +19,7 @@ from litestar.params import Body
 from litestar.plugins.htmx import HTMXTemplate
 from litestar.response import Template
 from psycopg import AsyncConnection
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.auth import organisations
 from app.auth.auth_deps import (
@@ -33,6 +32,9 @@ from app.auth.auth_deps import (
 from app.db.database import db_conn
 from app.db.models import DbImageryChange
 from app.imagery.metadata import (
+    MAX_SEEN_LENGTH,
+    MAX_TITLE_LENGTH,
+    PLATFORMS,
     LicenceMoreRestrictive,
     LicenceNotChangeable,
     LicenceNotOffered,
@@ -40,8 +42,11 @@ from app.imagery.metadata import (
     SeenMetadata,
     changed_meanwhile,
     item_changes,
+    licence_choices,
+    shown,
 )
 from app.uploads import pgstac
+from app.uploads.schemas import MAX_METADATA_VALUE_LENGTH
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +63,68 @@ class TransferForm(BaseModel):
     owner: str = Field(min_length=1, max_length=200)
     # A choice made while the page showed an older owner is not one to act on.
     current: str = Field(default="", max_length=200)
+
+
+class DetailsForm(BaseModel):
+    """The details form: what was sent, and the values the page showed."""
+
+    # Capped only to bound the request; MetadataEdit holds the real limits.
+    title: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    provider: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    contact: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    platform: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    sensor: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    license: str | None = Field(default=None, max_length=MAX_SEEN_LENGTH)
+    seen_title: str = Field(default="", max_length=MAX_SEEN_LENGTH)
+    seen_provider: str = Field(default="", max_length=MAX_SEEN_LENGTH)
+    seen_contact: str = Field(default="", max_length=MAX_SEEN_LENGTH)
+    seen_platform: str = Field(default="", max_length=MAX_SEEN_LENGTH)
+    seen_sensor: str = Field(default="", max_length=MAX_SEEN_LENGTH)
+    seen_license: str = Field(default="", max_length=MAX_SEEN_LENGTH)
+
+    def edited(self) -> dict[str, str]:
+        """Return the fields sent with a value other than the one shown."""
+        sent = {name: getattr(self, name) for name in MetadataEdit.model_fields}
+        return {
+            name: value
+            for name, value in sent.items()
+            if value is not None and value != getattr(self, f"seen_{name}")
+        }
+
+    def seen(self) -> SeenMetadata:
+        """Return the values the page showed."""
+        fields = MetadataEdit.model_fields
+        return SeenMetadata(**{name: getattr(self, f"seen_{name}") for name in fields})
+
+
+# One sentence for the first value an edit refuses, by field.
+_INVALID = {
+    "title": f"Give the imagery a title of up to {MAX_TITLE_LENGTH} characters.",
+    "provider": f"Name the provider in up to {MAX_METADATA_VALUE_LENGTH} characters.",
+    "contact": f"Keep the contact to {MAX_METADATA_VALUE_LENGTH} characters or fewer.",
+    "platform": "Choose a platform from the list.",
+    "sensor": (
+        f"Name the sensor in up to {MAX_METADATA_VALUE_LENGTH} characters. Once "
+        "set, it cannot be left empty."
+    ),
+    "license": "Choose a licence from the list.",
+}
+
+_LICENCE_REFUSED = {
+    LicenceNotOffered: (
+        "OpenAerialMap does not offer that licence. Choose CC-BY 4.0, "
+        "CC BY-NC 4.0 or CC BY-SA 4.0."
+    ),
+    LicenceMoreRestrictive: (
+        "People already use this imagery under its current licence, so it can "
+        "only change to a less restrictive one. Keep the current licence or "
+        "choose one that allows more."
+    ),
+    LicenceNotChangeable: (
+        "This imagery is under a licence OpenAerialMap cannot change. Leave "
+        "the licence as it is."
+    ),
+}
 
 
 def _require_htmx(request: Request) -> None:
@@ -198,6 +265,26 @@ def _summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _details_context(item: dict[str, Any]) -> dict[str, Any]:
+    """Build what the details form shows: the values, and what each may become."""
+    props = item.get("properties", {})
+    details = shown(props)
+    platforms = list(PLATFORMS)
+    # Older imports carry platforms the form never offered; they stay selectable.
+    if details["platform"] and details["platform"] not in dict(PLATFORMS):
+        platforms.append((details["platform"], details["platform"]))
+    licences = licence_choices(details["license"])
+    return {
+        "item_id": item["id"],
+        "details": details,
+        "platforms": platforms,
+        "licences": licences,
+        "licence_locked": len(licences) == 1,
+        # Shown as stored; the normalised id is only for comparing.
+        "licence": props.get("license"),
+    }
+
+
 def _problem_page(
     detail: str, status_code: int, *, variant: str = "danger"
 ) -> Template:
@@ -226,7 +313,11 @@ async def imagery_page(
         return _problem_page(str(err.detail), err.status_code)
     return HTMXTemplate(
         template_name="imagery.html",
-        context={**_owner_context(item, auth_user, orgs), **_summary(item)},
+        context={
+            **_owner_context(item, auth_user, orgs),
+            **_summary(item),
+            **_details_context(item),
+        },
     )
 
 
@@ -287,14 +378,9 @@ async def transfer_imagery(
     )
 
 
-class UpdateImageryBody(MetadataEdit):
-    """What may change on published imagery. A field left out stays as it is."""
-
-    # What the editor showed, so a change someone made since is not overwritten.
-    seen: SeenMetadata | None = None
-
-
-async def _write(item_id: str, changes: dict[str, Any], expect: dict[str, Any]) -> None:
+async def _write(
+    item_id: str, changes: dict[str, Any], expect: dict[str, Any]
+) -> dict[str, Any]:
     """Write properties to the stored Item, refusing a stale or vanished one."""
     try:
         updated = await pgstac.patch_properties(item_id, changes, expect=expect)
@@ -304,94 +390,85 @@ async def _write(item_id: str, changes: dict[str, Any], expect: dict[str, Any]) 
         ) from None
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
+    return updated
 
 
-@patch("/{item_id:str}")
-async def update_imagery(
+@post("/{item_id:str}/details", status_code=status.HTTP_200_OK)
+async def save_details(
     item_id: str,
-    data: UpdateImageryBody,
+    data: Annotated[DetailsForm, Body(media_type=RequestEncodingType.URL_ENCODED)],
     auth_user: object,
     db: AsyncConnection,
     request: Request,
-) -> dict:
-    """Correct the metadata of published imagery; transfers are on its page."""
+) -> Template:
+    """Correct the details of published imagery and render the section again."""
+    _require_htmx(request)
     user_sub = get_user_sub(auth_user)
     item, _ = await _editable_item(item_id, auth_user, request)
     current = item.get("properties", {}).get(OWNER_FIELD)
 
-    if data.seen is not None and changed_meanwhile(item, data, data.seen):
+    try:
+        edit = MetadataEdit(**data.edited())
+    except ValidationError as err:
+        field = str(err.errors()[0]["loc"][0])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID[field]
+        ) from None
+
+    if changed_meanwhile(item, edit, data.seen()):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=_CHANGED_MEANWHILE
         )
 
     try:
-        edits = item_changes(item, data)
-    except LicenceNotOffered:
+        edits = item_changes(item, edit)
+    except (LicenceNotOffered, LicenceMoreRestrictive, LicenceNotChangeable) as err:
+        # The request is well formed; the licence rule refuses it.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "OpenAerialMap does not offer that licence. Choose CC-BY 4.0, "
-                "CC BY-NC 4.0 or CC BY-SA 4.0."
-            ),
-        ) from None
-    except LicenceMoreRestrictive:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "People already use this imagery under its current licence, so "
-                "it can only change to a less restrictive one. Keep the current "
-                "licence or choose one that allows more."
-            ),
-        ) from None
-    except LicenceNotChangeable:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "This imagery is under a licence OpenAerialMap cannot change. "
-                "Leave the licence as it is."
-            ),
+            detail=_LICENCE_REFUSED[type(err)],
         ) from None
 
-    if not edits.properties:
-        return {"id": item_id, "owner_id": current}
-
-    # Recorded first, so a refused write rolls the rows back with the request.
-    for field, old, new in edits.history:
-        await DbImageryChange.create(
-            db,
-            DbImageryChange(
-                item_id=item_id,
-                field=field,
-                actor_sub=user_sub,
-                old_value=old,
-                new_value=new,
-            ),
+    if edits.properties:
+        # Recorded first, so a refused write rolls the rows back with the request.
+        for field, old, new in edits.history:
+            await DbImageryChange.create(
+                db,
+                DbImageryChange(
+                    item_id=item_id,
+                    field=field,
+                    actor_sub=user_sub,
+                    old_value=old,
+                    new_value=new,
+                ),
+            )
+        # Also refuses an Item transferred since it was checked.
+        item = await _write(
+            item_id, dict(edits.properties), {**edits.expected, OWNER_FIELD: current}
         )
-    # Also refuses an Item transferred since it was checked.
-    await _write(
-        item_id, dict(edits.properties), {**edits.expected, OWNER_FIELD: current}
+        log.info(
+            "Edited %s on %s by %s",
+            ", ".join(f for f, _, _ in edits.history),
+            item_id,
+            user_sub,
+        )
+    # A refusal lands inside the form; a save replaces the whole section.
+    return HTMXTemplate(
+        template_name="partials/imagery_details.html",
+        context={
+            **_summary(item),
+            **_details_context(item),
+            "saved": bool(edits.properties),
+            "unchanged": not edits.properties,
+        },
+        re_target="#imagery-details",
+        re_swap="outerHTML",
     )
-    log.info(
-        "Edited %s on %s by %s",
-        ", ".join(f for f, _, _ in edits.history),
-        item_id,
-        user_sub,
-    )
-    return {"id": item_id, "owner_id": current}
 
 
 imagery_router = Router(
     path="/imagery",
-    route_handlers=[imagery_page, transfer_imagery],
-    dependencies={
-        "db": Provide(db_conn),
-        "auth_user": Provide(login_required),
-    },
-)
-
-imagery_api_router = Router(
-    path="/api/v1/imagery",
-    route_handlers=[update_imagery],
+    route_handlers=[imagery_page, transfer_imagery, save_details],
     dependencies={
         "db": Provide(db_conn),
         "auth_user": Provide(login_required),

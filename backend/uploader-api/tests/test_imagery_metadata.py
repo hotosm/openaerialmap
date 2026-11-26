@@ -1,4 +1,6 @@
-"""Turning an edit from My imagery into changes to a stored Item."""
+"""Turning an edit from the imagery page into changes to a stored Item."""
+
+from typing import get_args
 
 import pytest
 from pydantic import ValidationError
@@ -9,9 +11,11 @@ from app.imagery.metadata import (
     LicenceNotChangeable,
     LicenceNotOffered,
     MetadataEdit,
+    Platform,
     SeenMetadata,
     changed_meanwhile,
     item_changes,
+    licence_choices,
 )
 
 
@@ -273,8 +277,8 @@ def test_a_field_the_edit_leaves_alone_may_have_changed():
     assert changed_meanwhile(_item(), MetadataEdit(title="New title"), seen) is None
 
 
-def test_stored_values_are_compared_as_the_dialog_shows_them():
-    # Older Items carry `CC BY-NC 4.0`; the dialog shows the normalised id.
+def test_stored_values_are_compared_as_the_form_shows_them():
+    # Older Items carry `CC BY-NC 4.0`; the form shows the normalised id.
     item = _item(license="CC BY-NC 4.0", providers=None)
     edit = MetadataEdit(provider="New provider", license="CC-BY 4.0", contact="Team")
     seen = SeenMetadata(provider="Old provider", license="CC-BY-NC-4.0", contact="")
@@ -289,3 +293,40 @@ def test_a_long_stored_title_can_be_seen():
     assert (
         changed_meanwhile(_item(title=title), MetadataEdit(title="Short"), seen) is None
     )
+
+
+def test_the_form_offers_the_platforms_an_edit_accepts():
+    assert [value for value, _ in metadata.PLATFORMS] == list(get_args(Platform))
+
+
+@pytest.mark.parametrize(
+    ("current", "expected"),
+    [
+        (None, ["CC-BY-4.0", "CC-BY-NC-4.0", "CC-BY-SA-4.0"]),
+        ("", ["CC-BY-4.0", "CC-BY-NC-4.0", "CC-BY-SA-4.0"]),
+        ("CC-BY-NC-4.0", ["CC-BY-NC-4.0", "CC-BY-4.0"]),
+        ("CC BY-SA 4.0", ["CC-BY-SA-4.0", "CC-BY-4.0"]),
+        (
+            "CC-BY-NC-SA-4.0",
+            ["CC-BY-NC-SA-4.0", "CC-BY-4.0", "CC-BY-NC-4.0", "CC-BY-SA-4.0"],
+        ),
+        # Nothing offered allows more, so only the current one stays.
+        ("CC-BY-4.0", ["CC-BY-4.0"]),
+        ("CC0-1.0", ["CC0-1.0"]),
+    ],
+)
+def test_the_licences_an_item_may_move_to(current, expected):
+    assert licence_choices(current) == expected
+
+
+def test_the_form_shows_stored_values_as_ingest_left_them():
+    props = _item(license="CC BY-NC 4.0", providers=None)["properties"]
+
+    assert metadata.shown(props) == {
+        "title": "Old title",
+        "provider": "Old provider",
+        "contact": "",
+        "platform": "uav",
+        "sensor": "Old sensor",
+        "license": "CC-BY-NC-4.0",
+    }
