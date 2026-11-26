@@ -1,0 +1,23 @@
+name: Test Global Mosaic
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "backend/global-mosaic/**"
+      - "compose.test.yaml"
+      - "tasks/test"
+      - ".github/workflows/backend-global-mosaic-test.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    if: github.event.pull_request.draft == false
+    uses: hotosm/gh-workflows/.github/workflows/just.yml@4.1.0
+    with:
+      environment: "test"
+      command: "test global-mosaic"

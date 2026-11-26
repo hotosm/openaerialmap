@@ -48,6 +48,10 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable
 
+FROM builder AS test
+RUN uv run --with pytest --with "psycopg[binary]" pytest --version
+CMD ["uv", "run", "--with", "pytest", "--with", "psycopg[binary]", "pytest", "tests"]
+
 FROM python:${PYTHON_VERSION}-slim AS prod
 
 VOLUME /app/output
@@ -69,7 +73,7 @@ COPY --from=builder --chown=app:app /app /app
 COPY --from=tippecanoe /src/tippecanoe/tippecanoe* /usr/local/bin/
 COPY --from=tippecanoe /src/tippecanoe/tile-join /usr/local/bin/
 # See scripts/README.md for details on the script used
-COPY scripts/gen_coverage_vector.py /app/gen_coverage_vector.py
+COPY scripts/gen_coverage_vector.py scripts/catalog_stats.py /app/
 
 ENV PATH=/app/.venv/bin:$PATH
 

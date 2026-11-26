@@ -48,7 +48,7 @@ repos:
         name: oxfmt
         files: ^
         # oxfmt batches it's runs, so using !/path/to/file in args can cause issues
-        exclude: ^(?:CHANGELOG\.md|frontend/pnpm-lock\.yaml|backend/(?:global-tms|tilepack-api|stac-ingester|stac-api|global-mosaic|uploader-api|stactools-hotosm)/|docs/oam/|notebooks/)
+        exclude: ^(?:CHANGELOG\.md|signed-contributors\.json|frontend/pnpm-lock\.yaml|backend/(?:global-tms|tilepack-api|stac-ingester|stac-api|global-mosaic|uploader-api|stactools-hotosm)/|docs/oam/|notebooks/)
         entry: oxfmt --no-error-on-unmatched-pattern --write
         language: node
         "types": [text]
