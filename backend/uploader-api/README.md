@@ -203,68 +203,39 @@ account.
 The upload stays the caller's (`uploads.user_sub`, "Your uploads"); only the
 published `oam:owner_id` names the organisation, while `oam:uploader_id` still
 names the account. Organisations come from Login's API at `LOGIN_API_URL`,
-which defaults to `HANKO_API_URL`. Set it only on development cases.
-With neither set, every upload is owned by the uploading account.
+which defaults to `HANKO_API_URL`. Set it when the two have separate URLs, as
+in hot-dev-env (`http://login-backend:8000`). With neither set, every upload is
+owned by the uploading account.
 
 ## Transferring imagery
 
-`/imagery/{item_id}` is the page where published imagery is managed; My
-imagery in Browse links to it. Its form posts to `/imagery/{item_id}/owner`
-through HTMX and moves the imagery to the caller (`hotosm|<sub>`) or to an
-organisation they belong to (`hotosm-org|<id>`). The caller must own the
-Item, or be an owner or manager of the organisation that does; members only
-see. The change is written straight into pgstac and recorded in
-`imagery_changes` with who made it. A post without the `HX-Request` header
-is refused, so another site cannot submit the form for a signed-in user.
+`PATCH /api/v1/imagery/{item_id}` with `{"owner": "<owner id>"}` moves published
+imagery to the caller (`hotosm|<sub>`) or to an organisation they belong to
+(`hotosm-org|<id>`). The caller must own the Item, or be an owner or manager
+of the organisation that does; members only see. The change is written
+straight into pgstac and recorded in `imagery_changes` with who made it.
+Browse offers it from My imagery, so `OAM_FRONTEND_URL` is a CORS origin.
 
 ## Editing imagery
 
-The **Details** section of `/imagery/{item_id}` corrects published
-metadata: title, provider, contact, platform, sensor and licence, with the
-same limits as the upload form. It posts to `/imagery/{item_id}/details`
-through HTMX, with the values the page showed in hidden `seen_*` fields.
-Only fields that differ from them change, so a legacy value nobody touched
-is not rewritten. The licence can only change to one of the three the form
-offers that allows at least as much: CC BY-NC or CC BY-SA can open up to CC
-BY, never the other way, since people already rely on the current terms
+The same request corrects published metadata: `title`, `provider`,
+`contact`, `platform`, `sensor` and `license`, each optional, with the same
+limits as the upload form. The licence can only change to one of the three
+the form offers that allows at least as much: CC BY-NC or CC BY-SA can open up
+to CC BY, never the other way, since people already rely on the current terms
 (discussion #332). An Item without a licence can get any of the three; one
-under a licence outside the CC BY family, such as CC0 or ODbL, keeps it, and
-the page shows it without a choice. Each changed field gets its own
-`imagery_changes` row, and the same people who can transfer imagery can
-edit it. The Item's `metadata.json` asset is not rewritten; it stays the
-record of the Item at ingest, as it does after a transfer.
+under a licence outside the CC BY family, such as CC0 or ODbL, keeps it. Each
+changed field gets its own `imagery_changes` row, and the same people who can
+transfer imagery can edit it. The Item's `metadata.json` asset is not
+rewritten; it stays the record of the Item at ingest, as it does after a
+transfer.
 
-A changed field that no longer holds the value the page showed answers 409,
-so an edit made since is not overwritten. The `imagery_changes` rows are
-inserted before the write, so a refused write leaves no rows and a failed
-insert leaves the Item as it was. As with transfers, a post without the
-`HX-Request` header is refused.
-
-## Deleting and purging imagery
-
-The same page deletes and restores imagery, through `/imagery/{item_id}/delete`
-and `/imagery/{item_id}/restore`, for the same people who can transfer it;
-imagery with no owner needs an admin. Only imagery uploaded here can be
-deleted. Deleted imagery keeps its Item, marked with `expires` at the end of a
-30-day grace period (ADR 0012), and can be restored until then. Both changes
-are recorded in `imagery_changes`.
-
-A purge then removes the Item from pgstac and every file under the upload's
-own folder, and records it on the upload row.
-
-```bash
-# What the chart's daily CronJob runs: everything whose grace period ended.
-python -m app.imagery.purge expired
-
-# An admin purge of one upload, before its grace period ends.
-UPLOAD_ID=<upload id> PURGED_BY='hotosm|<admin sub>' PURGE_REASON='<why>' \
-  python -m app.imagery.purge upload
-```
-
-With the Compose stack there is no CronJob, so run it by hand:
-`docker compose exec uploader-api python -m app.imagery.purge expired`.
-The daily run also finishes any purge that stopped part-way, such as one the
-bucket refused; running `upload` again does the same for one upload.
+`seen` carries the values the editor showed, as Browse reads them from the
+Item. A field the request changes that no longer holds its `seen` value
+answers 409, so an edit made since is not overwritten. Without `seen`, the
+last request to arrive wins. An edit and a transfer in the same request are
+one write, and the `imagery_changes` rows are inserted before it, so a refused
+write leaves no rows and a failed insert leaves the Item as it was.
 
 ## Integrating an external system
 

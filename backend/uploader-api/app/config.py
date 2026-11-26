@@ -247,8 +247,8 @@ class Settings(BaseSettings):
     HANKO_API_URL: str | None = None
     HANKO_PUBLIC_URL: str | None = None
     LOGIN_URL: str | None = None
-    # Leave empty in prod and staging (uses HANKO_API_URL as fallback);
-    # only needed for local development with a Login instance.
+    # Leave empty in prod and staging (uses HANKO_API_URL as fallback); only
+    # hot-dev-env needs it.
     LOGIN_API_URL: str | None = None
     COOKIE_SECRET: SecretStr = SecretStr(_PLACEHOLDER_COOKIE_SECRET)
 
@@ -290,7 +290,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def login_api_url(self) -> str | None:
-        """LOGIN_API_URL (optional, needed for development), else HANKO_API_URL; None leaves organisations off."""
+        """LOGIN_API_URL, else HANKO_API_URL; None leaves organisations off."""
         return self.LOGIN_API_URL or self.HANKO_API_URL
 
     @computed_field
