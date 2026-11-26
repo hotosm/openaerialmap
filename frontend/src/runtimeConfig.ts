@@ -13,7 +13,6 @@ type RuntimeConfigKey =
   | "VITE_BASEMAP_STYLE_URL"
   | "VITE_ANNOUNCEMENT_URL"
   | "VITE_HANKO_URL"
-  | "VITE_LOGIN_API_URL"
   | "VITE_INTAKE_URL";
 
 declare global {
