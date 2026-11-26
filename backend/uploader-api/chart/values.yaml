@@ -33,8 +33,7 @@ env:
   AUTH_PROVIDER: hotosm
   HANKO_API_URL: https://login.hotosm.org
   LOGIN_URL: https://login.hotosm.org/app
-  # Organisations come from Login's API, which HOT serves on the HANKO_API_URL
-  # host. Set LOGIN_API_URL only where it lives elsewhere.
+  # LOGIN_API_URL (organisations) defaults to HANKO_API_URL.
   # Leave S3_ENDPOINT empty to use AWS S3.
   S3_ENDPOINT: ""
   S3_EXTERNAL_ENDPOINT: ""
