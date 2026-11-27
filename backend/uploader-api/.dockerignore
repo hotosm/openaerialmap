@@ -4,3 +4,6 @@ __pycache__
 .pytest_cache
 .ruff_cache
 .env
+optimiser/node_modules
+optimiser/.crossbind
+optimiser/dist
