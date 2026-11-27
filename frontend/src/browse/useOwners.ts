@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { HANKO_URL, type AuthUser } from "../auth";
+import { LOGIN_API_URL, type AuthUser } from "../auth";
 
 // An `oam:owner_id` whose imagery the signed-in user can see: their own
 // `hotosm|<sub>` and `hotosm-org|<id>` for each organisation they belong to
@@ -57,7 +57,7 @@ function message(err: unknown): string {
 }
 
 async function fromLogin<T>(path: string, signal: AbortSignal): Promise<T> {
-  const res = await fetch(`${HANKO_URL}${path}`, { credentials: "include", signal });
+  const res = await fetch(`${LOGIN_API_URL}${path}`, { credentials: "include", signal });
   if (res.status === 401) throw new Error("Your session has expired. Sign in again.");
   if (!res.ok) throw new Error(`HOT Login answered ${res.status}.`);
   return (await res.json()) as T;
@@ -80,7 +80,7 @@ function organisations(groups: Group[]): Owner[] {
 export function useOwners(user: AuthUser | null): Owners {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const key = user && HANKO_URL ? `${user.id}#${attempt}` : null;
+  const key = user && LOGIN_API_URL ? `${user.id}#${attempt}` : null;
 
   useEffect(() => {
     if (!key) return;

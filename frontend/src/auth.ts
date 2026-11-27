@@ -6,6 +6,9 @@ import { getOptionalRuntimeConfig } from "./runtimeConfig";
 // auth is disabled, so a local stack without Hanko renders as before.
 export const HANKO_URL = getOptionalRuntimeConfig("VITE_HANKO_URL");
 
+// HOT Login serves its API (`/me`, `/api/groups`) on the Hanko host.
+export const LOGIN_API_URL = HANKO_URL;
+
 // What hotosm-auth sends in `hanko-login`. `id` is the Hanko user id; the
 // uploader stores it as `hotosm|<id>`.
 export interface AuthUser {

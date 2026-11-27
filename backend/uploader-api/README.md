@@ -202,9 +202,9 @@ account.
 
 The upload stays the caller's (`uploads.user_sub`, "Your uploads"); only the
 published `oam:owner_id` names the organisation, while `oam:uploader_id` still
-names the account. `LOGIN_API_URL` (Login's API origin, e.g.
-`https://login.hotosm.org`) turns the feature on; unset, every upload is owned
-by the uploading account.
+names the account. Organisations come from Login's API at `LOGIN_API_URL`,
+which defaults to `HANKO_API_URL`. Set it only for local development. With
+neither set, every upload is owned by the uploading account.
 
 ## Transferring imagery
 

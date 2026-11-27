@@ -62,6 +62,17 @@ async def test_only_approved_organisations_count(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_login_is_asked_on_the_hanko_host_unless_one_is_named(monkeypatch):
+    seen = _answer(monkeypatch, lambda r: httpx.Response(200, json=_GROUPS))
+    monkeypatch.setattr(organisations.settings, "LOGIN_API_URL", None)
+    monkeypatch.setattr(organisations.settings, "HANKO_API_URL", "http://hanko/")
+
+    await organisations.user_organisations(_SUB, "tok")
+
+    assert seen[0].url == "http://hanko/api/groups?type=organization"
+
+
+@pytest.mark.asyncio
 async def test_answers_are_cached_per_account(monkeypatch):
     seen = _answer(monkeypatch, lambda r: httpx.Response(200, json=_GROUPS))
 
@@ -127,5 +138,6 @@ async def test_without_login_or_a_session_nobody_has_organisations(monkeypatch):
 
     assert await organisations.user_organisations(_SUB, None) == []
     monkeypatch.setattr(organisations.settings, "LOGIN_API_URL", None)
+    monkeypatch.setattr(organisations.settings, "HANKO_API_URL", None)
     assert await organisations.user_organisations(_SUB, "tok") == []
     assert seen == []
