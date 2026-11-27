@@ -1,5 +1,9 @@
-"""Create lossy YCbCr JPEG COGs for visual RGB(A), lossless ZSTD COGs otherwise."""
+"""Create lossy YCbCr JPEG COGs for visual RGB(A), lossless ZSTD COGs otherwise.
 
+An upload that is already the visual COG is passed through unconverted.
+"""
+
+import contextlib
 import datetime as dt
 import json
 import logging
@@ -71,6 +75,29 @@ def _lossy_visual(src: rasterio.DatasetReader, declared: str) -> bool:
     if declared:
         return declared == "visual"
     return True
+
+
+def _is_visual_cog(src_path: str, src: rasterio.DatasetReader, declared: str) -> bool:
+    """Whether the upload is already the COG this step would write.
+
+    Quality isn't checked: re-encoding can't improve a lossy file.
+    """
+    if not _lossy_visual(src, declared) or src.count != 3:
+        return False
+    if src.tags(ns="IMAGE_STRUCTURE").get("COMPRESSION") != "YCbCr JPEG":
+        return False
+    if src.block_shapes[0] != (int(BLOCKSIZE), int(BLOCKSIZE)):
+        return False
+    if MaskFlags.per_dataset not in src.mask_flag_enums[0]:
+        return False
+    # Overviews must go down to a single block.
+    top_factor = max(src.overviews(1), default=1)
+    if max(src.width, src.height) > top_factor * int(BLOCKSIZE):
+        return False
+    from rio_cogeo.cogeo import cog_validate
+
+    valid, _, _ = cog_validate(src_path, quiet=True)
+    return valid
 
 
 def _source(path: str, band: str) -> str:
@@ -221,14 +248,23 @@ def _write_provenance(dst_path: str, cog_options: dict) -> None:
             "rasterio": rasterio.__version__,
             "GDAL": rasterio.__gdal_version__,
         },
-        "cog_options": {
-            "blocksize": BLOCKSIZE,
-            "overview_resampling": OVERVIEW_RESAMPLING,
-            **cog_options,
-        },
+        "cog_options": cog_options,
     }
     with open(f"{dst_path}.json", "w") as f:
         json.dump(prov, f)
+
+
+def _pass_through(src_path: str, dst_path: str) -> None:
+    """Hard-link the upload as the COG, so no bytes are copied."""
+    log.info("%s is already a visual COG; skipping conversion", src_path)
+    # Argo retries on the same workspace, so an earlier attempt may have linked it.
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(dst_path)
+    os.link(src_path, dst_path)
+    _write_provenance(
+        dst_path,
+        {"passthrough": True, "compress": VISUAL_COMPRESS, "lossy": True},
+    )
 
 
 def convert_to_cog(src_path: str, dst_path: str, meta_path: str | None = None) -> None:
@@ -238,6 +274,9 @@ def convert_to_cog(src_path: str, dst_path: str, meta_path: str | None = None) -
         meta_path = os.path.join(os.path.dirname(src_path), "meta.json")
     declared = _declared_product_type(meta_path)
     with rasterio.open(src_path, driver=READ_DRIVER) as src:
+        if _is_visual_cog(src_path, src, declared):
+            _pass_through(src_path, dst_path)
+            return
         dtype = src.dtypes[0]
         lossy = _lossy_visual(src, declared)
         os.makedirs(TMPDIR, exist_ok=True)
@@ -302,7 +341,10 @@ def convert_to_cog(src_path: str, dst_path: str, meta_path: str | None = None) -
             _verify_lossless(src_path, dst_path)
     if VALIDATE:
         _validate_cog(dst_path)
-    _write_provenance(dst_path, opts)
+    _write_provenance(
+        dst_path,
+        {"blocksize": BLOCKSIZE, "overview_resampling": OVERVIEW_RESAMPLING, **opts},
+    )
 
 
 if __name__ == "__main__":

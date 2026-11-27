@@ -31,3 +31,9 @@ def test_lossy_lineage_points_at_the_original():
     assert text.startswith("Lossy display COG (compress WEBP quality 90")
     assert "'original' asset" in text
     assert "checksum" not in text
+
+
+def test_passthrough_lineage_claims_no_derivation():
+    text = metadata._lineage({"passthrough": True, "compress": "JPEG", "lossy": True})
+    assert "unmodified 'original'" in text
+    assert "derived" not in text
