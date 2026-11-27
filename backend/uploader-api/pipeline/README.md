@@ -21,7 +21,8 @@ back to `uploader-api` via the per-upload callback token.
   content, and GeoTIFF format (exit 5/6/7/8).
 - **`convert`** (`uploader-convert`): visual RGB(A) to lossy YCbCr JPEG COG;
   everything else to native-dtype lossless ZSTD COG. Verifies content and COG
-  layout.
+  layout. Skipped when the upload is already the visual COG, for example
+  from the `/optimise` page.
 - **`metadata`** (`uploader-metadata`): builds the OAM STAC item with
   **`stactools-hotosm`**, including original and COG assets, checksums,
   per-type render parameters, and a thumbnail.
