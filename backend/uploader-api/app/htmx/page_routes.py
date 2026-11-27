@@ -34,6 +34,7 @@ MAX_TRACKED = 20
 
 OPTIMISER_DIR = Path(__file__).parents[2] / "optimiser" / "dist"
 # Threaded WASM needs these. Only on the optimiser, as they can block CDN files.
+# require-corp, not credentialless, as Safari only isolates with require-corp.
 ISOLATION_HEADERS = {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Embedder-Policy": "require-corp",
