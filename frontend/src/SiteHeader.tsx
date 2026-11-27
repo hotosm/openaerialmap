@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { ANNOUNCEMENT_URL, API_URL, UPLOADER_URL } from "./browse/utils/constants";
+import { ANNOUNCEMENT_URL } from "./browse/utils/constants";
 import { appUrl } from "./appUrl";
 import { HANKO_URL } from "./auth";
 
@@ -23,19 +23,6 @@ const HEADER_TABS: HeaderTab[] = [
     label: "Contribute",
     href: appUrl("/contribute"),
     clickEvent: () => (window.location.href = appUrl("/contribute")),
-  },
-  {
-    label: "API",
-    clickEvent: () => window.open(API_URL, "_blank"),
-  },
-  {
-    label: "Docs",
-    clickEvent: () => window.open("https://docs.imagery.hotosm.org/", "_blank"),
-  },
-  { label: "Upload", clickEvent: () => (window.location.href = UPLOADER_URL) },
-  {
-    label: "Report a bug",
-    clickEvent: () => window.open("https://roadmap.hotosm.org/#tech-request", "_blank"),
   },
 ];
 

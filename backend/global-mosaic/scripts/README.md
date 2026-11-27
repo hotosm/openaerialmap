@@ -50,7 +50,9 @@ in the Python package.
 Stages run in ascending order of cost so a failure or timeout in a
 later stage never leaves a downstream service without a fresh input:
 
-1. `stats.json` (landing page)
+1. `stats.json` (landing page) and `stats/*.json` (statistics page),
+   plus `stats/history/<date>.json`, one headline snapshot per day. The
+   counting rules are in `catalog_stats.py`.
 2. `global-coverage.pmtiles` density grid (global-tms)
 3. `global-data.pmtiles` footprints (frontend browser)
 
@@ -84,7 +86,8 @@ top level.
 ## Files
 
 - `gen_coverage_vector.py`: deployed; two PMTiles archives (density +
-  footprints).
+  footprints) and the catalog stats.
+- `catalog_stats.py`: deployed; the catalog figures, from one pgSTAC query.
 - `archive/gen_density_vector.py`: Archived; density-only PMTiles.
 - `archive/gen_coverage_raster.py`: Archived; rasterised grey coverage
   PMTiles.
