@@ -53,7 +53,7 @@ function loadScript(src) {
     script.src = src;
     script.onload = resolve;
     script.onerror = () =>
-      reject(new Error("Could not download the optimiser. Check your connection and try again."));
+      reject(new Error("Could not download the optimizer. Check your connection and try again."));
     document.head.append(script);
   });
 }
@@ -87,13 +87,13 @@ async function checkDiskSpace(file) {
 
 async function optimise(file, setStep) {
   if (!window.crossOriginIsolated || !navigator.storage?.getDirectory || !navigator.locks) {
-    throw new Error("This browser can't run the optimiser. Try a recent Chrome, Edge or Firefox.");
+    throw new Error("This browser can't run the optimizer. Try a recent Chrome, Edge or Firefox.");
   }
-  setStep("Downloading the optimiser (tens of MB, cached after the first run)");
+  setStep("Downloading the optimizer (tens of MB, cached after the first run)");
   const gdal = await loadGdal();
   // Without OPFS, files go to memory and large ones fail.
   if ((await gdal.getDefaultPath()) !== OPFS_ROOT) {
-    throw new Error("This browser cannot give the optimiser disk storage. Try a recent Chrome, Edge or Firefox.");
+    throw new Error("This browser cannot give the optimizer disk storage. Try a recent Chrome, Edge or Firefox.");
   }
   await checkDiskSpace(file);
   // A folder per run, so a new run never deletes a result still downloading.
@@ -103,8 +103,8 @@ async function optimise(file, setStep) {
   try {
     setStep("Copying the file into browser storage");
     const [src] = await gdal.autoMountFiles([file], runDir);
-    const dst = `${runDir}/${file.name.replace(/\.tiff?$/i, "")}-optimised.tif`;
-    setStep("Optimising");
+    const dst = `${runDir}/${file.name.replace(/\.tiff?$/i, "")}-optimized.tif`;
+    setStep("Optimizing");
     const error = await gdal.Optimiser.run(src, dst);
     await gdal.FS.unlink(src);
     if (error) throw new Error(error);
@@ -124,7 +124,7 @@ function showResult(original, { file: optimised, runDir }) {
     <wa-callout variant="success">
       <p><strong></strong></p>
       <p>Save it, then choose the saved file on the <a href="/">upload page</a>.</p>
-      <p><a download><wa-button variant="brand">Save optimised file</wa-button></a></p>
+      <p><a download><wa-button variant="brand">Save optimized file</wa-button></a></p>
       <p>Once it has saved, delete the browser's copy to free the disk space.</p>
       <p><wa-button id="delete-btn" variant="neutral">Delete browser copy</wa-button></p>
     </wa-callout>`;
@@ -158,7 +158,7 @@ function showDiskWarning(file) {
   if (!file) return;
   warning.querySelector("span").textContent =
     `This file needs about ${formatSize(file.size * DISK_FACTOR)} of free disk space ` +
-    "while it is optimised.";
+    "while it is optimized.";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const file = byId("optimise-input").files[0];
     if (!file) {
-      showError("Choose a GeoTIFF to optimise.");
+      showError("Choose a GeoTIFF to optimize.");
       return;
     }
     const button = byId("optimise-btn");

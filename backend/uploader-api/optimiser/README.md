@@ -1,7 +1,7 @@
 # Browser optimiser
 
 GDAL compiled to WebAssembly with [crossbind](https://crossbind.dev). The
-`/optimise` page uses it to shrink large orthophotos in the browser before
+`/optimize` page uses it to shrink large orthophotos in the browser before
 upload.
 
 It writes the same visual COG as `pipeline/convert/convert.py`, so the server
@@ -11,7 +11,7 @@ change `src/native/optimiser.cpp` to match.
 ## Build
 
 The uploader-api Docker image builds it, so `just start all` is enough. Then
-open <http://localhost:8090/optimise>. The first build downloads a 1.2 GB
+open <http://localhost:8090/optimize>. The first build downloads a 1.2 GB
 toolchain image and takes a few minutes. After that Docker caches it.
 
 To build on your machine instead (needs Node 26+, pnpm and Docker):

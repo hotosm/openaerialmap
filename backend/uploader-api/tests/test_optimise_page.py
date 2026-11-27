@@ -37,7 +37,7 @@ def _isolated(headers) -> bool:
 
 def test_the_page_and_its_bundle_are_cross_origin_isolated(tmp_path):
     with _client(tmp_path) as client:
-        page = client.get("/optimise")
+        page = client.get("/optimize")
         bundle = client.get("/optimiser/oam-optimiser.js")
     assert page.status_code == 200
     assert "optimise.js" in page.text

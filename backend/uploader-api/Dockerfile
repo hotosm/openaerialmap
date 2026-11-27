@@ -1,6 +1,6 @@
 ARG PYTHON_VERSION=3.13
 
-# Browser GDAL for /optimise. Same image (digest) crossbind 2.0.0-beta.81 uses.
+# Browser GDAL for /optimize. Same image (digest) crossbind 2.0.0-beta.81 uses.
 # RUNNER=LOCAL compiles here instead of starting a second container.
 FROM ghcr.io/crossbind/web@sha256:409dbc2d036baf0c55cef4fee45e38ac4f6383b8ebfbce0ed92cbade5f9277a7 AS optimiser
 USER root

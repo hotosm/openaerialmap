@@ -89,7 +89,7 @@ async def upload_page(auth_user: object | None, request: Request) -> Template:
     )
 
 
-@get("/optimise", after_request=_isolate)
+@get("/optimize", after_request=_isolate)
 async def optimise_page() -> Template:
     """Render the in-browser optimiser for large visual imagery."""
     return HTMXTemplate(template_name="optimise.html", context={"active_nav": "upload"})

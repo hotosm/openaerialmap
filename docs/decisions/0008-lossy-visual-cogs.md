@@ -33,7 +33,7 @@ decoded size to match. Output at full resolution is unchanged.
 
 Amended November 2026: if an upload already has this codec and layout, it is
 used as is and conversion is skipped. Its own JPEG quality and overviews are
-kept, unlike `COG_OVERVIEWS=IGNORE_EXISTING`. The `/optimise` page makes this
+kept, unlike `COG_OVERVIEWS=IGNORE_EXISTING`. The `/optimize` page makes this
 format in the browser, so large uploads can skip the slowest step. For those
 uploads the archived `original` is the browser's lossy copy, not the user's
 source file, and the page tells users so. A lossless optimiser was rejected:

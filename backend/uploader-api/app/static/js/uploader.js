@@ -353,7 +353,7 @@ function sourceHint(raw) {
   return "";
 }
 
-// Big uploads are slow and fail more often, so suggest /optimise for them.
+// Big uploads are slow and fail more often, so suggest /optimize for them.
 const OPTIMISE_HINT_BYTES = 2 * 1024 ** 3;
 
 function showOptimiseHint() {
