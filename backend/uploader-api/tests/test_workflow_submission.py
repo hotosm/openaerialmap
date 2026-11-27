@@ -209,7 +209,7 @@ def test_every_upload_size_admits_a_realistic_decode_ratio(api, gib):
 
 
 def test_the_biggest_uploads_trade_that_ratio_for_a_bounded_volume(api):
-    """Past ~60 GiB the multiplier would ask for more than WORKSPACE_MAX_GIB, so
+    """Past ~51 GiB the multiplier would ask for more than WORKSPACE_MAX_GIB, so
     the ratio degrades instead of the volume growing without limit."""
     fake = api()
     size = settings.MAX_UPLOAD_BYTES
@@ -224,6 +224,14 @@ def test_the_reported_regression_would_now_pass(api):
     argo.submit_geotiff_workflow(**SUBMIT, size_bytes=1 * argo.GIB)
     ceiling = float(params(fake.created[0])["max-decoded-gb"])
     assert ceiling >= 3e9 * 3 / 1e9
+
+
+def test_a_lossy_maxar_mosaic_is_admitted(api):
+    """6.6 GB of JPEG q75 decoding to 147 GB, at validate's lossy factor 0.45."""
+    fake = api()
+    argo.submit_geotiff_workflow(**SUBMIT, size_bytes=6_605_000_000)
+    ceiling = float(params(fake.created[0])["max-decoded-gb"])
+    assert ceiling / 0.45 >= 147
 
 
 def test_a_bigger_upload_may_decode_further(api):
