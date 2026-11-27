@@ -54,7 +54,7 @@ COPY --from=brotli-builder \
      /etc/nginx/modules/
 # load_module must live in the main context, so prepend it to the top-level
 # nginx.conf. The conf.d/default.conf we ship is already in the http context.
-RUN { \
+RUN apk upgrade --no-cache && { \
         echo 'load_module /etc/nginx/modules/ngx_http_brotli_filter_module.so;'; \
         echo 'load_module /etc/nginx/modules/ngx_http_brotli_static_module.so;'; \
         cat /etc/nginx/nginx.conf; \

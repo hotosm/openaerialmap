@@ -65,7 +65,8 @@ COPY gen-config.sh /gen-config.sh
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 # Make config.js and nginx runtime paths writable by uid 101.
-RUN chmod +x /gen-config.sh /docker-entrypoint.sh \
+RUN apk upgrade --no-cache \
+    && chmod +x /gen-config.sh /docker-entrypoint.sh \
     && sed -i 's|^pid .*|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
     && chown -R 101:101 /usr/share/nginx/html /var/cache/nginx
 USER 101
