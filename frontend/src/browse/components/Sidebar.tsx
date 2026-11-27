@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import ImageCard from "./ImageCard";
 import type { ImageFeature } from "../utils/types";
 import { SIDEBAR_PAGE_SIZE } from "../utils/constants";
@@ -7,9 +7,31 @@ interface Props {
   features: ImageFeature[];
   onSelect: (f: ImageFeature | null) => void;
   selectedFeature: ImageFeature | null;
+  // The rest replace the viewport wording, for lists that are not "what is
+  // in view", such as My imagery.
+  header?: string;
+  headerAction?: ReactNode;
+  empty?: ReactNode;
+  // Shown once every card is visible, e.g. to fetch the next page.
+  footer?: ReactNode;
+  // Pagination resets when this changes. Defaults to the list of ids, so a
+  // list that only grows should pass something stable.
+  resetKey?: string;
+  // Extra buttons under a card's action row, e.g. what the owner may do.
+  renderActions?: (f: ImageFeature) => ReactNode;
 }
 
-export default function Sidebar({ features, onSelect, selectedFeature }: Props) {
+export default function Sidebar({
+  features,
+  onSelect,
+  selectedFeature,
+  header,
+  headerAction,
+  empty,
+  footer,
+  resetKey,
+  renderActions,
+}: Props) {
   const [visibleCount, setVisibleCount] = useState(SIDEBAR_PAGE_SIZE);
   const listRef = useRef<HTMLDivElement | null>(null);
   // Track the previous feature-id list in state (not a ref) so React's
@@ -21,7 +43,7 @@ export default function Sidebar({ features, onSelect, selectedFeature }: Props) 
 
   // Reset pagination when the *set* of feature ids changes
   // (i.e. viewport moved, not just a selection made).
-  const ids = features.map((f) => f.properties.id).join(",");
+  const ids = resetKey ?? features.map((f) => f.properties.id).join(",");
   if (ids !== prevIds) {
     setPrevIds(ids);
     setVisibleCount(SIDEBAR_PAGE_SIZE);
@@ -56,9 +78,10 @@ export default function Sidebar({ features, onSelect, selectedFeature }: Props) 
   // comment on FOOTPRINT_MIN_ZOOM in utils/constants.ts), and at high
   // zoom over an empty region the fix is also to zoom / pan.
   const headerText =
-    features.length === 0
+    header ??
+    (features.length === 0
       ? "Zoom in to see images"
-      : `${features.length} image${features.length !== 1 ? "s" : ""} in view`;
+      : `${features.length} image${features.length !== 1 ? "s" : ""} in view`);
 
   const visible = features.slice(0, visibleCount);
 
@@ -68,10 +91,13 @@ export default function Sidebar({ features, onSelect, selectedFeature }: Props) 
       className="flex-1 overflow-y-auto bg-gray-50 relative scroll-smooth font-sans"
     >
       <div className="p-5 border-b border-gray-200 bg-white sticky top-0 z-20 shadow-sm">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-500" />
-          {headerText}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cyan-500" />
+            {headerText}
+          </p>
+          {headerAction}
+        </div>
       </div>
 
       <div className="p-4 space-y-4">
@@ -85,6 +111,7 @@ export default function Sidebar({ features, onSelect, selectedFeature }: Props) 
                 isSelected={
                   !!selectedFeature && selectedFeature.properties.id === feature.properties.id
                 }
+                actions={renderActions?.(feature)}
               />
             ))}
             {visibleCount < features.length && (
@@ -99,12 +126,15 @@ export default function Sidebar({ features, onSelect, selectedFeature }: Props) 
                 Load More ({features.length - visibleCount} remaining)
               </wa-button>
             )}
+            {visibleCount >= features.length && footer}
           </>
         ) : (
-          <p className="text-center text-gray-500 py-8 px-6">
-            Zoom in to see imagery footprints. The grid squares on the map show where imagery is
-            available; individual images appear once you zoom in far enough.
-          </p>
+          (empty ?? (
+            <p className="text-center text-gray-500 py-8 px-6">
+              Zoom in to see imagery footprints. The grid squares on the map show where imagery is
+              available; individual images appear once you zoom in far enough.
+            </p>
+          ))
         )}
       </div>
     </div>

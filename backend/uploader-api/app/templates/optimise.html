@@ -1,0 +1,39 @@
+{% extends "layout.html" %} {% block title %}Optimize imagery - {{ app_name }}{% endblock %} {%
+block content %}
+<section class="oam-card">
+  <h1>Optimize imagery before upload</h1>
+  <p>
+    Shrink a large drone, aircraft or satellite photo so it uploads and publishes faster.
+    It runs in your browser: nothing is sent until you upload the result.
+  </p>
+  <wa-callout variant="warning" class="oam-optimise-notes">
+    <strong>Before you start</strong>
+    <ul>
+      <li>Only standard color visual imagery (8-bit RGB or RGBA) should be optimized. Do not run elevation data or multispectral images through this process.</li>
+      <li>Keep a copy of your original image, as only the optimized image (slightly lossy) will be uploaded.</li>
+      <li>You need free disk space of about twice the file's size.</li>
+    </ul>
+  </wa-callout>
+
+  <form id="optimise-form" class="oam-form" onsubmit="return false;">
+    <input type="file" id="optimise-input" accept=".tif,.tiff" />
+    <p id="optimise-disk" class="oam-muted" hidden><span></span></p>
+    <wa-button type="submit" variant="brand" id="optimise-btn">Optimize</wa-button>
+  </form>
+
+  <div id="optimise-progress" class="oam-progress" hidden>
+    <wa-progress-bar indeterminate></wa-progress-bar>
+    <p id="optimise-label"></p>
+    <p class="oam-muted">
+      Large files can take a long time, and we can't estimate how long. The timer shows
+      how long it has been running. You can use other tabs and apps, but keep this one
+      open.
+    </p>
+  </div>
+  <div id="optimise-result"></div>
+
+  <p><a href="/">Back to upload</a></p>
+</section>
+{% endblock %} {% block extra_body %}
+<script src="/static/js/optimise.js"></script>
+{% endblock %}

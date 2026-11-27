@@ -190,6 +190,52 @@ the submission itself.
 
 Anonymous uploads share the `MAX_ACTIVE_UPLOADS_PER_USER` limit as a pool.
 
+## Publishing for an organisation
+
+Send `owner: "hotosm-org|<id>"` to `POST /api/v1/s3/createmultipart` or
+`POST /api/v1/uploads`, where `<id>` is a HOT Login organisation the caller
+belongs to. The uploader forwards the session to Login's `GET /api/groups` and
+refuses a non-member or a pending organisation (403), and an anonymous upload
+that names one (400). If Login cannot be reached the request fails with 503
+rather than publishing for the wrong owner. Answers are cached for 60 s per
+account.
+
+The upload stays the caller's (`uploads.user_sub`, "Your uploads"); only the
+published `oam:owner_id` names the organisation, while `oam:uploader_id` still
+names the account. `LOGIN_API_URL` (Login's API origin, e.g.
+`https://login.hotosm.org`) turns the feature on; unset, every upload is owned
+by the uploading account.
+
+## Transferring imagery
+
+`PATCH /api/v1/imagery/{item_id}` with `{"owner": "<owner id>"}` moves published
+imagery to the caller (`hotosm|<sub>`) or to an organisation they belong to
+(`hotosm-org|<id>`). The caller must own the Item, or be an owner or manager
+of the organisation that does; members only see. The change is written
+straight into pgstac and recorded in `imagery_changes` with who made it.
+Browse offers it from My imagery, so `OAM_FRONTEND_URL` is a CORS origin.
+
+## Editing imagery
+
+The same request corrects published metadata: `title`, `provider`,
+`contact`, `platform`, `sensor` and `license`, each optional, with the same
+limits as the upload form. The licence can only change to one of the three
+the form offers that allows at least as much: CC BY-NC or CC BY-SA can open up
+to CC BY, never the other way, since people already rely on the current terms
+(discussion #332). An Item without a licence can get any of the three; one
+under a licence outside the CC BY family, such as CC0 or ODbL, keeps it. Each
+changed field gets its own `imagery_changes` row, and the same people who can
+transfer imagery can edit it. The Item's `metadata.json` asset is not
+rewritten; it stays the record of the Item at ingest, as it does after a
+transfer.
+
+`seen` carries the values the editor showed, as Browse reads them from the
+Item. A field the request changes that no longer holds its `seen` value
+answers 409, so an edit made since is not overwritten. Without `seen`, the
+last request to arrive wins. An edit and a transfer in the same request are
+one write, and the `imagery_changes` rows are inserted before it, so a refused
+write leaves no rows and a failed insert leaves the Item as it was.
+
 ## Integrating an external system
 
 A partner can prefill the upload form without exchanging API tokens: send the

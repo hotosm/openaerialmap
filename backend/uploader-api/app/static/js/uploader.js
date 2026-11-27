@@ -123,6 +123,24 @@ function isAnonymous(form) {
   return Boolean(el && el.checked);
 }
 
+// The organisation to publish for, or null for the signed-in account. An
+// anonymous upload names nobody, so it cannot name an organisation either.
+function ownerChoice(form) {
+  return isAnonymous(form) ? null : fieldValue(form, "owner") || null;
+}
+
+// An anonymous upload has nobody to publish for, so the choice follows the box.
+function wireOwnerControl(form) {
+  const owner = byId("owner");
+  const anonymous = form.querySelector('[name="anonymous"]');
+  if (!owner || !anonymous) return;
+  const sync = () => {
+    owner.disabled = anonymous.checked;
+  };
+  sync();
+  anonymous.addEventListener("change", sync);
+}
+
 function queuedMessage(form) {
   return isAnonymous(form)
     ? "Queued! Track progress in 'Anonymous uploads' below."
@@ -335,6 +353,15 @@ function sourceHint(raw) {
   return "";
 }
 
+// Big uploads are slow and fail more often, so suggest /optimize for them.
+const OPTIMISE_HINT_BYTES = 2 * 1024 ** 3;
+
+function showOptimiseHint() {
+  const file = byId("file-input").files[0];
+  byId("optimise-hint").hidden = !file || file.size < OPTIMISE_HINT_BYTES;
+  byId("optimise-hint-size").textContent = file ? formatBytes(file.size) : "";
+}
+
 // Locking the source while a submission runs keeps applySourceMode from
 // relabelling the button under a running upload.
 function setSourceControlsDisabled(disabled) {
@@ -410,6 +437,7 @@ async function submitRemoteSource(form, sourceUrl) {
     title: metadata.title,
     metadata,
     anonymous: isAnonymous(form),
+    owner: ownerChoice(form),
     ...externalLink(form),
   });
   // One request creates the row and queues it, so there is no earlier id.
@@ -434,6 +462,7 @@ function sessionKey(file, metadata) {
 async function uploadFile(form, file) {
   const metadata = collectMetadata(form);
   const anonymous = isAnonymous(form);
+  const owner = ownerChoice(form);
   const title = metadata.title;
   const totalParts = Math.ceil(file.size / PART_SIZE);
   const totalLabel = formatBytes(file.size);
@@ -442,7 +471,7 @@ async function uploadFile(form, file) {
   setProgress(null, `Preparing upload - 0/${totalParts} parts of ${totalLabel}`);
 
   // Reuse a session for the same file + metadata across reloads.
-  const store = sessionKey(file, { ...metadata, anonymous });
+  const store = sessionKey(file, { ...metadata, anonymous, owner });
   let key, upload_id, existing;
   const saved = JSON.parse(localStorage.getItem(store) || "null");
   if (saved) {
@@ -461,6 +490,7 @@ async function uploadFile(form, file) {
       size_bytes: file.size,
       metadata,
       anonymous,
+      owner,
       ...externalLink(form),
     });
     ({ key, upload_id } = created);
@@ -508,7 +538,10 @@ async function uploadFile(form, file) {
 // The submission is now listed under 'Your uploads', so clear the form
 function clearImageFields(form) {
   const fileInput = byId("file-input");
-  if (fileInput) fileInput.value = "";
+  if (fileInput) {
+    fileInput.value = "";
+    showOptimiseHint();
+  }
   const urlInput = byId("source-url");
   if (urlInput) setFieldValue(urlInput, "");
   const title = form.querySelector('[name="title"]');
@@ -567,6 +600,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = byId("upload-form");
   if (!form) return;
   wireSourceControls(form);
+  wireOwnerControl(form);
+  byId("file-input").addEventListener("change", showOptimiseHint);
+  showOptimiseHint();
   let prefilledUrl = applyPrefill(form);
   if (prefilledUrl) enterRemoteSourceMode(prefilledUrl);
 

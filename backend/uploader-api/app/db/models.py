@@ -167,6 +167,9 @@ class DbUpload:
     checksum: str | None = None
     # Non-fatal notice shown with the status (e.g. duplicate bytes detected).
     warning: str | None = None
+    # Organisation the imagery is published for, as `hotosm-org|<id>`. None:
+    # the uploading account owns it.
+    owner_id: str | None = None
 
     def __post_init__(self) -> None:
         """Normalise the primary key to the `str` this class advertises.
@@ -547,3 +550,39 @@ class DbUpload:
                 },
             )
             return await cur.fetchone() is not None
+
+
+@dataclass(slots=True)
+class DbImageryChange:
+    """A change made to published imagery through the uploader, for the record."""
+
+    item_id: str
+    field: str  # The Item property that changed, e.g. `oam:owner_id`.
+    actor_sub: str
+    old_value: str | None = None
+    new_value: str | None = None
+    id: int | None = None
+    changed_at: datetime | None = None
+
+    @classmethod
+    async def create(cls, db: AsyncConnection, change: Self) -> Self:
+        """Record a change."""
+        async with db.cursor(row_factory=class_row(cls)) as cur:
+            await cur.execute(
+                """
+                INSERT INTO imagery_changes
+                    (item_id, field, actor_sub, old_value, new_value)
+                VALUES
+                    (%(item_id)s, %(field)s, %(actor_sub)s, %(old_value)s,
+                     %(new_value)s)
+                RETURNING *;
+                """,
+                {
+                    "item_id": change.item_id,
+                    "field": change.field,
+                    "actor_sub": change.actor_sub,
+                    "old_value": change.old_value,
+                    "new_value": change.new_value,
+                },
+            )
+            return await cur.fetchone()

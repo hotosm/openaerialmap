@@ -42,14 +42,24 @@ async def _failure_message(upload_id: str) -> str:
     return detail or _GENERIC_FAILURE
 
 
+# The extension only takes these owners, plus `oam-legacy|`, which no upload
+# creates, so any other account publishes without one.
+_OWNER_PREFIXES = ("hotosm|", "hotosm-org|")
+
+
 async def _uploader_meta(db: AsyncConnection, upload: DbUpload) -> dict[str, str]:
-    """Return public uploader metadata for a STAC Item."""
+    """Return public uploader and owner metadata for a STAC Item."""
     sub = upload.user_sub
     if not sub:
         return {}
     meta = {"uploader_id": sub}
     if sub == ANONYMOUS_SUB:
         return meta
+    # The uploader owns the imagery until it is transferred, unless it was
+    # published for one of their organisations.
+    owner = upload.owner_id or sub
+    if owner.startswith(_OWNER_PREFIXES):
+        meta["owner_id"] = owner
     try:
         user = await DbUser.one(db, sub)
     except KeyError:

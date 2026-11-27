@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import rasterio
 from rasterio.enums import ColorInterp
+from rasterio.shutil import copy as rio_copy
 from rasterio.transform import from_origin
 
 SIZE = 600
@@ -259,3 +260,66 @@ def test_a_highly_compressed_input_fits_validate_s_lossy_allowance(tmp_path):
     )
     used = peak - input_bytes
     assert used <= 0.675 * noise.nbytes, used / noise.nbytes
+
+
+def _big_scene_cog(tmp_path):
+    """A server-written visual COG large enough to need overviews."""
+    _meta(tmp_path)
+    data = np.tile(_scene(), (1, 2, 2))
+    path = tmp_path / "server.tif"
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        width=2 * SIZE,
+        height=2 * SIZE,
+        count=3,
+        dtype="uint8",
+        crs="EPSG:32633",
+        transform=from_origin(500000, 5000000, 0.1, 0.1),
+        nodata=0,
+    ) as dst:
+        dst.write(data)
+    cog, _ = _convert(tmp_path, str(path))
+    upload = tmp_path / "input.tif"
+    os.replace(cog, upload)
+    return str(upload)
+
+
+def test_an_upload_that_is_already_a_visual_cog_is_passed_through(tmp_path):
+    src = _big_scene_cog(tmp_path)
+    dst, prov = _convert(tmp_path, src)
+    assert os.path.samefile(src, dst)
+    assert prov["cog_options"] == {
+        "passthrough": True,
+        "compress": "JPEG",
+        "lossy": True,
+    }
+
+
+def test_passthrough_can_be_retried(tmp_path):
+    """A retry finds the earlier attempt's output, without its provenance."""
+    src = _big_scene_cog(tmp_path)
+    os.link(src, tmp_path / "output.tif")
+    dst, prov = _convert(tmp_path, src)
+    assert os.path.samefile(src, dst)
+    assert prov["cog_options"]["passthrough"] is True
+
+
+def test_a_visual_cog_is_converted_when_declared_non_visual(tmp_path):
+    src = _big_scene_cog(tmp_path)
+    _meta(tmp_path, product_type="multispectral")
+    dst, prov = _convert(tmp_path, src)
+    assert not os.path.samefile(src, dst)
+    assert prov["cog_options"]["compress"] == "ZSTD"
+
+
+def test_a_lossless_cog_upload_is_still_converted(tmp_path):
+    _meta(tmp_path)
+    src = _write(tmp_path / "plain.tif", _scene(), nodata=0)
+    with rasterio.open(src) as ds:
+        rio_copy(ds, str(tmp_path / "input.tif"), driver="COG", compress="ZSTD")
+    dst, prov = _convert(tmp_path, str(tmp_path / "input.tif"))
+    assert "passthrough" not in prov["cog_options"]
+    with rasterio.open(dst) as out:
+        assert out.tags(ns="IMAGE_STRUCTURE")["COMPRESSION"] == "YCbCr JPEG"

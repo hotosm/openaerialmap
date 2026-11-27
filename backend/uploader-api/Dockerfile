@@ -1,5 +1,17 @@
 ARG PYTHON_VERSION=3.13
 
+# Browser GDAL for /optimize. Same image (digest) crossbind 2.0.0-beta.81 uses.
+# RUNNER=LOCAL compiles here instead of starting a second container.
+FROM ghcr.io/crossbind/web@sha256:409dbc2d036baf0c55cef4fee45e38ac4f6383b8ebfbce0ed92cbade5f9277a7 AS optimiser
+USER root
+RUN npm install -g pnpm@10.33.2
+ENV CROSSBIND_RUNNER=LOCAL
+WORKDIR /src
+COPY optimiser/package.json optimiser/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY optimiser/ ./
+RUN pnpm build
+
 FROM python:${PYTHON_VERSION}-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
 
@@ -46,6 +58,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 COPY --from=builder /app /app
+COPY --from=optimiser /src/dist /app/optimiser/dist
 # Migrations run as an init-container / one-shot service via this entrypoint.
 COPY migrations/ /opt/migrations/
 COPY migrate-entrypoint.sh /migrate-entrypoint.sh

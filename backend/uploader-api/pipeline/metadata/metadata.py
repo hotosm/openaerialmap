@@ -496,6 +496,11 @@ def _footprint(
 
 def _lineage(opts: dict) -> str:
     """Describe how the visual COG was derived from the archived original."""
+    if opts.get("passthrough"):
+        return (
+            f"The upload was already a {opts.get('compress')} COG with a mask "
+            "band, so the display COG is the unmodified 'original' asset."
+        )
     if opts.get("lossy"):
         return (
             f"Lossy display COG (compress {opts.get('compress')} quality "
@@ -644,6 +649,7 @@ def build_item(
         image_file_size=os.path.getsize(cog_path),
         thumbnail_url=thumbnail_url,
         metadata_url=metadata_url,
+        owner_id=user_md.get("owner_id"),
         uploader_id=user_md.get("uploader_id"),
         uploader_name=user_md.get("uploader_name"),
     ).sanitize()

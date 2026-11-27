@@ -56,3 +56,7 @@ envsubst
 # Local imagery test artifacts (e.g. odm_orthophoto.tif for `just test uploader-e2e`)
 *.tif
 *.tiff
+
+# Browser optimiser build output
+backend/uploader-api/optimiser/.crossbind/
+backend/uploader-api/optimiser/dist/

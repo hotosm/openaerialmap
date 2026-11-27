@@ -38,6 +38,18 @@ content %}
 
     <div id="file-picker" class="oam-source__panel">
       <input type="file" id="file-input" accept=".tif,.tiff" />
+      <wa-callout id="optimise-hint" class="oam-optimise-hint" variant="brand" hidden>
+        <p>
+          <strong>This file is <span id="optimise-hint-size"></span>.</strong>
+          If it is a color photo (drone, aircraft or satellite), optimizing it first
+          often makes it many times smaller, so it uploads and publishes faster. Not for
+          elevation or multispectral files.
+        </p>
+        <!-- Separate page: it needs its own security headers. -->
+        <wa-button href="/optimize" target="_blank" size="small" variant="brand">
+          Optimize before uploading
+        </wa-button>
+      </wa-callout>
     </div>
 
     <div id="url-picker" class="oam-source__panel" hidden>
@@ -163,6 +175,22 @@ content %}
         <wa-option value="pseudocolor">Pseudocolour (paletted)</wa-option>
       </wa-select>
     </wa-details>
+
+    <!-- Only for members of an organisation; the upload checks the choice again. -->
+    {% if organisations %}
+    <wa-select
+      id="owner"
+      name="owner"
+      label="Publish as"
+      value=""
+      hint="Who owns the imagery once it is published. Choosing an organisation lets it manage the imagery; you are still recorded as the uploader."
+    >
+      <wa-option value="">Yourself{% if username %} ({{ username }}){% endif %}</wa-option>
+      {% for org in organisations %}
+      <wa-option value="{{ org.owner_id }}">{{ org.name }}</wa-option>
+      {% endfor %}
+    </wa-select>
+    {% endif %}
 
     <!-- Hint slot, not the attribute: it needs a link, which a tooltip would hide. -->
     <wa-checkbox id="anonymous" name="anonymous">

@@ -1,0 +1,20 @@
+{
+  "name": "oam-optimiser",
+  "private": true,
+  "description": "Browser GDAL build that writes OAM's visual COG before upload",
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "crossbind build -p wasm -a wasm32 -r mt -e browser -b release"
+  },
+  "dependencies": {
+    "@crossbind/port-gdal": "2.0.0-beta.79",
+    "@crossbind/port-gdal-wasm": "2.0.0-beta.79"
+  },
+  "devDependencies": {
+    "crossbind": "2.0.0-beta.81"
+  }
+}

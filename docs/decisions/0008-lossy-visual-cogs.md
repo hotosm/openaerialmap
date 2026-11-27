@@ -31,6 +31,16 @@ times while building overviews. Without compression, conversions use less
 disk and run about a third faster. The lossy budget drops from 0.9x to 0.675x
 decoded size to match. Output at full resolution is unchanged.
 
+Amended November 2026: if an upload already has this codec and layout, it is
+used as is and conversion is skipped. Its own JPEG quality and overviews are
+kept, unlike `COG_OVERVIEWS=IGNORE_EXISTING`. The `/optimize` page makes this
+format in the browser, so large uploads can skip the slowest step. For those
+uploads the archived `original` is the browser's lossy copy, not the user's
+source file, and the page tells users so. A lossless optimiser was rejected:
+it shrinks photos only about 2x, inflates already-JPEG files, and the server
+would still convert them. The cost is extra loss if originals are re-encoded
+to a new codec later.
+
 Record the lossy codec in lineage and the visual asset title. Existing items
 are not converted again.
 

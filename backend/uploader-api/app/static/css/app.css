@@ -259,6 +259,15 @@ hotosm-auth {
   color: var(--oam-bluegrey);
 }
 
+.oam-optimise-notes ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.oam-optimise-hint p {
+  margin: 0 0 0.75rem;
+}
+
 .oam-source__help {
   font-size: var(--oam-text-x-small);
   line-height: 1.5;

@@ -49,6 +49,9 @@ class CreateMultipartBody(ExternalLink):
     size_bytes: int = Field(gt=0)
     metadata: dict[str, str] = {}
     anonymous: bool = False
+    # Publish for an organisation the caller belongs to, as `hotosm-org|<id>`.
+    # Unset, the caller's account owns the imagery.
+    owner: str | None = Field(default=None, max_length=200)
 
 
 class CreateRemoteUploadBody(ExternalLink):
@@ -59,6 +62,7 @@ class CreateRemoteUploadBody(ExternalLink):
     filename: str = Field(default="", max_length=255)
     metadata: dict[str, str] = {}
     anonymous: bool = False
+    owner: str | None = Field(default=None, max_length=200)
 
 
 class ChecksumBody(BaseModel):

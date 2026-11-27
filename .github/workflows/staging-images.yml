@@ -47,6 +47,14 @@ jobs:
       build_target: prod
       dockerfile: stac-ingester/Dockerfile
 
+  global-mosaic:
+    uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
+    with:
+      context: backend/global-mosaic/
+      image_name: ghcr.io/${{ github.repository }}/global-mosaic
+      build_target: prod
+      dockerfile: Dockerfile
+
   tilepack-api:
     uses: hotosm/gh-workflows/.github/workflows/image_build.yml@4.1.0
     with:

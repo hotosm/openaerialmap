@@ -5,8 +5,13 @@
 # passed through the environment, so this script runs right after it and
 # appends a preprocessSTAC hook that adds Open in iD, Open in JOSM and XYZ
 # tile links to every raster item. Nothing else about the image changes.
-ARG STAC_BROWSER_VERSION=5.1.0
+ARG STAC_BROWSER_VERSION=5.2.1
 FROM ghcr.io/radiantearth/stac-browser:${STAC_BROWSER_VERSION}
+
+# Image lags behind on alpine pkg updates, so we do an apk upgrade
+USER root
+RUN apk upgrade --no-cache
+USER nginx
 
 COPY --chown=nginx:nginx oam-links.js /usr/share/nginx/html/oam-links.js
 COPY --chmod=755 50-oam-links.sh /docker-entrypoint.d/50-oam-links.sh
