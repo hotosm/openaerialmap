@@ -5,13 +5,15 @@ HTMX refreshes upload status; the uploader remains plain JavaScript.
 
 import logging
 import uuid
+from pathlib import Path
 
-from litestar import Request, Router, get
+from litestar import Request, Response, Router, get
 from litestar.datastructures import CacheControlHeader
 from litestar.di import Provide
 from litestar.params import FromQuery
 from litestar.plugins.htmx import HTMXTemplate
 from litestar.response import Template
+from litestar.static_files import create_static_files_router
 from psycopg import AsyncConnection
 
 from app.auth import organisations
@@ -29,6 +31,18 @@ from app.db.models import TERMINAL_STATUSES, DbUpload
 log = logging.getLogger(__name__)
 
 MAX_TRACKED = 20
+
+OPTIMISER_DIR = Path(__file__).parents[2] / "optimiser" / "dist"
+# Threaded WASM needs these. Only on the optimiser, as they can block CDN files.
+ISOLATION_HEADERS = {
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Embedder-Policy": "require-corp",
+}
+
+
+def _isolate(response: Response) -> Response:
+    response.headers.update(ISOLATION_HEADERS)
+    return response
 
 
 def _upload_ids(raw: str) -> list[str]:
@@ -73,6 +87,12 @@ async def upload_page(auth_user: object | None, request: Request) -> Template:
             "organisations": await _publishable_organisations(auth_user, request),
         },
     )
+
+
+@get("/optimise", after_request=_isolate)
+async def optimise_page() -> Template:
+    """Render the in-browser optimiser for large visual imagery."""
+    return HTMXTemplate(template_name="optimise.html", context={"active_nav": "upload"})
 
 
 @get("/uploads", dependencies={"auth_user": Provide(login_required)})
@@ -127,6 +147,10 @@ page_router = Router(
     path="/",
     route_handlers=[
         upload_page,
+        optimise_page,
+        create_static_files_router(
+            path="/optimiser", directories=[OPTIMISER_DIR], after_request=_isolate
+        ),
         uploads_partial,
         anonymous_uploads_partial,
         profile_page,
