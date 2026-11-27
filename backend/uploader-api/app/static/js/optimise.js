@@ -89,7 +89,7 @@ async function optimise(file, setStep) {
   if (!window.crossOriginIsolated || !navigator.storage?.getDirectory || !navigator.locks) {
     throw new Error("This browser can't run the optimizer. Try a recent Chrome, Edge or Firefox.");
   }
-  setStep("Downloading the optimizer (tens of MB, cached after the first run)");
+  setStep("Downloading the optimizer (cached after the first run)");
   const gdal = await loadGdal();
   // Without OPFS, files go to memory and large ones fail.
   if ((await gdal.getDefaultPath()) !== OPFS_ROOT) {
