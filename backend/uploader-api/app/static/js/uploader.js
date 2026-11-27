@@ -353,6 +353,15 @@ function sourceHint(raw) {
   return "";
 }
 
+// Big uploads are slow and fail more often, so suggest /optimise for them.
+const OPTIMISE_HINT_BYTES = 2 * 1024 ** 3;
+
+function showOptimiseHint() {
+  const file = byId("file-input").files[0];
+  byId("optimise-hint").hidden = !file || file.size < OPTIMISE_HINT_BYTES;
+  byId("optimise-hint-size").textContent = file ? formatBytes(file.size) : "";
+}
+
 // Locking the source while a submission runs keeps applySourceMode from
 // relabelling the button under a running upload.
 function setSourceControlsDisabled(disabled) {
@@ -529,7 +538,10 @@ async function uploadFile(form, file) {
 // The submission is now listed under 'Your uploads', so clear the form
 function clearImageFields(form) {
   const fileInput = byId("file-input");
-  if (fileInput) fileInput.value = "";
+  if (fileInput) {
+    fileInput.value = "";
+    showOptimiseHint();
+  }
   const urlInput = byId("source-url");
   if (urlInput) setFieldValue(urlInput, "");
   const title = form.querySelector('[name="title"]');
@@ -589,6 +601,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!form) return;
   wireSourceControls(form);
   wireOwnerControl(form);
+  byId("file-input").addEventListener("change", showOptimiseHint);
+  showOptimiseHint();
   let prefilledUrl = applyPrefill(form);
   if (prefilledUrl) enterRemoteSourceMode(prefilledUrl);
 
